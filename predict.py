@@ -15,6 +15,7 @@ import argparse
 from pathlib import Path
 
 from models.predictor import TeamSnapshot, predict_match
+from models.simulator import simulate_match
 from pipelines.update_lineup import load_lineup
 
 PROCESSED_DIR = Path("data/processed")
@@ -49,7 +50,7 @@ def build_snapshot(team_name: str, lineup_data: dict, side: str) -> TeamSnapshot
     )
 
 
-def print_report(home_name: str, away_name: str, result: dict, lineup: dict):
+def print_report(home_name: str, away_name: str, result: dict, lineup: dict, sim: dict | None = None):
     print("\n" + "="*60)
     print(f"  ANÁLISIS: {home_name} vs {away_name}")
     print("="*60)
@@ -79,6 +80,11 @@ def print_report(home_name: str, away_name: str, result: dict, lineup: dict):
     if away_missing:
         print(f"  Bajas {away_name}: {', '.join(away_missing)}")
 
+    if sim is not None:
+        print("\n" + "-"*60)
+        print(f"  xG estimados:  {home_name} {sim['xg_home']}  |  {away_name} {sim['xg_away']}")
+        print(sim["raw_text"])
+
     print("\n" + "="*60 + "\n")
 
 
@@ -106,7 +112,14 @@ def main():
     away_snap = build_snapshot(args.away, lineup, "away")
 
     result = predict_match(home_snap, away_snap, neutral_venue=True)
-    print_report(args.home, args.away, result, lineup)
+
+    sim = simulate_match(
+        home=home_snap,
+        away=away_snap,
+        all_teams=[home_snap, away_snap],
+    )
+
+    print_report(args.home, args.away, result, lineup, sim=sim)
 
 
 if __name__ == "__main__":

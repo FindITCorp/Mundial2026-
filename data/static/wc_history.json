@@ -1,0 +1,400 @@
+{
+  "description": "Team performance at FIFA World Cups 2014, 2018, 2022",
+  "history": [
+    {
+      "team": "Argentina", "slug": "argentina",
+      "editions": [
+        {"year": 2014, "group": "F", "group_stage_result": "1st", "round_reached": "Champion", "matches_played": 7, "goals_scored": 8, "goals_conceded": 4},
+        {"year": 2018, "group": "D", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 6, "goals_conceded": 5},
+        {"year": 2022, "group": "C", "group_stage_result": "1st", "round_reached": "Champion", "matches_played": 7, "goals_scored": 15, "goals_conceded": 8}
+      ]
+    },
+    {
+      "team": "France", "slug": "france",
+      "editions": [
+        {"year": 2014, "group": "E", "group_stage_result": "1st", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 10, "goals_conceded": 5},
+        {"year": 2018, "group": "C", "group_stage_result": "1st", "round_reached": "Champion", "matches_played": 7, "goals_scored": 13, "goals_conceded": 6},
+        {"year": 2022, "group": "D", "group_stage_result": "1st", "round_reached": "Runner-up", "matches_played": 7, "goals_scored": 16, "goals_conceded": 8}
+      ]
+    },
+    {
+      "team": "Brazil", "slug": "brazil",
+      "editions": [
+        {"year": 2014, "group": "A", "group_stage_result": "1st", "round_reached": "4th place", "matches_played": 7, "goals_scored": 11, "goals_conceded": 14},
+        {"year": 2018, "group": "E", "group_stage_result": "1st", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 8, "goals_conceded": 3},
+        {"year": 2022, "group": "G", "group_stage_result": "1st", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 8, "goals_conceded": 3}
+      ]
+    },
+    {
+      "team": "England", "slug": "england",
+      "editions": [
+        {"year": 2014, "group": "D", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 4},
+        {"year": 2018, "group": "G", "group_stage_result": "1st", "round_reached": "4th place", "matches_played": 7, "goals_scored": 12, "goals_conceded": 8},
+        {"year": 2022, "group": "B", "group_stage_result": "1st", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 12, "goals_conceded": 2}
+      ]
+    },
+    {
+      "team": "Portugal", "slug": "portugal",
+      "editions": [
+        {"year": 2014, "group": "G", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 4, "goals_conceded": 7},
+        {"year": 2018, "group": "B", "group_stage_result": "1st", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 7, "goals_conceded": 6},
+        {"year": 2022, "group": "H", "group_stage_result": "1st", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 12, "goals_conceded": 2}
+      ]
+    },
+    {
+      "team": "Spain", "slug": "spain",
+      "editions": [
+        {"year": 2014, "group": "B", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 4, "goals_conceded": 7},
+        {"year": 2018, "group": "B", "group_stage_result": "1st", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 8, "goals_conceded": 5},
+        {"year": 2022, "group": "E", "group_stage_result": "1st", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 9, "goals_conceded": 5}
+      ]
+    },
+    {
+      "team": "Germany", "slug": "germany",
+      "editions": [
+        {"year": 2014, "group": "G", "group_stage_result": "1st", "round_reached": "Champion", "matches_played": 7, "goals_scored": 18, "goals_conceded": 4},
+        {"year": 2018, "group": "F", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 4},
+        {"year": 2022, "group": "E", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 6, "goals_conceded": 5}
+      ]
+    },
+    {
+      "team": "Netherlands", "slug": "netherlands",
+      "editions": [
+        {"year": 2014, "group": "B", "group_stage_result": "1st", "round_reached": "3rd place", "matches_played": 7, "goals_scored": 15, "goals_conceded": 4},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": "A", "group_stage_result": "1st", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 8, "goals_conceded": 5}
+      ]
+    },
+    {
+      "team": "Belgium", "slug": "belgium",
+      "editions": [
+        {"year": 2014, "group": "H", "group_stage_result": "1st", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 6, "goals_conceded": 4},
+        {"year": 2018, "group": "G", "group_stage_result": "1st", "round_reached": "3rd place", "matches_played": 7, "goals_scored": 16, "goals_conceded": 6},
+        {"year": 2022, "group": "F", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 1, "goals_conceded": 2}
+      ]
+    },
+    {
+      "team": "Morocco", "slug": "morocco",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": "B", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 4},
+        {"year": 2022, "group": "F", "group_stage_result": "1st", "round_reached": "4th place", "matches_played": 7, "goals_scored": 6, "goals_conceded": 5}
+      ]
+    },
+    {
+      "team": "Japan", "slug": "japan",
+      "editions": [
+        {"year": 2014, "group": "C", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 6},
+        {"year": 2018, "group": "H", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 6, "goals_conceded": 7},
+        {"year": 2022, "group": "E", "group_stage_result": "1st", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 4, "goals_conceded": 3}
+      ]
+    },
+    {
+      "team": "USA", "slug": "usa",
+      "editions": [
+        {"year": 2014, "group": "G", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 5, "goals_conceded": 6},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": "B", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 3, "goals_conceded": 5}
+      ]
+    },
+    {
+      "team": "Mexico", "slug": "mexico",
+      "editions": [
+        {"year": 2014, "group": "A", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 5, "goals_conceded": 4},
+        {"year": 2018, "group": "F", "group_stage_result": "1st", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 3, "goals_conceded": 4},
+        {"year": 2022, "group": "C", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 3}
+      ]
+    },
+    {
+      "team": "Colombia", "slug": "colombia",
+      "editions": [
+        {"year": 2014, "group": "C", "group_stage_result": "1st", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 12, "goals_conceded": 4},
+        {"year": 2018, "group": "H", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 6, "goals_conceded": 3},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Uruguay", "slug": "uruguay",
+      "editions": [
+        {"year": 2014, "group": "D", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 4, "goals_conceded": 5},
+        {"year": 2018, "group": "A", "group_stage_result": "1st", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 7, "goals_conceded": 3},
+        {"year": 2022, "group": "H", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 3}
+      ]
+    },
+    {
+      "team": "Croatia", "slug": "croatia",
+      "editions": [
+        {"year": 2014, "group": "A", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 6, "goals_conceded": 6},
+        {"year": 2018, "group": "D", "group_stage_result": "1st", "round_reached": "Runner-up", "matches_played": 7, "goals_scored": 14, "goals_conceded": 9},
+        {"year": 2022, "group": "F", "group_stage_result": "2nd", "round_reached": "3rd place", "matches_played": 7, "goals_scored": 10, "goals_conceded": 7}
+      ]
+    },
+    {
+      "team": "Switzerland", "slug": "switzerland",
+      "editions": [
+        {"year": 2014, "group": "E", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 7, "goals_conceded": 6},
+        {"year": 2018, "group": "E", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 5, "goals_conceded": 4},
+        {"year": 2022, "group": "G", "group_stage_result": "2nd", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 7, "goals_conceded": 6}
+      ]
+    },
+    {
+      "team": "Ecuador", "slug": "ecuador",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": "A", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 4, "goals_conceded": 6}
+      ]
+    },
+    {
+      "team": "Senegal", "slug": "senegal",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": "H", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 4, "goals_conceded": 4},
+        {"year": 2022, "group": "A", "group_stage_result": "1st", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 5, "goals_conceded": 7}
+      ]
+    },
+    {
+      "team": "South Korea", "slug": "south_korea",
+      "editions": [
+        {"year": 2014, "group": "H", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 3, "goals_conceded": 6},
+        {"year": 2018, "group": "F", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 3, "goals_conceded": 3},
+        {"year": 2022, "group": "H", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 5, "goals_conceded": 6}
+      ]
+    },
+    {
+      "team": "Canada", "slug": "canada",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": "F", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 1, "goals_conceded": 5}
+      ]
+    },
+    {
+      "team": "Iran", "slug": "iran",
+      "editions": [
+        {"year": 2014, "group": "F", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 1, "goals_conceded": 4},
+        {"year": 2018, "group": "B", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 4},
+        {"year": 2022, "group": "B", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 4, "goals_conceded": 7}
+      ]
+    },
+    {
+      "team": "Australia", "slug": "australia",
+      "editions": [
+        {"year": 2014, "group": "B", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 3, "goals_conceded": 9},
+        {"year": 2018, "group": "C", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 5},
+        {"year": 2022, "group": "D", "group_stage_result": "2nd", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 7, "goals_conceded": 8}
+      ]
+    },
+    {
+      "team": "Poland", "slug": "poland",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": "H", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 5},
+        {"year": 2022, "group": "C", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 3, "goals_conceded": 3}
+      ]
+    },
+    {
+      "team": "Italy", "slug": "italy",
+      "editions": [
+        {"year": 2014, "group": "D", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 3, "goals_conceded": 4},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Denmark", "slug": "denmark",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": "C", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 2, "goals_conceded": 2},
+        {"year": 2022, "group": "D", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 1, "goals_conceded": 3}
+      ]
+    },
+    {
+      "team": "Serbia", "slug": "serbia",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": "E", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 4},
+        {"year": 2022, "group": "G", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 5, "goals_conceded": 9}
+      ]
+    },
+    {
+      "team": "Nigeria", "slug": "nigeria",
+      "editions": [
+        {"year": 2014, "group": "F", "group_stage_result": "2nd", "round_reached": "Round of 16", "matches_played": 4, "goals_scored": 5, "goals_conceded": 6},
+        {"year": 2018, "group": "D", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 3, "goals_conceded": 4},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Turkey", "slug": "turkey",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Saudi Arabia", "slug": "saudi_arabia",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": "A", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 7},
+        {"year": 2022, "group": "C", "group_stage_result": "3rd", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 3, "goals_conceded": 5}
+      ]
+    },
+    {
+      "team": "Egypt", "slug": "egypt",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": "A", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 6},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Austria", "slug": "austria",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Panama", "slug": "panama",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": "G", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 11},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Iraq", "slug": "iraq",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Honduras", "slug": "honduras",
+      "editions": [
+        {"year": 2014, "group": "E", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 1, "goals_conceded": 8},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Bolivia", "slug": "bolivia",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Scotland", "slug": "scotland",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Romania", "slug": "romania",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Venezuela", "slug": "venezuela",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Ghana", "slug": "ghana",
+      "editions": [
+        {"year": 2014, "group": "G", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 4, "goals_conceded": 4},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": "H", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 5, "goals_conceded": 7}
+      ]
+    },
+    {
+      "team": "Hungary", "slug": "hungary",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "DR Congo", "slug": "dr_congo",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Cameroon", "slug": "cameroon",
+      "editions": [
+        {"year": 2014, "group": "A", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 1, "goals_conceded": 9},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": "G", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 4, "goals_conceded": 7}
+      ]
+    },
+    {
+      "team": "Slovenia", "slug": "slovenia",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Costa Rica", "slug": "costa_rica",
+      "editions": [
+        {"year": 2014, "group": "D", "group_stage_result": "1st", "round_reached": "Quarter-final", "matches_played": 5, "goals_scored": 5, "goals_conceded": 2},
+        {"year": 2018, "group": "E", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 2, "goals_conceded": 5},
+        {"year": 2022, "group": "E", "group_stage_result": "4th", "round_reached": "Group Stage", "matches_played": 3, "goals_scored": 3, "goals_conceded": 11}
+      ]
+    },
+    {
+      "team": "Jordan", "slug": "jordan",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Jamaica", "slug": "jamaica",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    },
+    {
+      "team": "Paraguay", "slug": "paraguay",
+      "editions": [
+        {"year": 2014, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2018, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0},
+        {"year": 2022, "group": null, "group_stage_result": null, "round_reached": "Did not qualify", "matches_played": 0, "goals_scored": 0, "goals_conceded": 0}
+      ]
+    }
+  ],
+  "round_order": ["Did not qualify", "Group Stage", "Round of 16", "Quarter-final", "4th place", "3rd place", "Runner-up", "Champion"],
+  "round_points": {
+    "Did not qualify": 0,
+    "Group Stage": 1,
+    "Round of 16": 2,
+    "Quarter-final": 3,
+    "4th place": 4,
+    "3rd place": 5,
+    "Runner-up": 6,
+    "Champion": 7
+  }
+}
