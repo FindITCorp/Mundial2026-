@@ -1,0 +1,22 @@
+{
+  "team": "Mexico",
+  "ranking_fifa": 15,
+  "goals_scored_avg": 1.8,
+  "goals_conceded_avg": 1.1,
+  "possession_avg": 52.0,
+  "recent_form": [
+    {"opponent": "Uruguay",   "result": "W", "score": "2-1", "competition": "Amistoso"},
+    {"opponent": "Ecuador",   "result": "D", "score": "1-1", "competition": "Copa América Q"},
+    {"opponent": "Honduras",  "result": "W", "score": "3-0", "competition": "CONCACAF Nations"},
+    {"opponent": "Jamaica",   "result": "W", "score": "2-0", "competition": "CONCACAF Nations"},
+    {"opponent": "Canada",    "result": "L", "score": "0-1", "competition": "Amistoso"},
+    {"opponent": "Bolivia",   "result": "W", "score": "3-1", "competition": "Amistoso"},
+    {"opponent": "Costa Rica","result": "W", "score": "2-0", "competition": "WCQ CONCACAF"},
+    {"opponent": "Panama",    "result": "W", "score": "3-1", "competition": "WCQ CONCACAF"},
+    {"opponent": "USA",       "result": "D", "score": "0-0", "competition": "WCQ CONCACAF"},
+    {"opponent": "Guatemala", "result": "W", "score": "4-0", "competition": "CONCACAF Nations"}
+  ],
+  "h2h_vs": {},
+  "key_players": ["Hirving Lozano", "Raúl Jiménez", "Edson Álvarez", "Santiago Giménez", "Guillermo Ochoa"],
+  "notes": "Co-anfitrión del Mundial 2026. Juega en estadios de México (Estadio Azteca, Guadalajara, Monterrey). Fuerte presión local."
+}

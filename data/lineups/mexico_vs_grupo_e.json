@@ -1,0 +1,31 @@
+{
+  "match": "Mexico — Partido Inaugural Grupo A",
+  "date": "2026-06-11",
+  "updated_at": "2026-05-21T00:00:00",
+  "home": {
+    "team": "Mexico",
+    "formation": "4-3-3",
+    "starters": [
+      "Guillermo Ochoa",
+      "Jorge Sánchez", "Johan Vásquez", "César Montes", "Gerardo Arteaga",
+      "Edson Álvarez", "Orbelín Pineda", "Héctor Herrera",
+      "Hirving Lozano", "Santiago Giménez", "Alexis Vega"
+    ],
+    "injuries": [],
+    "suspensions": [],
+    "key_players": ["Santiago Giménez", "Hirving Lozano", "Edson Álvarez"]
+  },
+  "away": {
+    "team": "Por confirmar",
+    "formation": "4-4-2",
+    "starters": [],
+    "injuries": [],
+    "suspensions": [],
+    "key_players": []
+  },
+  "context": {
+    "venue": "Estadio Azteca, Ciudad de México (Capacidad: 87,500)",
+    "weather": "Tarde, ~22°C, posible lluvia",
+    "notes": "México como co-anfitrión tiene enorme presión local. El Azteca será el estadio más icónico del torneo. Primera vez que México juega en casa un Mundial desde 1986."
+  }
+}
