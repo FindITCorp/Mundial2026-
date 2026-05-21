@@ -1,17 +1,37 @@
-name: Fetch World Cup Data
+name: Update WC2026 Data
 
 on:
-  workflow_dispatch:          # Manual trigger
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'What to update: all / squads / stats / form / lineups / wc'
+        required: false
+        default: 'form'
+        type: choice
+        options:
+          - all
+          - squads
+          - stats
+          - form
+          - lineups
+          - wc
   schedule:
-    - cron: '0 6 * * *'       # Daily 6am UTC (during tournament)
+    - cron: '0 */6 * * *'    # Every 6 hours during tournament
+    - cron: '0 8 * * 1'      # Weekly full update on Monday 8am UTC (off-season)
 
 jobs:
-  fetch:
+  update:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    timeout-minutes: 45
 
-      - uses: actions/setup-python@v5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -19,30 +39,57 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Setup database
+      - name: Create required directories
+        run: |
+          mkdir -p data/cache/api_football
+          mkdir -p data/cache/football_data_org
+          mkdir -p data/cache/players
+          mkdir -p data/cache/teams
+          mkdir -p data/logs
+          mkdir -p data/lineups
+
+      - name: Setup database (if needed)
         env:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
           API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
         run: python scripts/setup_db.py
 
-      - name: Fetch teams
+      - name: Run data update pipeline
         env:
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
           API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
-        run: python pipelines/fetch_teams.py
+        run: |
+          SCOPE="${{ github.event.inputs.scope }}"
+          SCOPE="${SCOPE:-form}"
+          echo "Running pipeline with scope: $SCOPE"
+          python pipelines/full_update.py --scope "$SCOPE"
 
-      - name: Fetch team match history (last 3 years)
-        env:
-          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
-          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
-        run: python pipelines/fetch_data.py
+      - name: Show update summary
+        run: |
+          python - <<'EOF'
+          import sqlite3
+          from pathlib import Path
+          db = Path("data/mundial2026.db")
+          if db.exists():
+              conn = sqlite3.connect(db)
+              tables = ["teams", "players", "team_matches", "wc_matches",
+                        "player_ratings", "squad_selections", "match_lineups"]
+              print("\n=== DB Summary ===")
+              for t in tables:
+                  try:
+                      c = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                      print(f"  {t:<25}: {c}")
+                  except Exception:
+                      pass
+              conn.close()
+          EOF
 
-      - name: Commit updated data
+      - name: Commit and push updated data
         run: |
           git config user.name "mundial-bot"
-          git config user.email "bot@mundial2026"
-          git add data/processed/ data/static/ data/cache/ || true
-          git diff --staged --quiet || git commit -m "chore: auto-update match data $(date +'%Y-%m-%d')"
-          git push origin main
+          git config user.email "bot@mundial2026.local"
+          git add data/mundial2026.db data/cache/ data/logs/ data/lineups/ || true
+          git diff --staged --quiet || git commit -m "chore: auto-update WC2026 data [scope=${{ github.event.inputs.scope || 'form' }}] $(date +'%Y-%m-%d %H:%M')"
+          git push origin main || echo "Nothing to push or push failed"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from models.predictor import predict_match
 from pipelines.update_lineup import load_lineup
+from models.lineup_estimator import estimate_lineup, print_lineup
 
 BASE_DIR = Path(__file__).parent
 DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
@@ -324,6 +325,71 @@ def print_full_report(result, lineup_data=None):
     print(f"{sep}\n")
 
 
+def _get_confirmed_lineup_from_db(team_name: str, match_id: int = None) -> list:
+    """
+    Check match_lineups table for a confirmed lineup.
+    Returns list of starter dicts or empty list if not found.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # Find team_id
+    team_row = conn.execute(
+        "SELECT id FROM teams WHERE name=?", (team_name,)
+    ).fetchone()
+
+    if not team_row:
+        conn.close()
+        return []
+
+    team_id = team_row["id"]
+
+    query = """
+        SELECT ml.player_id, ml.position, ml.starter,
+               p.name, p.club, p.caps
+        FROM match_lineups ml
+        JOIN players p ON p.id = ml.player_id
+        WHERE ml.team_id=? AND ml.starter=1
+    """
+    params = [team_id]
+
+    if match_id:
+        query += " AND ml.match_id=?"
+        params.append(match_id)
+
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def _show_lineup_estimate(home_team: str, away_team: str) -> None:
+    """
+    Display lineup info for both teams:
+    - CONFIRMADA if match_lineups table has data
+    - ESTIMADA (basada en historial del DT) if estimated
+    """
+    print(f"\n{'='*65}")
+    print(f"  ALINEACIONES")
+    print(f"{'='*65}")
+
+    for team_name in [home_team, away_team]:
+        # 1. Check match_lineups table for confirmed lineup
+        confirmed = _get_confirmed_lineup_from_db(team_name)
+
+        if confirmed:
+            print(f"\n  [{team_name}] ALINEACION CONFIRMADA")
+            print(f"  {'#':<3} {'Nombre':<28} {'POS':<5} {'Club'}")
+            print(f"  {'-'*65}")
+            for i, p in enumerate(confirmed[:11], 1):
+                print(f"  {i:<3} {p['name']:<28} {p['position'] or '?':<5} {p.get('club','')}")
+        else:
+            # 2. Estimate lineup using lineup_estimator
+            lineup = estimate_lineup(team_name)
+            print_lineup(lineup)
+            if lineup.get("estimated"):
+                print(f"  [Nota: Alineacion ESTIMADA basada en historial del DT]")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Sistema de Prediccion -- FIFA Mundial 2026",
@@ -341,6 +407,8 @@ Ejemplos:
     parser.add_argument("--home", help="Equipo local")
     parser.add_argument("--away", help="Equipo visitante")
     parser.add_argument("--lineup", help="Slug del archivo de alineacion (sin .json)")
+    parser.add_argument("--no-lineup", action="store_true",
+                        help="Omitir visualizacion de alineaciones")
     parser.add_argument("--neutral", action="store_true", default=True,
                         help="Sede neutral (default en Mundial)")
     parser.add_argument("--no-neutral", dest="neutral", action="store_false",
@@ -381,8 +449,13 @@ Ejemplos:
     if args.lineup:
         try:
             lineup_data = load_lineup(args.lineup)
+            print(f"  Alineacion CONFIRMADA cargada: {args.lineup}")
         except FileNotFoundError:
-            print(f"  Sin alineacion confirmada para '{args.lineup}'. Usando datos base.")
+            print(f"  Sin alineacion confirmada para '{args.lineup}'. Buscando en DB...")
+
+    # If no lineup provided (and not suppressed), check match_lineups table then estimate
+    if not lineup_data and not args.no_lineup:
+        _show_lineup_estimate(args.home, args.away)
 
     # Run prediction
     print(f"\nCalculando prediccion: {args.home} vs {args.away}...")

@@ -1,0 +1,225 @@
+name: Match Day Live Updates
+
+on:
+  workflow_dispatch:
+    inputs:
+      fixture_id:
+        description: 'API-Football fixture ID for the match (optional)'
+        required: false
+        type: string
+      match_id:
+        description: 'WC match ID in our DB (optional - for manual result entry)'
+        required: false
+        type: string
+  schedule:
+    # During tournament: run every 30 min from 14:00 to 00:00 UTC
+    # (covers afternoon + evening kickoffs across USA/Mexico/Canada time zones)
+    - cron: '0,30 14-23 11-20 6 *'    # June 11-20: Group stage day 1-10
+    - cron: '0,30 14-23 21-30 6 *'    # June 21-30: Group stage day 11-20
+    - cron: '0,30 14-23 1-9 7 *'      # July 1-9: Round of 32 / Round of 16
+    - cron: '0,30 17-23 10-19 7 *'    # July 10-19: Quarters, Semis, Final
+
+jobs:
+  match_day_update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create required directories
+        run: |
+          mkdir -p data/cache/api_football
+          mkdir -p data/cache/football_data_org
+          mkdir -p data/logs
+          mkdir -p data/lineups
+
+      - name: Check current time and upcoming matches
+        run: |
+          python - <<'EOF'
+          import sqlite3
+          from datetime import datetime, timedelta
+          from pathlib import Path
+
+          db = Path("data/mundial2026.db")
+          if not db.exists():
+              print("DB not found")
+              exit(0)
+
+          conn = sqlite3.connect(db)
+          conn.row_factory = sqlite3.Row
+          now = datetime.utcnow()
+          today = now.strftime("%Y-%m-%d")
+          tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+
+          matches = conn.execute("""
+              SELECT id, date, time, home_team_name, away_team_name, played
+              FROM wc_matches
+              WHERE date BETWEEN ? AND ? AND played=0
+              ORDER BY date, time
+              LIMIT 5
+          """, (today, tomorrow)).fetchall()
+
+          if matches:
+              print(f"Upcoming matches (next 24h):")
+              for m in matches:
+                  print(f"  [{m['id']}] {m['date']} {m['time']} | {m['home_team_name']} vs {m['away_team_name']}")
+          else:
+              print("No upcoming unplayed matches in next 24h")
+
+          conn.close()
+          EOF
+
+      - name: Fetch confirmed lineups (pre-match)
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          python - <<'EOF'
+          import os
+          import sys
+          import time
+          import sqlite3
+          from datetime import datetime, timedelta
+          from pathlib import Path
+
+          sys.path.insert(0, str(Path(".").resolve()))
+          db = Path("data/mundial2026.db")
+          if not db.exists():
+              print("DB not found, skipping")
+              exit(0)
+
+          fixture_id = os.environ.get("INPUT_FIXTURE_ID", "").strip()
+
+          # If explicit fixture_id provided via workflow_dispatch
+          if fixture_id:
+              try:
+                  from pipelines.fetch_api_football import fetch_live_lineups, _save_lineups_to_db
+                  print(f"Fetching lineup for fixture {fixture_id}...")
+                  lineups = fetch_live_lineups(int(fixture_id))
+                  if lineups:
+                      saved = _save_lineups_to_db(int(fixture_id), lineups)
+                      print(f"Saved {saved} lineup entries")
+                  else:
+                      print("No lineup data yet (match may not have started)")
+              except Exception as e:
+                  print(f"Error fetching lineup: {e}")
+              exit(0)
+
+          # Auto-detect matches in next 2h and past 3h (live/recent)
+          conn = sqlite3.connect(db)
+          conn.row_factory = sqlite3.Row
+          now = datetime.utcnow()
+          window_start = (now - timedelta(hours=3)).strftime("%Y-%m-%d")
+          window_end = (now + timedelta(hours=2)).strftime("%Y-%m-%d")
+
+          matches = conn.execute("""
+              SELECT id FROM wc_matches
+              WHERE date BETWEEN ? AND ?
+              ORDER BY date, time
+          """, (window_start, window_end)).fetchall()
+          conn.close()
+
+          if not matches:
+              print("No matches in current time window")
+              exit(0)
+
+          try:
+              from pipelines.fetch_api_football import fetch_live_lineups, _save_lineups_to_db, AF_KEY
+              if not AF_KEY:
+                  print("No API_FOOTBALL_KEY set, skipping lineup fetch")
+                  exit(0)
+
+              for m in matches:
+                  print(f"Fetching lineup for match ID {m['id']}...")
+                  lineups = fetch_live_lineups(m["id"])
+                  if lineups:
+                      saved = _save_lineups_to_db(m["id"], lineups)
+                      print(f"  -> {saved} entries saved")
+                  else:
+                      print(f"  -> No lineup available yet")
+                  time.sleep(2)
+          except Exception as e:
+              print(f"Error: {e}")
+          EOF
+        env:
+          INPUT_FIXTURE_ID: ${{ github.event.inputs.fixture_id }}
+
+      - name: Update WC match results
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+        run: |
+          python pipelines/full_update.py --scope wc || echo "WC update step finished"
+
+      - name: Recompute player ratings for recently played matches
+        run: |
+          python - <<'EOF'
+          import sqlite3
+          import sys
+          from pathlib import Path
+          from datetime import datetime, timedelta
+
+          sys.path.insert(0, str(Path(".").resolve()))
+          db = Path("data/mundial2026.db")
+          if not db.exists():
+              exit(0)
+
+          conn = sqlite3.connect(db)
+          conn.row_factory = sqlite3.Row
+
+          # Get teams from recently played WC matches
+          yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+          recent_matches = conn.execute("""
+              SELECT DISTINCT home_team_id, away_team_id
+              FROM wc_matches WHERE played=1 AND date >= ?
+          """, (yesterday,)).fetchall()
+
+          if not recent_matches:
+              print("No recent matches to recompute ratings for")
+              conn.close()
+              exit(0)
+
+          team_ids = set()
+          for m in recent_matches:
+              if m["home_team_id"]:
+                  team_ids.add(m["home_team_id"])
+              if m["away_team_id"]:
+                  team_ids.add(m["away_team_id"])
+
+          conn.close()
+          print(f"Recomputing ratings for {len(team_ids)} teams from recent WC matches")
+
+          try:
+              from models.player_rating import PlayerRater
+              rater = PlayerRater(db)
+              total = 0
+              for tid in team_ids:
+                  n = rater.rate_team(tid)
+                  total += n
+              print(f"Updated {total} player ratings")
+          except Exception as e:
+              print(f"Rating recompute error (non-fatal): {e}")
+          EOF
+
+      - name: Commit and push live data updates
+        run: |
+          git config user.name "mundial-matchday-bot"
+          git config user.email "matchday@mundial2026.local"
+          git add data/mundial2026.db data/cache/ data/lineups/ data/logs/ || true
+          git diff --staged --quiet || git commit -m "live: match day update $(date +'%Y-%m-%d %H:%M') UTC"
+          git push origin main || echo "Nothing new to push"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

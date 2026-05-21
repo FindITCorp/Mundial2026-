@@ -132,6 +132,7 @@ python predict.py --home "Panama" --away "Croatia"
 python predict.py --home "Brazil" --away "Argentina"
 python predict.py --home "Mexico" --away "USA" --lineup mexico_vs_usa
 python predict.py --home "France" --away "England" --json  # Output JSON
+python predict.py --home "Spain" --away "Germany" --no-lineup  # Sin mostrar alineacion
 ```
 
 ### Ver equipos y calendario:
@@ -147,12 +148,16 @@ python scripts/setup_db.py              # Crea BD con todos los datos
 python scripts/setup_db.py --reset      # Borra y recrea desde cero
 ```
 
-### Actualizar datos:
+### Actualizar datos (pipelines):
 ```bash
-python pipelines/full_update.py                       # Actualizacion completa
-python pipelines/full_update.py --quick               # Sin API calls lentos
+python pipelines/full_update.py                          # Actualizacion completa
+python pipelines/full_update.py --scope squads           # Solo convocatorias (cuando salen oficialmente)
+python pipelines/full_update.py --scope form             # Solo forma reciente
+python pipelines/full_update.py --scope stats            # Solo stats de jugadores
+python pipelines/full_update.py --scope lineups          # Solo alineaciones confirmadas
+python pipelines/full_update.py --scope wc               # Solo resultados WC (durante torneo)
 python pipelines/full_update.py --teams "Panama" "Croatia"  # Solo 2 equipos
-python pipelines/full_update.py --wc-only             # Solo resultados WC (durante torneo)
+python pipelines/full_update.py --quick                  # Sin API calls lentos
 ```
 
 ### Durante el torneo:
@@ -163,11 +168,92 @@ python pipelines/update_wc.py --result 5 2 1          # Setear resultado manualm
 python pipelines/update_wc.py --match-id 19           # Recomputar ratings match
 ```
 
+### APIs individuales:
+```bash
+# API-Football (RapidAPI):
+python pipelines/fetch_api_football.py --status           # Ver uso de API (calls/day)
+python pipelines/fetch_api_football.py --squad "Panama"   # Squad oficial de Panama
+python pipelines/fetch_api_football.py --fixtures 1887    # Ultimos 20 partidos Panama
+python pipelines/fetch_api_football.py --h2h 1887 3       # H2H Panama vs Croatia
+python pipelines/fetch_api_football.py --lineup 1234567   # Alineacion confirmada por fixture_id
+python pipelines/fetch_api_football.py --all-squads       # Squads de los 48 equipos
+
+# football-data.org:
+python pipelines/fetch_football_data_org.py --schedule     # Calendario WC2026
+python pipelines/fetch_football_data_org.py --standings    # Clasificacion actual
+python pipelines/fetch_football_data_org.py --history "Panama"  # Historial Panama (3 anos)
+python pipelines/fetch_football_data_org.py --all          # Todo de una vez
+```
+
 ### Jugadores y similitud:
 ```bash
 python models/player_rating.py "Panama"               # Ratings plantilla
 python models/team_similarity.py "Panama"             # Equipos similares
 python models/team_similarity.py "Panama" "Croatia"   # Proxy H2H
+python models/lineup_estimator.py "Panama"            # Alineacion estimada standalone
+```
+
+### Trigger manual via GitHub Actions:
+- Ve a: `Actions` > `Update WC2026 Data` > `Run workflow`
+- Selecciona scope: `all / squads / stats / form / lineups / wc`
+- El workflow corre, actualiza el DB y hace commit automatico
+
+---
+
+## COMO FUNCIONA LA ESTIMACION DE ALINEACION
+
+Cuando NO hay alineacion confirmada en `match_lineups`, `predict.py` llama a `models/lineup_estimator.py`:
+
+1. **Formacion del DT** (hardcodeada por equipo):
+   - Brazil/Argentina/Spain/England/Portugal/Morocco/Senegal/Mexico/USA: 4-3-3
+   - France/Germany/Croatia/Japan: 4-2-3-1
+   - Netherlands: 3-4-3
+   - Panama: 4-4-2
+   - Default (otros): 4-4-2
+
+2. **Seleccion de jugadores** (por posicion segun formacion):
+   - Prioridad 1: Frecuencia en ultimos 10 partidos de seleccion (player_nat_stats)
+   - Prioridad 2: Rating mas alto disponible (player_ratings)
+   - Prioridad 3: Si ratings vacios, usa club_stats como proxy (goles/asistencias/minutos)
+   - Excluye: jugadores con confirmed=0 en squad_selections (lesionados/suspendidos)
+
+3. **Confianza** (high/medium/low):
+   - HIGH: ratings + frecuencia nat stats + squad completo
+   - MEDIUM: ratings disponibles o squad completo pero sin freq data
+   - LOW: datos limitados
+
+4. **Output** muestra: "ESTIMADA (basada en historial del DT)" vs "CONFIRMADA"
+
+---
+
+## CUANDO SALEN LAS CONVOCATORIAS OFICIALES
+
+1. Ejecutar: `python pipelines/full_update.py --scope squads`
+2. O via GitHub Actions: `Actions > Update WC2026 Data > Run workflow > scope=squads`
+3. Si tienes los datos en JSON: crear `data/lineups/equipo_vs_equipo.json` y usar `--lineup`
+
+---
+
+## API RATE LIMITS Y PRESUPUESTO DIARIO
+
+### API-Football (RapidAPI) — Free Tier:
+- **100 requests/day** limite duro
+- El sistema trackea uso en: `data/cache/api_calls_log.json`
+- Cache: 24h (no re-llama si cache reciente)
+- Para ver uso actual: `python pipelines/fetch_api_football.py --status`
+- Priorizar llamadas: squads (48 calls) + form (48 calls) = 96 calls/dia maximo
+- Guardar 4-5 calls de reserva para lineups live en dia de partido
+
+### football-data.org — Free Tier:
+- 10 requests/minute
+- El pipeline incluye sleeps automaticos para respetar el limite
+- Scope `form` y `schedule` son las mas utiles en free tier
+
+### Estrategia para conservar calls:
+```
+Lunes (off-season): full update = squads + form
+Dia de partido: scope=lineups (1-2 calls) + scope=wc (1 call)
+Post-partido: scope=stats para actualizar ratings
 ```
 
 ---
@@ -176,13 +262,13 @@ python models/team_similarity.py "Panama" "Croatia"   # Proxy H2H
 
 | Fuente | Que tiene | API Key |
 |--------|-----------|---------|
-| football-data.org | Resultados, H2H, clasificaciones | FOOTBALL_DATA_API_KEY |
-| api-football.com | Stats por jugador, alineaciones, fixtures | API_FOOTBALL_KEY |
+| football-data.org | Resultados, H2H, clasificaciones, calendario | FOOTBALL_DATA_API_KEY |
+| api-football.com (RapidAPI) | Squads, stats jugadores, alineaciones live | API_FOOTBALL_KEY |
 | Datos estaticos (data/static/) | 48 equipos, calendario, historial WC | Sin clave |
 
 API Keys en `.env` (nunca en git). Ver `.env.example`.
 
-**El sistema funciona sin API keys** usando los datos estaticos y sintetizados.
+**El sistema funciona completamente sin API keys** usando datos estaticos y sintetizados.
 
 ---
 
@@ -227,11 +313,23 @@ El proyecto logistico (separado) esta en `/home/user/logistic/`.
 
 ---
 
+## ARCHIVOS NUEVOS (mayo 2026)
+
+| Archivo | Descripcion |
+|---------|-------------|
+| `pipelines/fetch_api_football.py` | Pipeline completo API-Football con cache y rate limiting |
+| `pipelines/fetch_football_data_org.py` | Pipeline football-data.org (schedule, history, standings) |
+| `pipelines/full_update.py` | Orquestador maestro reemplazado con --scope y logging |
+| `.github/workflows/fetch_data.yml` | Workflow actualizado con scope selection y cron schedule |
+| `.github/workflows/match_day.yml` | Nuevo workflow: actualizaciones cada 30min en dias de partido |
+
+---
+
 ## PROXIMOS PASOS
 
-- [ ] Conectar API keys para datos reales (football-data.org, api-football.com)
+- [ ] Configurar API keys en GitHub Secrets (FOOTBALL_DATA_API_KEY, API_FOOTBALL_KEY)
 - [ ] Agregar datos de alineaciones cuando se confirmen convocatorias oficiales
 - [ ] Actualizar fixtures en schedule_wc2026.json con horarios confirmados
 - [ ] Agregar modelo xG (goles esperados) para prediccion de marcador mas precisa
 - [ ] Jupyter notebook con analisis de grupos completo
-- [ ] Durante torneo: correr `pipelines/update_wc.py` tras cada jornada
+- [ ] Durante torneo: correr scope=wc tras cada jornada via GitHub Actions
