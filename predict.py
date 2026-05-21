@@ -1,125 +1,412 @@
 """
-Punto de entrada principal. Predice el resultado de un partido.
+predict.py — Master prediction script for FIFA World Cup 2026.
 
-Uso:
+Usage:
+  python predict.py --home "Panama" --away "Croatia"
+  python predict.py --home "Brazil" --away "Argentina" --neutral
   python predict.py --home "Mexico" --away "USA" --lineup mexico_vs_usa
-
-El script:
-1. Carga datos históricos del equipo desde data/processed/
-2. Carga alineación confirmada desde data/lineups/
-3. Ejecuta el modelo de predicción
-4. Imprime el análisis completo
+  python predict.py --list-teams
+  python predict.py --group A
+  python predict.py --schedule
 """
 import json
 import argparse
+import sqlite3
+import sys
 from pathlib import Path
 
-from models.predictor import TeamSnapshot, predict_match
-from models.simulator import simulate_match
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent))
+
+from models.predictor import predict_match
 from pipelines.update_lineup import load_lineup
 
-PROCESSED_DIR = Path("data/processed")
-LINEUPS_DIR   = Path("data/lineups")
+BASE_DIR = Path(__file__).parent
+DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
+LINEUPS_DIR = BASE_DIR / "data" / "lineups"
 
 
-def load_team_data(team_name: str) -> dict:
-    slug = team_name.lower().replace(" ", "_")
-    path = PROCESSED_DIR / f"{slug}.json"
-    if path.exists():
-        with open(path) as f:
-            return json.load(f)
-    print(f"  Advertencia: sin datos procesados para {team_name}. Usando defaults.")
-    return {}
+def check_db():
+    """Ensure DB exists and is populated."""
+    if not DB_PATH.exists():
+        print("\n[!] Base de datos no encontrada.")
+        print("    Ejecuta primero: python scripts/setup_db.py\n")
+        return False
+
+    conn = sqlite3.connect(DB_PATH)
+    count = conn.execute("SELECT COUNT(*) FROM teams").fetchone()[0]
+    conn.close()
+
+    if count == 0:
+        print("\n[!] Base de datos vacia. Ejecuta: python scripts/setup_db.py --reset\n")
+        return False
+    return True
 
 
-def build_snapshot(team_name: str, lineup_data: dict, side: str) -> TeamSnapshot:
-    team_raw = load_team_data(team_name)
-    lineup   = lineup_data.get(side, {})
+def list_teams():
+    """List all 48 WC2026 teams from DB."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    teams = conn.execute("""
+        SELECT name, confederation, wc_group, fifa_ranking, formation
+        FROM teams ORDER BY confederation, fifa_ranking
+    """).fetchall()
+    conn.close()
 
-    return TeamSnapshot(
-        name=team_name,
-        recent_form=team_raw.get("recent_form", []),
-        h2h_record=team_raw.get("h2h", []),
-        key_players_available=lineup.get("key_players", []),
-        key_players_missing=lineup.get("injuries", []) + lineup.get("suspensions", []),
-        formation=lineup.get("formation", "4-3-3"),
-        ranking_fifa=team_raw.get("ranking_fifa"),
-        goals_scored_avg=team_raw.get("goals_scored_avg", 1.5),
-        goals_conceded_avg=team_raw.get("goals_conceded_avg", 1.0),
-        possession_avg=team_raw.get("possession_avg", 50.0),
-    )
+    print(f"\n{'='*70}")
+    print(f"  EQUIPOS FIFA MUNDIAL 2026 -- {len(teams)} selecciones")
+    print(f"{'='*70}")
+
+    conf_prev = ""
+    for t in teams:
+        if t["confederation"] != conf_prev:
+            print(f"\n  [{t['confederation']}]")
+            conf_prev = t["confederation"]
+        print(f"    {t['name']:<22} Grupo {t['wc_group'] or '?':>3}  "
+              f"Ranking #{t['fifa_ranking'] or '?':<4}  {t['formation']}")
+    print()
 
 
-def print_report(home_name: str, away_name: str, result: dict, lineup: dict, sim: dict | None = None):
-    print("\n" + "="*60)
-    print(f"  ANÁLISIS: {home_name} vs {away_name}")
-    print("="*60)
+def show_schedule(group=None):
+    """Show WC2026 match schedule."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
 
-    print(f"\n  Resultado más probable: {result['prediction']}")
-    print(f"  Confianza: {result['confidence']}%\n")
+    query = """
+        SELECT id, date, time, home_team_name, away_team_name, venue, city,
+               wc_group, stage, score_home, score_away, played
+        FROM wc_matches
+    """
+    params = []
+    if group:
+        query += " WHERE wc_group=?"
+        params.append(group.upper())
+    query += " ORDER BY date, time LIMIT 80"
 
-    print("  Probabilidades:")
-    for outcome, prob in result["probabilities"].items():
-        bar = "█" * int(prob / 3)
-        print(f"    {outcome:<25} {prob:>5.1f}%  {bar}")
+    matches = conn.execute(query, params).fetchall()
+    conn.close()
 
-    print("\n  Scores por componente:")
-    for team, scores in result["component_scores"].items():
-        print(f"\n    {team}:")
-        for k, v in scores.items():
-            print(f"      {k:<20} {v:.2f}")
+    title = "CALENDARIO MUNDIAL 2026" + (f" -- GRUPO {group.upper()}" if group else "")
+    print(f"\n{'='*70}")
+    print(f"  {title}")
+    print(f"{'='*70}\n")
 
-    context = lineup.get("context", {})
-    if context.get("notes"):
-        print(f"\n  Contexto: {context['notes']}")
+    prev_date = ""
+    for m in matches:
+        if m["date"] != prev_date:
+            print(f"\n  {m['date']}")
+            prev_date = m["date"]
 
-    home_missing = lineup.get("home", {}).get("injuries", []) + lineup.get("home", {}).get("suspensions", [])
-    away_missing = lineup.get("away", {}).get("injuries", []) + lineup.get("away", {}).get("suspensions", [])
-    if home_missing:
-        print(f"\n  Bajas {home_name}: {', '.join(home_missing)}")
-    if away_missing:
-        print(f"  Bajas {away_name}: {', '.join(away_missing)}")
+        result_str = ""
+        if m["played"]:
+            result_str = f" [{m['score_home']}-{m['score_away']}]"
 
-    if sim is not None:
-        print("\n" + "-"*60)
-        print(f"  xG estimados:  {home_name} {sim['xg_home']}  |  {away_name} {sim['xg_away']}")
-        print(sim["raw_text"])
+        stage_label = {
+            "group": "Grupo",
+            "round_of_32": "Octavos",
+            "round_of_16": "Octavos",
+            "quarter_final": "Cuartos",
+            "semi_final": "Semis",
+            "third_place": "3er Lugar",
+            "final": "FINAL",
+        }.get(m["stage"], m["stage"] or "")
 
-    print("\n" + "="*60 + "\n")
+        print(f"    [{m['id']:3d}] {m['time']} | {m['home_team_name']:<20} vs "
+              f"{m['away_team_name']:<20} | {m['city']:<15}{result_str}  ({stage_label})")
+    print()
+
+
+def print_full_report(result, lineup_data=None):
+    """Print the comprehensive match analysis report."""
+    home = result["home"]
+    away = result["away"]
+    sep = "=" * 65
+
+    print(f"\n{sep}")
+    print(f"  ANALISIS PREDICTIVO -- MUNDIAL 2026")
+    print(f"  {home.upper()} vs {away.upper()}")
+    print(f"{sep}")
+
+    # Team info
+    ti = result.get("team_info", {})
+    home_info = ti.get(home, {})
+    away_info = ti.get(away, {})
+
+    print(f"\n  {home}")
+    print(f"    FIFA Ranking: #{home_info.get('fifa_ranking', 'N/A')}")
+    print(f"    Grupo: {home_info.get('group', 'N/A')}  |  "
+          f"Confederacion: {home_info.get('confederation', 'N/A')}")
+    print(f"    Esquema: {home_info.get('formation', '?')}  |  "
+          f"Estilo: {home_info.get('tactical_style', '?').title()}")
+
+    print(f"\n  {away}")
+    print(f"    FIFA Ranking: #{away_info.get('fifa_ranking', 'N/A')}")
+    print(f"    Grupo: {away_info.get('group', 'N/A')}  |  "
+          f"Confederacion: {away_info.get('confederation', 'N/A')}")
+    print(f"    Esquema: {away_info.get('formation', '?')}  |  "
+          f"Estilo: {away_info.get('tactical_style', '?').title()}")
+
+    # Main prediction
+    conf = result.get("confidence", {})
+    print(f"\n{'-'*65}")
+    print(f"  PREDICCION: {result['prediction'].upper()}")
+    print(f"  Marcador probable: {home} {result.get('predicted_scoreline', '?-?')}")
+    print(f"  Confianza: {conf.get('level', '?')} ({conf.get('pct', 0):.1f}%)")
+    print(f"{'-'*65}")
+
+    # Probabilities
+    print(f"\n  PROBABILIDADES:")
+    for outcome, prob in result.get("probabilities", {}).items():
+        bar_len = int(prob / 2)
+        bar = "|" * bar_len + "." * (50 - bar_len)
+        print(f"    {outcome:<32} {prob:>5.1f}%  {bar[:30]}")
+
+    # Line analysis
+    print(f"\n{'-'*65}")
+    print(f"  ANALISIS LINEA POR LINEA:")
+    print(f"  {'Linea':<8} {home[:20]:>20}    {away[:20]:<20}  Ventaja")
+    print(f"  {'-'*60}")
+    la = result.get("line_analysis", {})
+    for line in ["GK", "DEF", "MID", "FWD", "Overall"]:
+        if line in la:
+            d = la[line]
+            ha = d.get(home, 0)
+            aa = d.get(away, 0)
+            adv = d.get("advantage", {})
+            adv_team = adv.get("team", "Equal")
+            adv_label = adv.get("margin_label", "")
+            if adv_team == "Equal":
+                indicator = "  ~"
+            elif adv_team == home:
+                indicator = " <-"
+            else:
+                indicator = " ->"
+
+            line_label = "Global" if line == "Overall" else line
+            print(f"  {line_label:<8} {ha:>20.2f}    {aa:<20.2f}  "
+                  f"{indicator} {adv_team[:15]} ({adv_label})")
+
+    # Squad ratings -- top players
+    print(f"\n{'-'*65}")
+    print(f"  JUGADORES CLAVE:")
+    sq = result.get("squad_ratings", {})
+
+    for team_name in [home, away]:
+        team_sq = sq.get(team_name, {})
+        top = team_sq.get("top_players", {})
+        print(f"\n  [{team_name}]")
+        for pos in ["GK", "DEF", "MID", "FWD"]:
+            players = top.get(pos, [])
+            for p in players[:2]:
+                print(f"    {pos}  {p['name']:<28} {p['rating']:>4.1f}  {p.get('club', '')}")
+
+    # Key matchups
+    matchups = result.get("key_matchups", [])
+    if matchups:
+        print(f"\n{'-'*65}")
+        print(f"  DUELOS CLAVE:")
+        for m in matchups[:4]:
+            adv = m.get("advantage", "?")
+            print(f"    {m['type']}")
+            print(f"      {m['player_a']:<28} {m['rating_a']:>4.1f}")
+            print(f"      {m['player_b']:<28} {m['rating_b']:>4.1f}")
+            print(f"      Ventaja: {adv} (margen: {m.get('margin', 0):.2f})")
+            print()
+
+    # Form analysis
+    print(f"{'-'*65}")
+    print(f"  FORMA RECIENTE:")
+    form = result.get("form_analysis", {})
+    for team_name in [home, away]:
+        team_form = form.get(team_name, {})
+        score = team_form.get("score", 50)
+        matches = team_form.get("last_10", [])
+        results_str = " ".join(
+            f"[{m['result']}]" for m in matches[:5]
+        )
+        print(f"    {team_name:<22} Score: {score:.0f}%  {results_str}")
+        for m in matches[:3]:
+            print(f"      vs {m['opponent']:<20} {m['result']}  {m['score']}  {m['comp']}")
+
+    # H2H
+    print(f"\n{'-'*65}")
+    h2h = result.get("h2h", {})
+    h2h_src = h2h.get("source", "none")
+    print(f"  HISTORIAL H2H:")
+    if h2h_src == "direct":
+        summ = h2h.get("summary", {})
+        total = summ.get("total", 0)
+        draws = summ.get("draws", 0)
+        home_wins = summ.get(home, {}).get("wins", 0)
+        away_wins = summ.get(away, {}).get("wins", 0)
+        print(f"    {total} partidos directos | {home}: {home_wins}V  Empates: {draws}  {away}: {away_wins}V")
+        for m in h2h.get("matches", [])[:5]:
+            if m.get("result") and m.get("date"):
+                print(f"    {m['date']}  {m.get('competition', '')}  "
+                      f"GF:{m.get('goals_for',0)}-GA:{m.get('goals_against',0)}  [{m['result']}]")
+    elif h2h_src == "proxy":
+        proxy = h2h.get("proxy", {})
+        if proxy:
+            print(f"    Sin H2H directo. Proxy via equipos similares:")
+            print(f"    Similares usados: {', '.join(proxy.get('similar_teams_used', []))}")
+            pw = proxy.get('win_pct', 0)
+            pd = proxy.get('draw_pct', 0)
+            pl = proxy.get('loss_pct', 0)
+            print(f"    {home}: {pw}% victorias  Empates: {pd}%  {away}: {pl}%")
+    else:
+        print(f"    Sin datos H2H disponibles.")
+
+    # WC History
+    print(f"\n{'-'*65}")
+    print(f"  HISTORIAL EN MUNDIALES:")
+    wch = result.get("wc_history", {})
+    for team_name in [home, away]:
+        team_wch = wch.get(team_name, {})
+        score = team_wch.get("score", 0)
+        editions = team_wch.get("editions", [])
+        print(f"\n  {team_name} (score: {score:.2f}):")
+        for ed in editions[:3]:
+            rnd = ed.get("round_reached", "?")
+            if rnd and rnd != "Did not qualify":
+                print(f"    {ed['year']}: {rnd:<22} "
+                      f"GF:{ed.get('goals_scored',0)} GA:{ed.get('goals_conceded',0)} "
+                      f"PJ:{ed.get('matches_played',0)}")
+            elif rnd == "Did not qualify":
+                print(f"    {ed['year']}: No clasifico")
+
+    # Component breakdown
+    print(f"\n{'-'*65}")
+    print(f"  SCORES POR COMPONENTE (0-1):")
+    comp = result.get("component_scores", {})
+    labels = {
+        "players": "Calidad jugadores",
+        "form": "Forma reciente",
+        "h2h": "H2H",
+        "ranking": "Ranking FIFA",
+        "wc_history": "Historial WC",
+        "composite": "COMPOSITE",
+    }
+    print(f"  {'Componente':<22} {home[:18]:>18}  {away[:18]:<18}")
+    print(f"  {'-'*60}")
+    for k, label in labels.items():
+        hv = comp.get(home, {}).get(k, 0)
+        av = comp.get(away, {}).get(k, 0)
+        winner = "<" if hv > av else (">" if av > hv else "=")
+        print(f"  {label:<22} {hv:>18.3f}  {av:<18.3f}  {winner}")
+
+    # Similar teams context
+    sim = result.get("similar_teams", {})
+    if sim.get(home) or sim.get(away):
+        print(f"\n{'-'*65}")
+        print(f"  EQUIPOS SIMILARES (contexto):")
+        for team_name in [home, away]:
+            sim_list = sim.get(team_name, [])
+            if sim_list:
+                print(f"    {team_name}: {', '.join(sim_list[:3])}")
+
+    # Missing players (from lineup file)
+    if lineup_data:
+        home_miss = (lineup_data.get("home", {}).get("injuries", []) +
+                     lineup_data.get("home", {}).get("suspensions", []))
+        away_miss = (lineup_data.get("away", {}).get("injuries", []) +
+                     lineup_data.get("away", {}).get("suspensions", []))
+        if home_miss or away_miss:
+            print(f"\n{'-'*65}")
+            print(f"  BAJAS CONFIRMADAS:")
+            if home_miss:
+                print(f"    {home}: {', '.join(home_miss)}")
+            if away_miss:
+                print(f"    {away}: {', '.join(away_miss)}")
+
+    print(f"\n{sep}")
+    import datetime as dt
+    print(f"  Generado: {dt.datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"{sep}\n")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Predicción de partidos — Mundial 2026")
-    parser.add_argument("--home",    required=True, help="Selección local")
-    parser.add_argument("--away",    required=True, help="Selección visitante")
-    parser.add_argument("--lineup",  required=False, help="Slug del archivo de alineación (sin .json)")
-    parser.add_argument("--neutral", action="store_true", help="Sede neutral (Mundial = siempre neutral)")
+    parser = argparse.ArgumentParser(
+        description="Sistema de Prediccion -- FIFA Mundial 2026",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Ejemplos:
+  python predict.py --home "Panama" --away "Croatia"
+  python predict.py --home "Brazil" --away "Argentina"
+  python predict.py --home "Mexico" --away "USA" --lineup mexico_vs_usa
+  python predict.py --list-teams
+  python predict.py --group D
+  python predict.py --schedule
+        """
+    )
+    parser.add_argument("--home", help="Equipo local")
+    parser.add_argument("--away", help="Equipo visitante")
+    parser.add_argument("--lineup", help="Slug del archivo de alineacion (sin .json)")
+    parser.add_argument("--neutral", action="store_true", default=True,
+                        help="Sede neutral (default en Mundial)")
+    parser.add_argument("--no-neutral", dest="neutral", action="store_false",
+                        help="Sede no neutral")
+    parser.add_argument("--list-teams", action="store_true",
+                        help="Listar todos los equipos clasificados")
+    parser.add_argument("--group", help="Ver partidos de un grupo: A-L")
+    parser.add_argument("--schedule", action="store_true",
+                        help="Ver calendario completo")
+    parser.add_argument("--json", action="store_true",
+                        help="Output en formato JSON")
+
     args = parser.parse_args()
 
-    lineup_slug = args.lineup or f"{args.home.lower().replace(' ', '_')}_vs_{args.away.lower().replace(' ', '_')}"
+    # Check DB
+    if not check_db():
+        sys.exit(1)
+
+    # Subcommands
+    if args.list_teams:
+        list_teams()
+        return
+
+    if args.schedule:
+        show_schedule()
+        return
+
+    if args.group:
+        show_schedule(group=args.group)
+        return
+
+    if not args.home or not args.away:
+        parser.print_help()
+        sys.exit(0)
+
+    # Load lineup if provided
+    lineup_data = None
+    if args.lineup:
+        try:
+            lineup_data = load_lineup(args.lineup)
+        except FileNotFoundError:
+            print(f"  Sin alineacion confirmada para '{args.lineup}'. Usando datos base.")
+
+    # Run prediction
+    print(f"\nCalculando prediccion: {args.home} vs {args.away}...")
 
     try:
-        lineup = load_lineup(lineup_slug)
-    except FileNotFoundError:
-        print(f"Sin alineación confirmada para '{lineup_slug}'. Usando datos base.")
-        lineup = {
-            "home": {"team": args.home, "key_players": [], "injuries": [], "suspensions": [], "formation": "4-3-3"},
-            "away": {"team": args.away, "key_players": [], "injuries": [], "suspensions": [], "formation": "4-3-3"},
-            "context": {}
-        }
+        result = predict_match(
+            home_name=args.home,
+            away_name=args.away,
+            neutral=args.neutral,
+        )
+    except ValueError as e:
+        print(f"\nERROR: {e}")
+        print("Usa --list-teams para ver los nombres exactos de los equipos.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\nERROR inesperado: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
-    home_snap = build_snapshot(args.home, lineup, "home")
-    away_snap = build_snapshot(args.away, lineup, "away")
-
-    result = predict_match(home_snap, away_snap, neutral_venue=True)
-
-    sim = simulate_match(
-        home=home_snap,
-        away=away_snap,
-        all_teams=[home_snap, away_snap],
-    )
-
-    print_report(args.home, args.away, result, lineup, sim=sim)
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print_full_report(result, lineup_data)
 
 
 if __name__ == "__main__":

@@ -1,145 +1,754 @@
 """
-Motor de predicción de partidos basado en:
-- Forma reciente (últimos 5-10 partidos)
-- Historial H2H
-- Estadísticas de jugadores clave
-- Alineación confirmada (lesiones, suspensiones)
-- Factor sede / tipo de torneo
-"""
-from dataclasses import dataclass, field
-from typing import Optional
+predictor.py — Motor de prediccion avanzado para partidos del Mundial 2026.
 
+Flujo para "Panama vs Croatia":
+1. Cargar convocados y alineacion probable de ambos equipos
+2. Comparar jugador por jugador por linea:
+   - Duelo de porteros
+   - Linea defensiva
+   - Linea de mediocampo
+   - Linea de ataque
+3. Calcular forma del equipo (ultimos 10 partidos, ponderado reciente)
+4. Calcular H2H (partidos directos ultimos 10 anos)
+5. Si no hay H2H: usar similitud de equipos para proxy
+6. Factor historial en Mundiales
+7. Output completo con probabilidades, marcador probable, analisis linea a linea
+"""
+import math
+import json
+import sqlite3
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Optional, NamedTuple
+
+from models.player_rating import rate_squad_from_profiles
+from models.team_similarity import find_similar_teams, find_proxy_h2h
+
+DB_PATH = Path(__file__).parent.parent / "data" / "mundial2026.db"
+
+# Round value in points for WC history factor
+WC_ROUND_POINTS = {
+    "Did not qualify": 0,
+    "Group Stage": 1,
+    "Round of 16": 2,
+    "Quarter-final": 3,
+    "4th place": 4,
+    "3rd place": 5,
+    "Runner-up": 6,
+    "Champion": 7,
+}
+
+
+def _conn(db_path: Optional[Path] = None) -> sqlite3.Connection:
+    conn = sqlite3.connect(db_path or DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+# ─────────────────────────────────────────────────────────────────
+# Data loaders
+# ─────────────────────────────────────────────────────────────────
+
+def load_team(name: str, db_path: Optional[Path] = None) -> Optional[dict]:
+    """Load a team record from DB. Tries name then slug."""
+    conn = _conn(db_path)
+    row = conn.execute("SELECT * FROM teams WHERE name=?", (name,)).fetchone()
+    if not row:
+        slug = name.lower().replace(" ", "_").replace(".", "")
+        row = conn.execute("SELECT * FROM teams WHERE slug=?", (slug,)).fetchone()
+    if not row:
+        # Partial match
+        row = conn.execute(
+            "SELECT * FROM teams WHERE name LIKE ?", (f"%{name}%",)
+        ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def load_squad_ratings(team_name: str, db_path: Optional[Path] = None) -> dict:
+    """
+    Load squad with ratings per position.
+    Returns {GK: [...], DEF: [...], MID: [...], FWD: [...]}
+    """
+    return rate_squad_from_profiles(team_name, db_path)
+
+
+def load_recent_form(team_name: str, last_n: int = 10, db_path: Optional[Path] = None) -> list[dict]:
+    """Load last N matches for a team from DB."""
+    conn = _conn(db_path)
+    team_row = conn.execute("SELECT id FROM teams WHERE name=?", (team_name,)).fetchone()
+    if not team_row:
+        slug = team_name.lower().replace(" ", "_")
+        team_row = conn.execute("SELECT id FROM teams WHERE slug=?", (slug,)).fetchone()
+    if not team_row:
+        conn.close()
+        return []
+
+    matches = conn.execute("""
+        SELECT opponent_name, date, competition, goals_for, goals_against, result, venue
+        FROM team_matches
+        WHERE team_id=?
+        ORDER BY date DESC
+        LIMIT ?
+    """, (team_row["id"], last_n)).fetchall()
+    conn.close()
+    return [dict(m) for m in matches]
+
+
+def load_h2h(team_a: str, team_b: str, last_n: int = 10, db_path: Optional[Path] = None) -> list[dict]:
+    """Load direct H2H matches between two teams (last N years)."""
+    conn = _conn(db_path)
+
+    a_row = conn.execute("SELECT id FROM teams WHERE name=?", (team_a,)).fetchone()
+    b_row = conn.execute("SELECT id FROM teams WHERE name=?", (team_b,)).fetchone()
+
+    if not a_row or not b_row:
+        conn.close()
+        return []
+
+    a_id, b_id = a_row["id"], b_row["id"]
+
+    matches = conn.execute("""
+        SELECT team_id, opponent_id, opponent_name, date, competition,
+               goals_for, goals_against, result, venue
+        FROM team_matches
+        WHERE (team_id=? AND opponent_id=?)
+           OR (team_id=? AND opponent_id=?)
+        ORDER BY date DESC
+        LIMIT ?
+    """, (a_id, b_id, b_id, a_id, last_n)).fetchall()
+
+    conn.close()
+    return [dict(m) for m in matches]
+
+
+def load_wc_history(team_name: str, db_path: Optional[Path] = None) -> list[dict]:
+    """Load WC history entries for a team."""
+    conn = _conn(db_path)
+    team_row = conn.execute("SELECT id FROM teams WHERE name=?", (team_name,)).fetchone()
+    if not team_row:
+        conn.close()
+        return []
+
+    rows = conn.execute("""
+        SELECT year, wc_group, group_stage_result, round_reached,
+               goals_scored, goals_conceded, matches_played
+        FROM wc_history
+        WHERE team_id=?
+        ORDER BY year DESC
+    """, (team_row["id"],)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ─────────────────────────────────────────────────────────────────
+# Scoring sub-functions
+# ─────────────────────────────────────────────────────────────────
+
+def form_score(matches: list[dict], team_name: str = "", decay: float = 0.88) -> float:
+    """
+    Convert recent form into a score [0,1].
+    More recent = more weight. Uses exponential decay.
+    """
+    if not matches:
+        return 0.50
+
+    weights = [decay ** i for i in range(len(matches))]
+    total_weight = sum(weights)
+    score = 0.0
+
+    for i, m in enumerate(matches):
+        result = m.get("result", "D")
+        pts = {"W": 1.0, "D": 0.5, "L": 0.0}.get(result, 0.5)
+        score += pts * weights[i]
+
+    return score / total_weight
+
+
+def h2h_score(h2h_matches: list[dict], team_id: int) -> float:
+    """
+    H2H score [0,1] for a specific team.
+    team_id is used to determine which 'side' of each match is team's.
+    """
+    if not h2h_matches:
+        return 0.50
+
+    wins = sum(1 for m in h2h_matches if m.get("team_id") == team_id and m.get("result") == "W")
+    draws = sum(1 for m in h2h_matches if m.get("result") == "D")
+    total = len(h2h_matches)
+
+    return (wins + 0.5 * draws) / total
+
+
+def wc_history_score(history: list[dict]) -> float:
+    """
+    Score [0,1] based on WC historical performance.
+    Weights recent editions more. Returns 0.5 for teams with no WC history.
+    """
+    if not history:
+        return 0.40  # No WC history = below average assumption
+
+    max_points = WC_ROUND_POINTS.get("Champion", 7)
+    decay = 0.75  # older editions less important
+
+    total_weight = 0.0
+    weighted_pts = 0.0
+
+    for i, ed in enumerate(history):  # already sorted by year DESC
+        rnd = ed.get("round_reached", "Did not qualify")
+        pts = WC_ROUND_POINTS.get(rnd, 0)
+        w = decay ** i
+        weighted_pts += pts * w
+        total_weight += max_points * w
+
+    if total_weight == 0:
+        return 0.40
+
+    return round(weighted_pts / total_weight, 4)
+
+
+def ranking_factor(ranking: Optional[int]) -> float:
+    """FIFA ranking → score [0,1]. Rank 1 = ~0.98, Rank 100 = ~0.30."""
+    if not ranking:
+        return 0.50
+    return round(max(0.15, min(0.98, 1.0 - math.log(ranking) / math.log(200) * 0.85)), 4)
+
+
+def line_rating(players: list[dict]) -> float:
+    """Average rating of a line of players (top N used)."""
+    if not players:
+        return 6.0
+    # Use top 3-4 players for each line
+    top = sorted(players, key=lambda p: p.get("rating", 6.0), reverse=True)
+    n = min(len(top), 4)
+    return round(sum(p["rating"] for p in top[:n]) / n, 3)
+
+
+def gk_rating(gk_players: list[dict]) -> float:
+    """Get the starting GK rating (or average if multiple)."""
+    if not gk_players:
+        return 6.0
+    return gk_players[0].get("rating", 6.0)
+
+
+def scoreline_estimate(
+    home_strength: float,
+    away_strength: float,
+    home_goals_avg: float,
+    away_goals_avg: float,
+    home_conceded_avg: float,
+    away_conceded_avg: float,
+) -> tuple[int, int]:
+    """
+    Estimate the most likely scoreline using Dixon-Coles style attack/defense model.
+
+    home_strength, away_strength: relative team strengths [0.2, 1.2]
+    """
+    # Attack rating factor
+    home_attack = (home_goals_avg * home_strength) * (1.0 / max(0.5, away_conceded_avg / 1.5))
+    away_attack = (away_goals_avg * away_strength) * (1.0 / max(0.5, home_conceded_avg / 1.5))
+
+    # Cap reasonable range
+    home_lambda = round(max(0.3, min(3.5, home_attack)), 2)
+    away_lambda = round(max(0.3, min(3.5, away_attack)), 2)
+
+    # Find most probable scoreline using Poisson distribution
+    best_prob = -1
+    best_score = (1, 1)
+    for h in range(7):
+        for a in range(7):
+            # Poisson PMF
+            prob_h = (math.e ** -home_lambda * home_lambda**h) / math.factorial(h)
+            prob_a = (math.e ** -away_lambda * away_lambda**a) / math.factorial(a)
+            prob = prob_h * prob_a
+            if prob > best_prob:
+                best_prob = prob
+                best_score = (h, a)
+
+    return best_score
+
+
+def confidence_level(
+    probs: dict,
+    data_quality: float = 1.0
+) -> tuple[str, float]:
+    """
+    Compute confidence level of the prediction.
+    data_quality: 0-1 (1 = full squad data, 0 = defaults only)
+    """
+    max_prob = max(probs.values())
+    margin = max_prob - sorted(probs.values())[-2]
+
+    raw_confidence = (max_prob * 0.6 + margin * 0.4) * data_quality
+
+    if raw_confidence >= 0.45:
+        label = "ALTA"
+    elif raw_confidence >= 0.30:
+        label = "MEDIA"
+    else:
+        label = "BAJA"
+
+    return label, round(raw_confidence * 100, 1)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Key matchup analysis
+# ─────────────────────────────────────────────────────────────────
+
+def key_matchups(squad_a: dict, squad_b: dict, team_a: str, team_b: str) -> list[dict]:
+    """Identify the most interesting player vs player matchups."""
+    matchups = []
+
+    # GK vs top FWD
+    if squad_a.get("GK") and squad_b.get("FWD"):
+        gk = squad_a["GK"][0]
+        fwd = squad_b["FWD"][0]
+        matchups.append({
+            "type": f"{team_b} Attack vs {team_a} GK",
+            "player_a": gk["name"],
+            "rating_a": gk["rating"],
+            "player_b": fwd["name"],
+            "rating_b": fwd["rating"],
+            "advantage": team_a if gk["rating"] > fwd["rating"] - 0.5 else team_b,
+            "margin": round(abs(gk["rating"] - fwd["rating"]), 2),
+        })
+
+    if squad_b.get("GK") and squad_a.get("FWD"):
+        gk = squad_b["GK"][0]
+        fwd = squad_a["FWD"][0]
+        matchups.append({
+            "type": f"{team_a} Attack vs {team_b} GK",
+            "player_a": fwd["name"],
+            "rating_a": fwd["rating"],
+            "player_b": gk["name"],
+            "rating_b": gk["rating"],
+            "advantage": team_b if gk["rating"] > fwd["rating"] - 0.5 else team_a,
+            "margin": round(abs(fwd["rating"] - gk["rating"]), 2),
+        })
+
+    # MID battle
+    if squad_a.get("MID") and squad_b.get("MID"):
+        mid_a = squad_a["MID"][0]
+        mid_b = squad_b["MID"][0]
+        matchups.append({
+            "type": "Midfield Battle",
+            "player_a": mid_a["name"],
+            "rating_a": mid_a["rating"],
+            "player_b": mid_b["name"],
+            "rating_b": mid_b["rating"],
+            "advantage": team_a if mid_a["rating"] > mid_b["rating"] else team_b,
+            "margin": round(abs(mid_a["rating"] - mid_b["rating"]), 2),
+        })
+
+    # Best DEF vs best FWD
+    if squad_a.get("DEF") and squad_b.get("FWD"):
+        def_a = squad_a["DEF"][0]
+        fwd_b = squad_b["FWD"][0]
+        matchups.append({
+            "type": f"{team_b} Top Forward vs {team_a} Defense",
+            "player_a": def_a["name"],
+            "rating_a": def_a["rating"],
+            "player_b": fwd_b["name"],
+            "rating_b": fwd_b["rating"],
+            "advantage": team_a if def_a["rating"] >= fwd_b["rating"] else team_b,
+            "margin": round(abs(def_a["rating"] - fwd_b["rating"]), 2),
+        })
+
+    return matchups
+
+
+# ─────────────────────────────────────────────────────────────────
+# Main prediction function
+# ─────────────────────────────────────────────────────────────────
+
+def predict_match(
+    home_name: str,
+    away_name: str,
+    neutral: bool = True,
+    db_path: Optional[Path] = None,
+    verbose: bool = False
+) -> dict:
+    """
+    Full match prediction with line-by-line analysis.
+
+    Returns comprehensive dict with:
+      - win/draw/loss probabilities
+      - predicted scoreline
+      - line-by-line advantage
+      - key matchups
+      - form analysis
+      - H2H or proxy
+      - WC history
+      - confidence level
+    """
+    db = db_path or DB_PATH
+
+    # ── 1. Load team records ──
+    home_team = load_team(home_name, db)
+    away_team = load_team(away_name, db)
+
+    if not home_team:
+        raise ValueError(f"Team not found: {home_name}")
+    if not away_team:
+        raise ValueError(f"Team not found: {away_name}")
+
+    # Resolve actual names from DB
+    home_name = home_team["name"]
+    away_name = away_team["name"]
+
+    # ── 2. Load squads and rate players ──
+    home_squad = load_squad_ratings(home_name, db)
+    away_squad = load_squad_ratings(away_name, db)
+
+    home_has_squad = any(home_squad[k] for k in home_squad)
+    away_has_squad = any(away_squad[k] for k in away_squad)
+    data_quality = 1.0 if (home_has_squad and away_has_squad) else 0.65
+
+    # ── 3. Line ratings ──
+    home_gk    = gk_rating(home_squad.get("GK", []))
+    home_def   = line_rating(home_squad.get("DEF", []))
+    home_mid   = line_rating(home_squad.get("MID", []))
+    home_fwd   = line_rating(home_squad.get("FWD", []))
+    home_overall = (home_gk * 0.15 + home_def * 0.25 + home_mid * 0.30 + home_fwd * 0.30)
+
+    away_gk    = gk_rating(away_squad.get("GK", []))
+    away_def   = line_rating(away_squad.get("DEF", []))
+    away_mid   = line_rating(away_squad.get("MID", []))
+    away_fwd   = line_rating(away_squad.get("FWD", []))
+    away_overall = (away_gk * 0.15 + away_def * 0.25 + away_mid * 0.30 + away_fwd * 0.30)
+
+    # Normalize to [0,1]
+    def normalize_rating(r):
+        return max(0.1, min(1.0, (r - 4.5) / 5.0))
+
+    home_player_score = normalize_rating(home_overall)
+    away_player_score = normalize_rating(away_overall)
+
+    # ── 4. Recent form ──
+    home_form_matches = load_recent_form(home_name, 10, db)
+    away_form_matches = load_recent_form(away_name, 10, db)
+
+    home_form = form_score(home_form_matches)
+    away_form = form_score(away_form_matches)
+
+    # ── 5. H2H ──
+    h2h_matches = load_h2h(home_name, away_name, 10, db)
+    h2h_available = len(h2h_matches) > 0
+
+    home_team_id = home_team.get("id")
+    away_team_id = away_team.get("id")
+
+    if h2h_available:
+        home_h2h = h2h_score(h2h_matches, home_team_id)
+        away_h2h = h2h_score(h2h_matches, away_team_id)
+        h2h_source = "direct"
+    else:
+        # Use proxy
+        proxy = find_proxy_h2h(home_name, away_name, db)
+        if proxy.get("available"):
+            home_h2h = proxy["win_pct"] / 100.0
+            away_h2h = proxy["loss_pct"] / 100.0
+            h2h_source = "proxy"
+        else:
+            home_h2h = 0.50
+            away_h2h = 0.50
+            h2h_source = "none"
+            proxy = None
+
+    # ── 6. WC history ──
+    home_wc = load_wc_history(home_name, db)
+    away_wc = load_wc_history(away_name, db)
+
+    home_wc_score = wc_history_score(home_wc)
+    away_wc_score = wc_history_score(away_wc)
+
+    # ── 7. Ranking factor ──
+    home_rank = ranking_factor(home_team.get("fifa_ranking"))
+    away_rank = ranking_factor(away_team.get("fifa_ranking"))
+
+    # ── 8. Composite strength score ──
+    # Weights
+    W = {
+        "players":  0.32,  # line-by-line player quality
+        "form":     0.25,  # recent form
+        "h2h":      0.18,  # head-to-head history
+        "ranking":  0.15,  # FIFA ranking
+        "wc_hist":  0.10,  # WC historical performance
+    }
+
+    home_strength = (
+        W["players"]  * home_player_score +
+        W["form"]     * home_form +
+        W["h2h"]      * home_h2h +
+        W["ranking"]  * home_rank +
+        W["wc_hist"]  * home_wc_score
+    )
+
+    away_strength = (
+        W["players"]  * away_player_score +
+        W["form"]     * away_form +
+        W["h2h"]      * away_h2h +
+        W["ranking"]  * away_rank +
+        W["wc_hist"]  * away_wc_score
+    )
+
+    # Home advantage (in WC all venues are neutral, but some teams can have nearby support)
+    home_venue_bonus = 0.0 if neutral else 0.06
+
+    home_strength_adj = home_strength * (1 + home_venue_bonus)
+
+    # ── 9. Probabilities ──
+    total_str = home_strength_adj + away_strength
+    raw_home = home_strength_adj / total_str
+    raw_away = away_strength / total_str
+
+    # Draw probability: higher when teams are balanced (adapted from actual WC stats)
+    balance = 1.0 - abs(raw_home - raw_away)
+    draw_base = 0.245  # WC average draw rate ~24-25%
+    draw_prob = draw_base * balance * (1.0 + 0.1 * balance)  # slight bonus for tight games
+
+    home_win_prob = raw_home * (1.0 - draw_prob / 1.8)
+    away_win_prob = raw_away * (1.0 - draw_prob / 1.8)
+
+    # Normalize
+    total_p = home_win_prob + draw_prob + away_win_prob
+    home_win_prob /= total_p
+    draw_prob     /= total_p
+    away_win_prob /= total_p
+
+    probs = {
+        "home_win": round(home_win_prob, 4),
+        "draw":     round(draw_prob,     4),
+        "away_win": round(away_win_prob, 4),
+    }
+
+    # Most likely outcome
+    best_outcome = max(probs, key=probs.get)
+    outcome_labels = {
+        "home_win": f"Victoria {home_name}",
+        "draw":     "Empate",
+        "away_win": f"Victoria {away_name}",
+    }
+
+    # ── 10. Predicted scoreline ──
+    score_h, score_a = scoreline_estimate(
+        home_strength=home_strength_adj / 0.6,  # rescale to useful range
+        away_strength=away_strength / 0.6,
+        home_goals_avg=home_team.get("goals_scored_avg", 1.5),
+        away_goals_avg=away_team.get("goals_scored_avg", 1.5),
+        home_conceded_avg=home_team.get("goals_conceded_avg", 1.2),
+        away_conceded_avg=away_team.get("goals_conceded_avg", 1.2),
+    )
+
+    # ── 11. Line-by-line advantage ──
+    def advantage(a, b, team_a, team_b):
+        if abs(a - b) < 0.15:
+            return {"team": "Equal", "margin": 0, "margin_label": "Equilibrado"}
+        winner = team_a if a > b else team_b
+        return {
+            "team": winner,
+            "margin": round(abs(a - b), 2),
+            "margin_label": "leve" if abs(a - b) < 0.4 else "clara" if abs(a - b) < 0.8 else "contundente",
+        }
+
+    line_analysis = {
+        "GK": {
+            home_name: round(home_gk, 2),
+            away_name: round(away_gk, 2),
+            "advantage": advantage(home_gk, away_gk, home_name, away_name),
+        },
+        "DEF": {
+            home_name: round(home_def, 2),
+            away_name: round(away_def, 2),
+            "advantage": advantage(home_def, away_def, home_name, away_name),
+        },
+        "MID": {
+            home_name: round(home_mid, 2),
+            away_name: round(away_mid, 2),
+            "advantage": advantage(home_mid, away_mid, home_name, away_name),
+        },
+        "FWD": {
+            home_name: round(home_fwd, 2),
+            away_name: round(away_fwd, 2),
+            "advantage": advantage(home_fwd, away_fwd, home_name, away_name),
+        },
+        "Overall": {
+            home_name: round(home_overall, 2),
+            away_name: round(away_overall, 2),
+            "advantage": advantage(home_overall, away_overall, home_name, away_name),
+        },
+    }
+
+    # ── 12. Key matchups ──
+    matchups = key_matchups(home_squad, away_squad, home_name, away_name)
+
+    # ── 13. Confidence ──
+    conf_label, conf_pct = confidence_level(probs, data_quality)
+
+    # ── 14. Similar teams (context) ──
+    similar_to_home = find_similar_teams(home_name, db, top_n=3, exclude=[away_name])
+    similar_to_away = find_similar_teams(away_name, db, top_n=3, exclude=[home_name])
+
+    # ── Assemble full result ──
+    result = {
+        "match": f"{home_name} vs {away_name}",
+        "home": home_name,
+        "away": away_name,
+        "neutral_venue": neutral,
+
+        # Core prediction
+        "prediction": outcome_labels[best_outcome],
+        "predicted_scoreline": f"{score_h}-{score_a}",
+        "probabilities": {
+            outcome_labels["home_win"]: round(home_win_prob * 100, 1),
+            "Empate": round(draw_prob * 100, 1),
+            outcome_labels["away_win"]: round(away_win_prob * 100, 1),
+        },
+        "confidence": {"level": conf_label, "pct": conf_pct},
+
+        # Line analysis
+        "line_analysis": line_analysis,
+
+        # Player ratings summary
+        "squad_ratings": {
+            home_name: {
+                "GK": round(home_gk, 2),
+                "DEF": round(home_def, 2),
+                "MID": round(home_mid, 2),
+                "FWD": round(home_fwd, 2),
+                "Overall": round(home_overall, 2),
+                "top_players": {
+                    pos: [{"name": p["name"], "rating": p["rating"], "club": p.get("club","")}
+                          for p in home_squad.get(pos, [])[:3]]
+                    for pos in ["GK", "DEF", "MID", "FWD"]
+                },
+            },
+            away_name: {
+                "GK": round(away_gk, 2),
+                "DEF": round(away_def, 2),
+                "MID": round(away_mid, 2),
+                "FWD": round(away_fwd, 2),
+                "Overall": round(away_overall, 2),
+                "top_players": {
+                    pos: [{"name": p["name"], "rating": p["rating"], "club": p.get("club","")}
+                          for p in away_squad.get(pos, [])[:3]]
+                    for pos in ["GK", "DEF", "MID", "FWD"]
+                },
+            },
+        },
+
+        # Form analysis
+        "form_analysis": {
+            home_name: {
+                "score": round(home_form * 100, 1),
+                "last_10": [
+                    {"opponent": m["opponent_name"], "result": m["result"],
+                     "score": f"{m['goals_for']}-{m['goals_against']}", "comp": m["competition"]}
+                    for m in home_form_matches[:5]
+                ],
+            },
+            away_name: {
+                "score": round(away_form * 100, 1),
+                "last_10": [
+                    {"opponent": m["opponent_name"], "result": m["result"],
+                     "score": f"{m['goals_for']}-{m['goals_against']}", "comp": m["competition"]}
+                    for m in away_form_matches[:5]
+                ],
+            },
+        },
+
+        # H2H
+        "h2h": {
+            "source": h2h_source,
+            "matches": h2h_matches[:5] if h2h_available else [],
+            "summary": {
+                home_name: {"wins": sum(1 for m in h2h_matches if m.get("team_id") == home_team_id and m.get("result") == "W"),
+                            "h2h_score": round(home_h2h * 100, 1)},
+                away_name: {"wins": sum(1 for m in h2h_matches if m.get("team_id") == away_team_id and m.get("result") == "W"),
+                            "h2h_score": round(away_h2h * 100, 1)},
+                "draws": sum(1 for m in h2h_matches if m.get("result") == "D"),
+                "total": len(h2h_matches),
+            } if h2h_available else {},
+            "proxy": proxy if not h2h_available and proxy else None,
+        },
+
+        # WC history
+        "wc_history": {
+            home_name: {
+                "score": round(home_wc_score, 3),
+                "editions": home_wc,
+            },
+            away_name: {
+                "score": round(away_wc_score, 3),
+                "editions": away_wc,
+            },
+        },
+
+        # Component breakdown
+        "component_scores": {
+            home_name: {
+                "players": round(home_player_score, 3),
+                "form": round(home_form, 3),
+                "h2h": round(home_h2h, 3),
+                "ranking": round(home_rank, 3),
+                "wc_history": round(home_wc_score, 3),
+                "composite": round(home_strength_adj, 4),
+            },
+            away_name: {
+                "players": round(away_player_score, 3),
+                "form": round(away_form, 3),
+                "h2h": round(away_h2h, 3),
+                "ranking": round(away_rank, 3),
+                "wc_history": round(away_wc_score, 3),
+                "composite": round(away_strength, 4),
+            },
+        },
+
+        # Key matchups
+        "key_matchups": matchups,
+
+        # Context
+        "team_info": {
+            home_name: {
+                "fifa_ranking": home_team.get("fifa_ranking"),
+                "confederation": home_team.get("confederation"),
+                "group": home_team.get("wc_group"),
+                "formation": home_team.get("formation"),
+                "tactical_style": home_team.get("tactical_style"),
+            },
+            away_name: {
+                "fifa_ranking": away_team.get("fifa_ranking"),
+                "confederation": away_team.get("confederation"),
+                "group": away_team.get("wc_group"),
+                "formation": away_team.get("formation"),
+                "tactical_style": away_team.get("tactical_style"),
+            },
+        },
+
+        "similar_teams": {
+            home_name: [f"{t['team_name']} ({t['similarity_score']:.2f})" for t in similar_to_home],
+            away_name: [f"{t['team_name']} ({t['similarity_score']:.2f})" for t in similar_to_away],
+        },
+    }
+
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────
+# Legacy compatibility (TeamSnapshot API)
+# ─────────────────────────────────────────────────────────────────
+
+from dataclasses import dataclass
 
 @dataclass
 class TeamSnapshot:
     name: str
-    recent_form: list[dict] = field(default_factory=list)    # últimos 10 partidos
-    h2h_record: list[dict] = field(default_factory=list)     # H2H vs rival
-    key_players_available: list[str] = field(default_factory=list)
-    key_players_missing: list[str] = field(default_factory=list)
+    recent_form: list = field(default_factory=list)
+    h2h_record: list = field(default_factory=list)
+    key_players_available: list = field(default_factory=list)
+    key_players_missing: list = field(default_factory=list)
     formation: str = "4-3-3"
     ranking_fifa: Optional[int] = None
     goals_scored_avg: float = 0.0
     goals_conceded_avg: float = 0.0
     possession_avg: float = 50.0
-
-
-def form_score(matches: list[dict], team_name: str) -> float:
-    """Convierte forma reciente en score 0-1. Más reciente = más peso."""
-    if not matches:
-        return 0.5
-    weights = [1.5 ** i for i in range(len(matches))]
-    total_weight = sum(weights)
-    score = 0.0
-    for i, m in enumerate(reversed(matches)):
-        result = m.get("result", "D")
-        pts = {"W": 1.0, "D": 0.5, "L": 0.0}.get(result, 0.5)
-        score += pts * weights[i]
-    return score / total_weight
-
-
-def h2h_score(h2h: list[dict], team_name: str) -> float:
-    """Score 0-1 basado en historial H2H."""
-    if not h2h:
-        return 0.5
-    wins = sum(1 for m in h2h if m.get("winner") == team_name)
-    draws = sum(1 for m in h2h if m.get("winner") == "draw")
-    total = len(h2h)
-    return (wins + 0.5 * draws) / total
-
-
-def availability_factor(missing: list[str], key_players: list[str]) -> float:
-    """Penaliza por jugadores clave ausentes. 1.0 = plantel completo."""
-    if not key_players:
-        return 1.0
-    missing_key = [p for p in missing if p in key_players]
-    penalty = len(missing_key) * 0.05  # -5% por cada titular clave ausente
-    return max(0.7, 1.0 - penalty)
-
-
-def ranking_factor(ranking: Optional[int]) -> float:
-    """FIFA ranking → score 0-1. Ranking 1 = 1.0, ranking 50+ = ~0.5"""
-    if ranking is None:
-        return 0.5
-    return max(0.2, 1.0 - (ranking - 1) * 0.01)
-
-
-def predict_match(home: TeamSnapshot, away: TeamSnapshot, neutral_venue: bool = False) -> dict:
-    """
-    Predice el resultado más probable de un partido.
-    Retorna probabilidades de victoria local, empate y victoria visitante.
-    """
-    # --- Scores por componente ---
-    home_form    = form_score(home.recent_form, home.name)
-    away_form    = form_score(away.recent_form, away.name)
-
-    home_h2h     = h2h_score(home.h2h_record, home.name)
-    away_h2h     = h2h_score(away.h2h_record, away.name)
-
-    home_avail   = availability_factor(home.key_players_missing, home.key_players_available)
-    away_avail   = availability_factor(away.key_players_missing, away.key_players_available)
-
-    home_rank    = ranking_factor(home.ranking_fifa)
-    away_rank    = ranking_factor(away.ranking_fifa)
-
-    home_goals   = min(1.0, home.goals_scored_avg / 3.0)
-    away_goals   = min(1.0, away.goals_scored_avg / 3.0)
-
-    # --- Score compuesto (pesos ajustables) ---
-    W = {"form": 0.30, "h2h": 0.25, "ranking": 0.20, "availability": 0.15, "attack": 0.10}
-
-    home_score = (
-        W["form"]         * home_form   +
-        W["h2h"]          * home_h2h    +
-        W["ranking"]      * home_rank   +
-        W["availability"] * home_avail  +
-        W["attack"]       * home_goals
-    )
-    away_score = (
-        W["form"]         * away_form   +
-        W["h2h"]          * away_h2h    +
-        W["ranking"]      * away_rank   +
-        W["availability"] * away_avail  +
-        W["attack"]       * away_goals
-    )
-
-    # Ventaja de sede (en Mundial la sede es neutral)
-    if not neutral_venue:
-        home_score *= 1.1
-
-    # --- Convertir a probabilidades ---
-    total = home_score + away_score
-    raw_home = home_score / total
-    raw_away = away_score / total
-
-    # El empate toma de ambas probabilidades (modelo simplificado)
-    draw_base = 0.28  # base estadística histórica de empates en Mundiales
-    draw = draw_base * (1 - abs(raw_home - raw_away))
-    home_win = raw_home * (1 - draw / 2)
-    away_win = raw_away * (1 - draw / 2)
-
-    # Normalizar a 100%
-    total_prob = home_win + draw + away_win
-    home_win /= total_prob
-    draw     /= total_prob
-    away_win /= total_prob
-
-    # --- Resultado más probable ---
-    probs = {"home_win": home_win, "draw": draw, "away_win": away_win}
-    most_likely = max(probs, key=probs.get)
-
-    labels = {"home_win": f"Victoria {home.name}", "draw": "Empate", "away_win": f"Victoria {away.name}"}
-
-    return {
-        "prediction": labels[most_likely],
-        "confidence": round(probs[most_likely] * 100, 1),
-        "probabilities": {
-            labels["home_win"]: round(home_win * 100, 1),
-            "Empate":            round(draw     * 100, 1),
-            labels["away_win"]: round(away_win  * 100, 1),
-        },
-        "component_scores": {
-            home.name: {"form": round(home_form,2), "h2h": round(home_h2h,2), "ranking": round(home_rank,2), "disponibilidad": round(home_avail,2)},
-            away.name: {"form": round(away_form,2), "h2h": round(away_h2h,2), "ranking": round(away_rank,2), "disponibilidad": round(away_avail,2)},
-        }
-    }
