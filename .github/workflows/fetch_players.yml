@@ -1,0 +1,54 @@
+name: Fetch Player Stats
+
+on:
+  workflow_dispatch:
+    inputs:
+      team:
+        description: 'Team slug to fetch (e.g. mexico) or "all" for all 48'
+        required: false
+        default: 'all'
+  schedule:
+    - cron: '0 8 * * 1'      # Weekly Monday 8am UTC
+
+jobs:
+  fetch-players:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Setup database (if needed)
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+        run: python scripts/setup_db.py
+
+      - name: Fetch player club stats (last 3 seasons)
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          FETCH_TEAM: ${{ github.event.inputs.team || 'all' }}
+        run: |
+          python -c "
+          import os, sys
+          sys.path.insert(0, '.')
+          from pipelines.fetch_data import fetch_wc_teams
+          fetch_wc_teams()
+          "
+
+      - name: Commit player data
+        run: |
+          git config user.name "mundial-bot"
+          git config user.email "bot@mundial2026"
+          git add data/processed/ data/cache/ || true
+          git diff --staged --quiet || git commit -m "chore: update player stats $(date +'%Y-%m-%d')"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
