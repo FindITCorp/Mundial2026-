@@ -30,8 +30,8 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 FD_BASE = "https://api.football-data.org/v4"
 AF_BASE = "https://v3.football.api-sports.io"
-FD_KEY  = os.getenv("FOOTBALL_DATA_API_KEY", "")
-AF_KEY  = os.getenv("API_FOOTBALL_KEY", "")
+FD_KEY  = os.getenv("FOOTBALL_DATA_KEY", "")
+AF_KEY  = os.getenv("APIFOOT", "")
 
 # Mapping team name -> football-data.org team ID
 # These IDs are approximate; update with actual API lookup

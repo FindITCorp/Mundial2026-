@@ -84,8 +84,8 @@ jobs:
 
       - name: Fetch confirmed lineups (pre-match)
         env:
-          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
-          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          APIFOOT: ${{ secrets.APIFOOT }}
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
         run: |
           python - <<'EOF'
           import os
@@ -139,7 +139,7 @@ jobs:
           try:
               from pipelines.fetch_api_football import fetch_live_lineups, _save_lineups_to_db, AF_KEY
               if not AF_KEY:
-                  print("No API_FOOTBALL_KEY set, skipping lineup fetch")
+                  print("No APIFOOT set, skipping lineup fetch")
                   exit(0)
 
               for m in matches:
@@ -159,8 +159,8 @@ jobs:
 
       - name: Update WC match results
         env:
-          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
-          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
+          APIFOOT: ${{ secrets.APIFOOT }}
         run: |
           python pipelines/full_update.py --scope wc || echo "WC update step finished"
 

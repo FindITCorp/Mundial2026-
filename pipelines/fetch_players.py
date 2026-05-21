@@ -29,8 +29,8 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 AF_BASE = "https://v3.football.api-sports.io"
 FD_BASE = "https://api.football-data.org/v4"
-AF_KEY  = os.getenv("API_FOOTBALL_KEY", "")
-FD_KEY  = os.getenv("FOOTBALL_DATA_API_KEY", "")
+AF_KEY  = os.getenv("APIFOOT", "")
+FD_KEY  = os.getenv("FOOTBALL_DATA_KEY", "")
 
 # AF team IDs for national teams
 TEAM_AF_IDS = {

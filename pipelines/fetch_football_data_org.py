@@ -8,7 +8,7 @@ Endpoints:
 
 Cache: data/cache/football_data_org/ (24h TTL)
 API base: https://api.football-data.org/v4
-Header: X-Auth-Token from env FOOTBALL_DATA_API_KEY
+Header: X-Auth-Token from env FOOTBALL_DATA_KEY
 
 Usage:
   python pipelines/fetch_football_data_org.py --schedule
@@ -37,7 +37,7 @@ DB_PATH    = BASE_DIR / "data" / "mundial2026.db"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 API_BASE = "https://api.football-data.org/v4"
-FD_KEY   = os.getenv("FOOTBALL_DATA_API_KEY", "")
+FD_KEY   = os.getenv("FOOTBALL_DATA_KEY", "")
 
 # ── Team code mapping: our team names → football-data.org team codes ─────────
 TEAM_CODES = {
@@ -183,7 +183,7 @@ def _api_get(path: str, params: Optional[dict] = None,
             return cached
 
     if not FD_KEY:
-        print(f"  [FD] Sin FOOTBALL_DATA_API_KEY — saltando {path}")
+        print(f"  [FD] Sin FOOTBALL_DATA_KEY — saltando {path}")
         return None
 
     url = f"{API_BASE}/{path.lstrip('/')}"
@@ -561,7 +561,7 @@ def run_full_fetch(teams: Optional[list] = None, delay_secs: float = 3.0) -> dic
     print("\n=== football-data.org Full Fetch ===\n")
 
     if not FD_KEY:
-        print("  Sin FOOTBALL_DATA_API_KEY — saltando fetch")
+        print("  Sin FOOTBALL_DATA_KEY — saltando fetch")
         return {"schedule": 0, "histories": 0, "standings": 0}
 
     # 1. Schedule
@@ -659,4 +659,4 @@ if __name__ == "__main__":
 
     else:
         parser.print_help()
-        print(f"\n  API Key configured: {'YES' if FD_KEY else 'NO (set FOOTBALL_DATA_API_KEY)'}")
+        print(f"\n  API Key configured: {'YES' if FD_KEY else 'NO (set FOOTBALL_DATA_KEY)'}")

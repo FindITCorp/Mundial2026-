@@ -26,14 +26,14 @@ jobs:
 
       - name: Setup database (if needed)
         env:
-          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
-          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
+          APIFOOT: ${{ secrets.APIFOOT }}
         run: python scripts/setup_db.py
 
       - name: Fetch player club stats (last 3 seasons)
         env:
-          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
-          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
+          APIFOOT: ${{ secrets.APIFOOT }}
           FETCH_TEAM: ${{ github.event.inputs.team || 'all' }}
         run: |
           python -c "

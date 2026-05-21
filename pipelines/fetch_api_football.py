@@ -34,7 +34,7 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 API_BASE = "https://api-football-v1.p.rapidapi.com/v3"
 AF_HOST  = "api-football-v1.p.rapidapi.com"
-AF_KEY   = os.getenv("API_FOOTBALL_KEY", "")
+AF_KEY   = os.getenv("APIFOOT", "")
 
 DAILY_LIMIT = 100  # Free tier limit
 
@@ -224,7 +224,7 @@ def _api_get(endpoint: str, params: dict, cache_key: str,
 
     # Check rate limit
     if not AF_KEY:
-        print(f"  [AF] Sin API key (API_FOOTBALL_KEY no configurada)")
+        print(f"  [AF] Sin API key (APIFOOT no configurada)")
         return None
 
     if not _can_make_call():
@@ -728,7 +728,7 @@ def run_fetch_all_squads(teams: Optional[list] = None, season: int = 2026,
     print(f"  Budget remaining: {DAILY_LIMIT - _get_calls_today()} calls")
 
     if not AF_KEY:
-        print("  Sin API_FOOTBALL_KEY — saltando fetch de squads")
+        print("  Sin APIFOOT — saltando fetch de squads")
         return {"teams_fetched": 0, "players_found": 0}
 
     if teams is None:
@@ -773,7 +773,7 @@ def run_fetch_team_form(teams: Optional[list] = None, last: int = 20,
     print(f"  Budget remaining: {DAILY_LIMIT - _get_calls_today()} calls")
 
     if not AF_KEY:
-        print("  Sin API_FOOTBALL_KEY — saltando fetch de forma")
+        print("  Sin APIFOOT — saltando fetch de forma")
         return {"teams_fetched": 0, "matches_saved": 0}
 
     if teams is None:

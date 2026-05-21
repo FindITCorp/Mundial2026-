@@ -28,7 +28,7 @@ DB_PATH   = BASE_DIR / "data" / "mundial2026.db"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 AF_BASE = "https://v3.football.api-sports.io"
-AF_KEY  = os.getenv("API_FOOTBALL_KEY", "")
+AF_KEY  = os.getenv("APIFOOT", "")
 WC2026_AF_LEAGUE_ID = 1  # Update with actual ID when tournament starts
 
 

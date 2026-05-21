@@ -17,10 +17,10 @@ RAW_DIR.mkdir(parents=True, exist_ok=True)
 FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
 API_FOOTBALL_BASE = "https://v3.football.api-sports.io"
 
-HEADERS_FD = {"X-Auth-Token": os.getenv("FOOTBALL_DATA_API_KEY", "")}
+HEADERS_FD = {"X-Auth-Token": os.getenv("FOOTBALL_DATA_KEY", "")}
 HEADERS_AF = {
     "x-rapidapi-host": "v3.football.api-sports.io",
-    "x-rapidapi-key": os.getenv("API_FOOTBALL_KEY", ""),
+    "x-rapidapi-key": os.getenv("APIFOOT", ""),
 }
 
 WORLD_CUP_2026_ID = 1  # football-data.org competition ID (actualizar cuando esté disponible)
