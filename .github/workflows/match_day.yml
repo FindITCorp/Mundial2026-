@@ -88,6 +88,7 @@ jobs:
         env:
           APIFOOT: ${{ secrets.APIFOOT }}
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
+          INPUT_FIXTURE_ID: ${{ github.event.inputs.fixture_id }}
         run: |
           python - <<'EOF'
           import os
@@ -156,8 +157,6 @@ jobs:
           except Exception as e:
               print(f"Error: {e}")
           EOF
-        env:
-          INPUT_FIXTURE_ID: ${{ github.event.inputs.fixture_id }}
 
       - name: Update WC match results
         env:
