@@ -66,6 +66,11 @@ jobs:
           echo "Running pipeline with scope: $SCOPE"
           python pipelines/full_update.py --scope "$SCOPE"
 
+      - name: Fetch Football Prediction API signals
+        env:
+          APIFOOT: ${{ secrets.APIFOOT }}
+        run: python pipelines/fetch_predictions.py || echo "Predictions pipeline optional"
+
       - name: Show update summary
         run: |
           python - <<'EOF'

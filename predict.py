@@ -319,6 +319,21 @@ def print_full_report(result, lineup_data=None):
             if away_miss:
                 print(f"    {away}: {', '.join(away_miss)}")
 
+    # External prediction signal
+    try:
+        from pipelines.fetch_predictions import get_external_prediction
+        match_date = result.get("match_date", datetime.now().strftime("%Y-%m-%d"))
+        ext = get_external_prediction(home, away, match_date)
+        if ext:
+            print(f"\n{'-'*65}")
+            print(f"  SEÑAL EXTERNA (Football Prediction API):")
+            print(f"    Predicción:   {ext.get('prediction', 'N/A')}")
+            print(f"    {home:<20} {ext.get('home_win_pct', 0):.1f}%")
+            print(f"    Empate        {ext.get('draw_pct', 0):.1f}%")
+            print(f"    {away:<20} {ext.get('away_win_pct', 0):.1f}%")
+    except Exception:
+        pass
+
     print(f"\n{sep}")
     import datetime as dt
     print(f"  Generado: {dt.datetime.now().strftime('%Y-%m-%d %H:%M')}")
