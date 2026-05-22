@@ -31,7 +31,17 @@ FD_BASE  = "https://api.football-data.org/v4"
 AF_BASE  = "https://v3.football.api-sports.io"
 
 FD_KEY   = os.getenv("FOOTBALL_DATA_KEY", "")
-AF_KEY   = os.getenv("APIFOOT", "")
+AF_KEY       = os.getenv("APIFOOT", "")
+APISPORTS_KEY = os.getenv("APISPORTS_KEY", "")
+
+def _af_headers() -> dict:
+    """Return correct auth headers: direct api-sports.io or RapidAPI fallback."""
+    if APISPORTS_KEY:
+        return {"x-apisports-key": APISPORTS_KEY}
+    return {
+        "x-rapidapi-host": "v3.football.api-sports.io",
+        "x-rapidapi-key": AF_KEY,
+    }
 
 
 def cache_path(name: str) -> Path:

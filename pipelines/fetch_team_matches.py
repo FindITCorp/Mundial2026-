@@ -31,7 +31,13 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 FD_BASE = "https://api.football-data.org/v4"
 AF_BASE = "https://v3.football.api-sports.io"
 FD_KEY  = os.getenv("FOOTBALL_DATA_KEY", "")
-AF_KEY  = os.getenv("APIFOOT", "")
+AF_KEY        = os.getenv("APIFOOT", "")
+APISPORTS_KEY = os.getenv("APISPORTS_KEY", "")
+
+def _af_headers() -> dict:
+    if APISPORTS_KEY:
+        return {"x-apisports-key": APISPORTS_KEY}
+    return {"x-rapidapi-host": "v3.football.api-sports.io", "x-rapidapi-key": AF_KEY}
 
 # Mapping team name -> football-data.org team ID
 # These IDs are approximate; update with actual API lookup

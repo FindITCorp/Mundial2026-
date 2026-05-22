@@ -54,12 +54,14 @@ jobs:
         env:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
         run: python scripts/setup_db.py
 
       - name: Run data update pipeline
         env:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
         run: |
           SCOPE="${{ github.event.inputs.scope }}"
           SCOPE="${SCOPE:-form}"
@@ -69,6 +71,7 @@ jobs:
       - name: Fetch Football Prediction API signals
         env:
           APIFOOT: ${{ secrets.APIFOOT }}
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
         run: python pipelines/fetch_predictions.py || echo "Predictions pipeline optional"
 
       - name: Show update summary

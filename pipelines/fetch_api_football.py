@@ -34,7 +34,17 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 API_BASE = "https://api-football-v1.p.rapidapi.com/v3"
 AF_HOST  = "api-football-v1.p.rapidapi.com"
-AF_KEY   = os.getenv("APIFOOT", "")
+AF_KEY       = os.getenv("APIFOOT", "")
+APISPORTS_KEY = os.getenv("APISPORTS_KEY", "")
+
+def _af_headers() -> dict:
+    """Return correct auth headers: direct api-sports.io or RapidAPI fallback."""
+    if APISPORTS_KEY:
+        return {"x-apisports-key": APISPORTS_KEY}
+    return {
+        "x-rapidapi-host": "v3.football.api-sports.io",
+        "x-rapidapi-key": AF_KEY,
+    }
 
 DAILY_LIMIT = 100  # Free tier limit
 

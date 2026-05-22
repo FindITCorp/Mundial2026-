@@ -28,7 +28,13 @@ DB_PATH   = BASE_DIR / "data" / "mundial2026.db"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 AF_BASE = "https://v3.football.api-sports.io"
-AF_KEY  = os.getenv("APIFOOT", "")
+AF_KEY        = os.getenv("APIFOOT", "")
+APISPORTS_KEY = os.getenv("APISPORTS_KEY", "")
+
+def _af_headers() -> dict:
+    if APISPORTS_KEY:
+        return {"x-apisports-key": APISPORTS_KEY}
+    return {"x-rapidapi-host": "v3.football.api-sports.io", "x-rapidapi-key": AF_KEY}
 
 # Map league names to api-football league IDs
 LEAGUE_AF_IDS = {
