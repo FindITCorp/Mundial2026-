@@ -166,8 +166,16 @@ def step_fetch_wc_schedule():
 
 
 def step_fetch_team_form(teams=None, delay_secs=2.0):
-    """Step 2: Fetch last 20 matches for all 48 teams."""
-    # Try API-Football first
+    """Step 2: Daily form update — all 48 teams, all sources."""
+    # Primary: multi-source daily form (martj42 + FD.org + api-sports.io)
+    try:
+        from pipelines.fetch_daily_form import run as daily_form_run
+        daily_form_run()
+        return
+    except Exception as e:
+        logger.warning(f"  fetch_daily_form error: {e}")
+
+    # Fallback: API-Football only
     try:
         from pipelines.fetch_api_football import run_fetch_team_form, _has_api_key
         if _has_api_key():
@@ -177,7 +185,7 @@ def step_fetch_team_form(teams=None, delay_secs=2.0):
     except Exception as e:
         logger.warning(f"  API-Football form error: {e}")
 
-    # Fallback to existing fetch_team_matches
+    # Last fallback
     try:
         from pipelines.fetch_team_matches import run as fetch_matches_run
         fetch_matches_run(teams=teams, delay_secs=delay_secs)
