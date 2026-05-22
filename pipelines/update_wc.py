@@ -123,7 +123,7 @@ def update_lineup_from_file(match_id: int, lineup_file: str) -> bool:
 
 def fetch_wc_results_from_api() -> list:
     """Fetch completed WC2026 matches from api-football."""
-    if not AF_KEY:
+    if not (APISPORTS_KEY or AF_KEY):
         return []
 
     cache_file = CACHE_DIR / f"wc_results_{datetime.now().strftime('%Y%m%d')}.json"
@@ -132,10 +132,7 @@ def fetch_wc_results_from_api() -> list:
             return json.load(f)
 
     url = f"{AF_BASE}/fixtures"
-    headers = {
-        "x-rapidapi-host": "v3.football.api-sports.io",
-        "x-rapidapi-key": AF_KEY,
-    }
+    headers = _af_headers()
     params = {
         "league": WC2026_AF_LEAGUE_ID,
         "season": 2026,

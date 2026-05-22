@@ -89,7 +89,8 @@ def create_tables(conn: sqlite3.Connection):
         goals_as_nat    INTEGER DEFAULT 0,
         preferred_foot  TEXT,
         height_cm       INTEGER,
-        market_value_m  REAL
+        market_value_m  REAL,
+        UNIQUE(name, team_id)
     )""")
 
     # --- player_club_stats ---
@@ -959,19 +960,6 @@ def seed_sample_players(conn: sqlite3.Connection):
             ("Musa Suleiman", "FWD", "Rayo Majadahonda", "Segunda Federacion", 24, 22, 8),
             ("Zaid Al-Rubaie", "FWD", "Shabab Al-Ordon", "Jordan Premier League", 23, 18, 5),
         ],
-        "Australia": [
-            ("Mat Ryan", "GK", "Real Sociedad", "La Liga", 32, 78, 0),
-            ("Nathaniel Atkinson", "DEF", "Hearts", "Scottish Prem", 24, 22, 2),
-            ("Harry Souttar", "DEF", "Leicester", "Championship", 25, 32, 5),
-            ("Kye Rowles", "DEF", "Hearts", "Scottish Prem", 26, 22, 2),
-            ("Aziz Behich", "DEF", "Dundee United", "Scottish Prem", 32, 55, 3),
-            ("Jackson Irvine", "MID", "St. Pauli", "Bundesliga", 31, 68, 10),
-            ("Riley McGree", "MID", "Middlesbrough", "Championship", 25, 28, 5),
-            ("Massimo Luongo", "MID", "Ipswich", "Championship", 32, 68, 5),
-            ("Mathew Leckie", "FWD", "Melbourne City", "A-League", 33, 85, 15),
-            ("Mitchell Duke", "FWD", "Fagiano Okayama", "J2 League", 33, 38, 12),
-            ("Martin Boyle", "FWD", "Al-Faisaly", "Saudi First Division", 31, 42, 12),
-        ],
     }
 
     inserted = 0
@@ -987,9 +975,13 @@ def seed_sample_players(conn: sqlite3.Connection):
                     (name, team_id, position, club, club_league, age, caps, goals_as_nat)
                 VALUES (?,?,?,?,?,?,?,?)
             """, (name, team_id, position, club, league, age, caps, goals))
-            player_id = cur.lastrowid
-            if player_id:
-                # Add to squad selections
+            # Always look up the player_id (handles both INSERT and IGNORE cases)
+            player_row = cur.execute(
+                "SELECT id FROM players WHERE name=? AND team_id=?", (name, team_id)
+            ).fetchone()
+            if player_row:
+                player_id = player_row["id"]
+                # Add to squad selections (IGNORE if already exists)
                 cur.execute("""
                     INSERT OR IGNORE INTO squad_selections (team_id, player_id, confirmed)
                     VALUES (?,?,1)

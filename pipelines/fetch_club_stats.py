@@ -91,13 +91,10 @@ def fetch_player_stats_af(player_name: str, club: str, season: int) -> Optional[
     Fetch player stats from api-football for a given season.
     Searches by name and club.
     """
-    if not AF_KEY:
+    if not (APISPORTS_KEY or AF_KEY):
         return None
 
-    headers = {
-        "x-rapidapi-host": "v3.football.api-sports.io",
-        "x-rapidapi-key": AF_KEY,
-    }
+    headers = _af_headers()
 
     # First search for player ID
     search_url = f"{AF_BASE}/players"
@@ -299,7 +296,7 @@ def process_team_players(team_name: str, use_api: bool = True) -> int:
 
         stats = None
 
-        if use_api and AF_KEY:
+        if use_api and (APISPORTS_KEY or AF_KEY):
             stats = fetch_player_stats_af(player_name, p["club"] or "", 2024)
             if stats:
                 print(f"    [API] {player_name}: {stats['goals']}G {stats['assists']}A")
@@ -332,7 +329,7 @@ def run(teams: Optional[list] = None):
     total = 0
     for i, t in enumerate(db_teams, 1):
         print(f"[{i}/{len(db_teams)}] {t['name']}")
-        n = process_team_players(t["name"], use_api=bool(AF_KEY))
+        n = process_team_players(t["name"], use_api=bool(APISPORTS_KEY or AF_KEY))
         total += n
         if n:
             print(f"    -> {n} jugadores procesados")

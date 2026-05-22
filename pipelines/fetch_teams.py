@@ -104,7 +104,7 @@ def fetch_from_football_data() -> Optional[dict]:
 
 def fetch_from_api_football() -> Optional[list]:
     """Fetch team FIFA rankings from api-football.com."""
-    if not AF_KEY:
+    if not (APISPORTS_KEY or AF_KEY):
         return None
 
     cached = load_cache("af_fifa_rankings")
@@ -113,10 +113,7 @@ def fetch_from_api_football() -> Optional[list]:
         return cached
 
     url = f"{AF_BASE}/teams"
-    headers = {
-        "x-rapidapi-host": "v3.football.api-sports.io",
-        "x-rapidapi-key": AF_KEY,
-    }
+    headers = _af_headers()
     params = {"league": 1, "season": 2026}  # World Cup 2026
     try:
         r = requests.get(url, headers=headers, params=params, timeout=10)
