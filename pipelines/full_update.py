@@ -26,7 +26,7 @@ DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
 LOGS_DIR = BASE_DIR / "data" / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc")
+VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical")
 
 
 def _setup_logger() -> logging.Logger:
@@ -124,7 +124,7 @@ def _db_summary() -> dict:
     tables = [
         "teams", "players", "team_matches", "wc_matches",
         "wc_history", "player_club_stats", "player_nat_stats",
-        "player_ratings", "squad_selections", "match_lineups",
+        "player_ratings", "squad_selections", "match_lineups", "match_players",
     ]
     summary = {}
     for table in tables:
@@ -298,6 +298,15 @@ def step_update_wc_results():
         logger.error(f"  update_wc error: {e}")
 
 
+def step_fetch_historical():
+    """Step: Fetch historical WC match data + player stats per match."""
+    try:
+        from pipelines.fetch_historical import run as fetch_historical_run
+        fetch_historical_run()
+    except Exception as e:
+        logger.error(f"  fetch_historical error: {e}")
+
+
 def step_fetch_live_lineups(upcoming_only=True):
     """Step 9 (tournament mode): Fetch confirmed lineups for upcoming/live matches."""
     try:
@@ -373,6 +382,12 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
     # ── Scope: wc (tournament results only) ──────────────────────────────────
     if scope == "wc":
         _step("Update WC Results", step_update_wc_results)
+        _print_summary(_db_summary())
+        return True
+
+    # ── Scope: historical (WC 2014/2018/2022 + player stats per match) ──────
+    if scope == "historical":
+        _step("Fetch Historical WC Data", step_fetch_historical)
         _print_summary(_db_summary())
         return True
 
@@ -464,17 +479,19 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Scopes:
-  all      — Full refresh (squads + stats + form + schedule + ratings)
-  squads   — Only fetch official squad lists (useful when convocatorias drop)
-  stats    — Only update player stats and ratings
-  form     — Only update team recent form (last 20 matches)
-  lineups  — Only fetch confirmed match lineups
-  wc       — Only update WC match results (use during tournament)
+  all        — Full refresh (squads + stats + form + schedule + ratings)
+  squads     — Only fetch official squad lists (useful when convocatorias drop)
+  stats      — Only update player stats and ratings
+  form       — Only update team recent form (last 20 matches)
+  lineups    — Only fetch confirmed match lineups
+  wc         — Only update WC match results (use during tournament)
+  historical — Fetch WC 2014/2018/2022 + player stats per match (incremental)
 
 Examples:
   python pipelines/full_update.py --scope all
   python pipelines/full_update.py --scope squads
   python pipelines/full_update.py --scope form --teams "Panama" "Croatia"
+  python pipelines/full_update.py --scope historical
   python pipelines/full_update.py --scope all --quick
         """
     )

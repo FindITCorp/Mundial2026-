@@ -72,6 +72,7 @@ def create_tables(conn: sqlite3.Connection):
         goals_scored        INTEGER DEFAULT 0,
         goals_conceded      INTEGER DEFAULT 0,
         matches_played      INTEGER DEFAULT 0,
+        api_fixture_id      INTEGER,
         UNIQUE(team_id, year)
     )""")
 
@@ -184,6 +185,47 @@ def create_tables(conn: sqlite3.Connection):
         score_away      INTEGER,
         played          INTEGER DEFAULT 0
     )""")
+
+    # --- match_players ---
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS match_players (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        fixture_api_id  INTEGER NOT NULL,
+        team_id         INTEGER,
+        player_id       INTEGER,
+        player_api_id   INTEGER,
+        player_name     TEXT,
+        position        TEXT,
+        started         INTEGER DEFAULT 1,
+        minutes_played  INTEGER DEFAULT 0,
+        goals           INTEGER DEFAULT 0,
+        assists         INTEGER DEFAULT 0,
+        yellow_cards    INTEGER DEFAULT 0,
+        red_cards       INTEGER DEFAULT 0,
+        rating          REAL DEFAULT 0.0,
+        shots_total     INTEGER DEFAULT 0,
+        shots_on        INTEGER DEFAULT 0,
+        passes_total    INTEGER DEFAULT 0,
+        key_passes      INTEGER DEFAULT 0,
+        tackles         INTEGER DEFAULT 0,
+        interceptions   INTEGER DEFAULT 0,
+        match_date      TEXT,
+        competition     TEXT,
+        season          INTEGER,
+        UNIQUE(fixture_api_id, player_api_id, team_id)
+    )""")
+
+    cur.execute("""
+    CREATE INDEX IF NOT EXISTS idx_match_players_fixture ON match_players(fixture_api_id)
+    """)
+
+    cur.execute("""
+    CREATE INDEX IF NOT EXISTS idx_match_players_player ON match_players(player_api_id)
+    """)
+
+    cur.execute("""
+    CREATE INDEX IF NOT EXISTS idx_match_players_team ON match_players(team_id)
+    """)
 
     conn.commit()
     print("  Tablas creadas correctamente.")

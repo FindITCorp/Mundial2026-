@@ -26,6 +26,7 @@ on:
           - form
           - lineups
           - wc
+          - historical
 
 jobs:
   update:
@@ -100,7 +101,19 @@ jobs:
               now   = datetime.utcnow()
               month = now.month
               dow   = now.weekday()  # 0=Monday
-              if month in (6, 7):
+
+              # Check if historical data has been loaded
+              try:
+                  conn2 = sqlite3.connect(db)
+                  mp_count = conn2.execute("SELECT COUNT(*) FROM match_players").fetchone()[0]
+                  conn2.close()
+              except Exception:
+                  mp_count = 0
+
+              if mp_count < 100:
+                  scope = "historical"
+                  print(f"Historical data sparse ({mp_count} records) -> running scope=historical")
+              elif month in (6, 7):
                   scope = "wc"
               elif dow == 0:
                   scope = "all"
