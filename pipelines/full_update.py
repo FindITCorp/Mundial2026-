@@ -169,8 +169,8 @@ def step_fetch_team_form(teams=None, delay_secs=2.0):
     """Step 2: Fetch last 20 matches for all 48 teams."""
     # Try API-Football first
     try:
-        from pipelines.fetch_api_football import run_fetch_team_form, AF_KEY
-        if AF_KEY:
+        from pipelines.fetch_api_football import run_fetch_team_form, _has_api_key
+        if _has_api_key():
             result = run_fetch_team_form(teams=teams, last=20, delay_secs=delay_secs)
             logger.info(f"  API-Football form: {result}")
             return
@@ -189,8 +189,8 @@ def step_fetch_squads(teams=None, delay_secs=2.0):
     """Step 3: Fetch official squads for all 48 teams."""
     # Try API-Football
     try:
-        from pipelines.fetch_api_football import run_fetch_all_squads, AF_KEY
-        if AF_KEY:
+        from pipelines.fetch_api_football import run_fetch_all_squads, _has_api_key
+        if _has_api_key():
             result = run_fetch_all_squads(teams=teams, delay_secs=delay_secs)
             logger.info(f"  API-Football squads: {result}")
     except Exception as e:
@@ -301,8 +301,8 @@ def step_update_wc_results():
 def step_fetch_live_lineups(upcoming_only=True):
     """Step 9 (tournament mode): Fetch confirmed lineups for upcoming/live matches."""
     try:
-        from pipelines.fetch_api_football import fetch_live_lineups, _save_lineups_to_db, AF_KEY
-        if not AF_KEY:
+        from pipelines.fetch_api_football import fetch_live_lineups, _save_lineups_to_db, _has_api_key
+        if not _has_api_key():
             logger.info("  Sin API key — saltando fetch de alineaciones")
             return
 
