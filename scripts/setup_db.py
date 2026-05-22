@@ -1185,6 +1185,33 @@ def seed_sample_match_history(conn: sqlite3.Connection):
     print(f"  Historial de partidos sembrado: {inserted} registros.")
 
 
+def migrate_db(conn: sqlite3.Connection):
+    """Add missing columns to existing tables (safe to run on any DB version)."""
+    cur = conn.cursor()
+
+    migrations = [
+        ("wc_history",   "api_fixture_id", "INTEGER"),
+        ("match_players", "match_date",     "TEXT"),
+        ("match_players", "competition",    "TEXT"),
+        ("match_players", "season",         "INTEGER"),
+    ]
+
+    applied = 0
+    for table, column, col_type in migrations:
+        try:
+            existing = [row[1] for row in cur.execute(f"PRAGMA table_info({table})").fetchall()]
+            if column not in existing:
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+                print(f"  [migrate] Added {table}.{column}")
+                applied += 1
+        except Exception as e:
+            print(f"  [migrate] Warning: {table}.{column}: {e}")
+
+    conn.commit()
+    if applied == 0:
+        print("  Schema up to date.")
+
+
 def reset_db():
     if DB_PATH.exists():
         DB_PATH.unlink()
@@ -1204,6 +1231,9 @@ def main():
 
     print("\n=== Creando tablas ===")
     create_tables(conn)
+
+    print("\n=== Migrando schema ===")
+    migrate_db(conn)
 
     print("\n=== Sembrando equipos ===")
     seed_teams(conn)
