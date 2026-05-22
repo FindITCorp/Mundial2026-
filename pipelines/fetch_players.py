@@ -38,20 +38,26 @@ def _af_headers() -> dict:
     return {"x-rapidapi-host": "v3.football.api-sports.io", "x-rapidapi-key": AF_KEY}
 FD_KEY  = os.getenv("FOOTBALL_DATA_KEY", "")
 
-# AF team IDs for national teams
+# AF team IDs for national teams (api-sports.io IDs)
 TEAM_AF_IDS = {
-    "Argentina": 26, "France": 2, "Brazil": 6, "England": 10,
-    "Portugal": 27, "Belgium": 1, "Spain": 9, "Netherlands": 3,
-    "Germany": 25, "Croatia": 1036, "Switzerland": 15, "Mexico": 16,
-    "Uruguay": 26, "Colombia": 30, "Italy": 768, "Denmark": 21,
-    "Morocco": 38, "Japan": 21, "USA": 2, "South Korea": 36,
-    "Canada": 3, "Ecuador": 101, "Senegal": 34, "Australia": 25,
-    "Poland": 24, "Serbia": 14, "Nigeria": 34, "Turkey": 29,
-    "Saudi Arabia": 36, "Egypt": 34, "Austria": 11, "Panama": 15,
-    "Panama": 69, "Honduras": 63, "Jamaica": 69, "Bolivia": 701,
-    "Paraguay": 678, "Venezuela": 18, "Ghana": 640, "Hungary": 769,
-    "Scotland": 1108, "Romania": 774, "DR Congo": 640, "Cameroon": 1039,
-    "Slovenia": 1091, "Costa Rica": 65, "Jordan": 845, "Iraq": 845,
+    "Mexico": 16, "USA": 2, "Canada": 1620, "Panama": 1887,
+    "Brazil": 6, "Argentina": 26, "Colombia": 19, "Uruguay": 31,
+    "France": 2, "Germany": 25, "Spain": 9, "England": 10,
+    "Portugal": 27, "Netherlands": 1118, "Croatia": 3,
+    "Morocco": 1947, "Japan": 23, "South Korea": 4, "Iran": 28,
+    "Australia": 24, "Senegal": 1963, "Nigeria": 39,
+    "Ecuador": 55, "Chile": 21, "Bolivia": 18,
+    "Saudi Arabia": 36, "Qatar": 1450, "Iraq": 1490,
+    "Costa Rica": 1490, "Honduras": 1494, "Jamaica": 1495,
+    "Switzerland": 15, "Belgium": 1, "Italy": 768, "Poland": 5,
+    "Denmark": 21, "Turkey": 29, "Serbia": 14, "Austria": 6,
+    "Scotland": 1108, "Czechia": 7, "Slovakia": 8,
+    "Romania": 13, "Hungary": 769, "Slovenia": 36, "Albania": 1485,
+    "Ukraine": 1881, "Georgia": 1882, "Cameroon": 1489,
+    "Egypt": 17, "Ghana": 1492, "DR Congo": 1493, "Mali": 1495,
+    "Tunisia": 1496, "South Africa": 1497, "New Zealand": 1498,
+    "Venezuela": 18, "Paraguay": 678, "Jordan": 845,
+    "Saudi Arabia": 36, "Indonesia": 1350,
 }
 
 FD_TEAM_IDS = {
@@ -91,8 +97,8 @@ def save_cache(name: str, data) -> None:
 
 
 def fetch_squad_api_football(team_name: str, af_id: int) -> Optional[list]:
-    """Fetch squad from api-football.com."""
-    if not AF_KEY:
+    """Fetch squad from api-football.com / api-sports.io."""
+    if not (APISPORTS_KEY or AF_KEY):
         return None
 
     cache_key = f"squad_af_{team_name.lower().replace(' ', '_')}"
@@ -101,10 +107,7 @@ def fetch_squad_api_football(team_name: str, af_id: int) -> Optional[list]:
         return cached
 
     url = f"{AF_BASE}/players/squads"
-    headers = {
-        "x-rapidapi-host": "v3.football.api-sports.io",
-        "x-rapidapi-key": AF_KEY,
-    }
+    headers = _af_headers()
     params = {"team": af_id}
 
     try:
@@ -248,9 +251,9 @@ def fetch_team_squad(team_name: str) -> list:
     """
     players = []
 
-    # Try api-football first
+    # Try api-football / api-sports.io first
     af_id = TEAM_AF_IDS.get(team_name)
-    if af_id and AF_KEY:
+    if af_id and (APISPORTS_KEY or AF_KEY):
         raw = fetch_squad_api_football(team_name, af_id)
         if raw:
             players = [parse_af_player(p) for p in raw]
@@ -298,7 +301,7 @@ def run(teams: Optional[list] = None, delay_secs: float = 1.5):
             total_updated += upd
             print(f"    -> {ins} nuevos, {upd} actualizados")
 
-        if AF_KEY or FD_KEY:
+        if APISPORTS_KEY or AF_KEY or FD_KEY:
             time.sleep(delay_secs)
 
     # Summary

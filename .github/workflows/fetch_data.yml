@@ -1,27 +1,31 @@
 name: Update WC2026 Data
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/setup_db.py'
+      - 'pipelines/**'
+      - '.github/workflows/fetch_data.yml'
+  schedule:
+    - cron: '0 6 * * 1'       # Lunes 6am UTC: actualización completa
+    - cron: '0 7 * * 2-7'     # Mar-Dom 7am UTC: forma reciente
+    - cron: '0 */6 * 6,7 *'   # Jun-Jul cada 6h: modo torneo
   workflow_dispatch:
     inputs:
       scope:
-        description: 'What to update: all / squads / stats / form / lineups / wc'
+        description: 'Scope (dejar vacío = automático)'
         required: false
-        default: 'all'
+        default: ''
         type: choice
         options:
+          - ''
           - all
           - squads
           - stats
           - form
           - lineups
           - wc
-  schedule:
-    # Pre-torneo: actualización completa cada lunes 6am UTC
-    - cron: '0 6 * * 1'
-    # Pre-torneo: forma reciente cada día 7am UTC
-    - cron: '0 7 * * *'
-    # Durante el torneo (jun 11 - jul 19): cada 6 horas
-    - cron: '0 */6 * 6,7 *'
 
 jobs:
   update:
@@ -47,12 +51,9 @@ jobs:
 
       - name: Create required directories
         run: |
-          mkdir -p data/cache/api_football
-          mkdir -p data/cache/football_data_org
-          mkdir -p data/cache/players
-          mkdir -p data/cache/teams
-          mkdir -p data/logs
-          mkdir -p data/lineups
+          mkdir -p data/cache/api_football data/cache/football_data_org
+          mkdir -p data/cache/players data/cache/teams data/cache/predictions
+          mkdir -p data/logs data/lineups
 
       - name: Setup database
         env:
@@ -64,26 +65,52 @@ jobs:
       - name: Determine scope automatically
         id: scope
         run: |
-          # Manual trigger: use selected scope
-          # Scheduled Monday: run "all" (full refresh)
-          # Scheduled daily: run "form" + "squads"
-          # Scheduled during tournament (every 6h): run "wc" + "lineups"
-          if [ -n "${{ github.event.inputs.scope }}" ]; then
-            SCOPE="${{ github.event.inputs.scope }}"
-          else
-            DOW=$(date +%u)   # 1=Monday
-            MONTH=$(date +%-m)
-            # June (6) or July (7) = tournament mode
-            if [ "$MONTH" = "6" ] || [ "$MONTH" = "7" ]; then
-              SCOPE="wc"
-            elif [ "$DOW" = "1" ]; then
-              SCOPE="all"
-            else
-              SCOPE="form"
-            fi
-          fi
-          echo "scope=$SCOPE" >> $GITHUB_OUTPUT
-          echo "Auto-selected scope: $SCOPE"
+          python - <<'PYEOF'
+          import sqlite3, os
+          from pathlib import Path
+          from datetime import datetime
+
+          # 1. If manually specified, use that
+          manual = "${{ github.event.inputs.scope }}".strip()
+          if manual:
+              print(f"scope={manual}")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write(f"scope={manual}\n")
+              exit(0)
+
+          # 2. Check if DB has real data (bootstrap detection)
+          db = Path("data/mundial2026.db")
+          needs_bootstrap = True
+          if db.exists():
+              try:
+                  conn = sqlite3.connect(db)
+                  stats = conn.execute("SELECT COUNT(*) FROM player_club_stats").fetchone()[0]
+                  nat   = conn.execute("SELECT COUNT(*) FROM player_nat_stats").fetchone()[0]
+                  form  = conn.execute("SELECT COUNT(*) FROM team_matches").fetchone()[0]
+                  conn.close()
+                  # Has real data if any of these > seed values
+                  needs_bootstrap = (stats == 0 and nat == 0 and form <= 100)
+              except Exception:
+                  needs_bootstrap = True
+
+          if needs_bootstrap:
+              scope = "all"
+              print("Bootstrap detected: DB has no real data -> running scope=all")
+          else:
+              now   = datetime.utcnow()
+              month = now.month
+              dow   = now.weekday()  # 0=Monday
+              if month in (6, 7):
+                  scope = "wc"
+              elif dow == 0:
+                  scope = "all"
+              else:
+                  scope = "form"
+
+          print(f"Auto-selected scope: {scope}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"scope={scope}\n")
+          PYEOF
 
       - name: Run data update pipeline
         env:
@@ -91,42 +118,34 @@ jobs:
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
         run: |
-          echo "Running with scope: ${{ steps.scope.outputs.scope }}"
+          echo "=== Running scope: ${{ steps.scope.outputs.scope }} ==="
           python pipelines/full_update.py --scope "${{ steps.scope.outputs.scope }}"
 
-      - name: Fetch squads update (on full runs)
-        if: steps.scope.outputs.scope == 'all' || steps.scope.outputs.scope == 'squads'
-        env:
-          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
-          APIFOOT: ${{ secrets.APIFOOT }}
-          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
-        run: python pipelines/full_update.py --scope squads || echo "Squads step done"
-
-      - name: Fetch Football Prediction API signals
+      - name: Fetch Football Prediction signals
         env:
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
-        run: python pipelines/fetch_predictions.py || echo "Predictions step done"
+        run: python pipelines/fetch_predictions.py || echo "Predictions done"
 
-      - name: Show update summary
+      - name: DB Summary
         run: |
           python - <<'EOF'
           import sqlite3
           from pathlib import Path
           db = Path("data/mundial2026.db")
-          if db.exists():
-              conn = sqlite3.connect(db)
-              tables = ["teams", "players", "team_matches", "wc_matches",
-                        "player_club_stats", "player_nat_stats",
-                        "player_ratings", "squad_selections", "match_lineups"]
-              print("\n=== DB Summary ===")
-              for t in tables:
-                  try:
-                      c = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-                      print(f"  {t:<25}: {c}")
-                  except Exception:
-                      pass
-              conn.close()
+          if not db.exists():
+              print("DB not found"); exit()
+          conn = sqlite3.connect(db)
+          tables = ["teams","players","team_matches","player_club_stats",
+                    "player_nat_stats","player_ratings","squad_selections","match_lineups"]
+          print("\n=== DB Summary ===")
+          for t in tables:
+              try:
+                  c = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                  print(f"  {t:<25}: {c:>6}")
+              except Exception:
+                  pass
+          conn.close()
           EOF
 
       - name: Commit and push updated data
@@ -134,7 +153,7 @@ jobs:
           git config user.name "mundial-bot"
           git config user.email "bot@mundial2026.local"
           git add data/mundial2026.db data/cache/ data/logs/ data/lineups/ || true
-          git diff --staged --quiet || git commit -m "chore: auto-update [${{ steps.scope.outputs.scope }}] $(date +'%Y-%m-%d %H:%M UTC')"
+          git diff --staged --quiet || git commit -m "data: auto-update [${{ steps.scope.outputs.scope }}] $(date +'%Y-%m-%d %H:%M UTC')"
           git push origin main || echo "Nothing new to push"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

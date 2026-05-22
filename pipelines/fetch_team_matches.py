@@ -149,8 +149,8 @@ def parse_fd_matches(matches_raw: list, team_name: str) -> list:
 
 
 def fetch_matches_api_football(team_name: str, af_id: int) -> Optional[list]:
-    """Fetch from api-football.com."""
-    if not AF_KEY or not af_id:
+    """Fetch from api-sports.io / api-football.com."""
+    if not (APISPORTS_KEY or AF_KEY) or not af_id:
         return None
 
     url = f"{AF_BASE}/fixtures"
@@ -161,10 +161,7 @@ def fetch_matches_api_football(team_name: str, af_id: int) -> Optional[list]:
         "to": datetime.now().strftime("%Y-%m-%d"),
         "status": "FT",
     }
-    headers = {
-        "x-rapidapi-host": "v3.football.api-sports.io",
-        "x-rapidapi-key": AF_KEY,
-    }
+    headers = _af_headers()
 
     try:
         r = requests.get(url, headers=headers, params=params, timeout=10)
@@ -281,10 +278,10 @@ def fetch_team_matches(team_name: str, team_slug: str) -> list:
         if matches:
             print(f"  {team_name}: {len(matches)} matches (football-data.org)")
 
-    # Try api-football
+    # Try api-football / api-sports.io
     if not matches:
         af_id = TEAM_AF_IDS.get(team_name)
-        if af_id and AF_KEY:
+        if af_id and (APISPORTS_KEY or AF_KEY):
             matches = fetch_matches_api_football(team_name, af_id)
             if matches:
                 print(f"  {team_name}: {len(matches)} matches (api-football)")
@@ -325,7 +322,7 @@ def run(teams: Optional[list] = None, delay_secs: float = 2.0):
             if n:
                 print(f"    -> {n} nuevos partidos en DB")
 
-        if FD_KEY or AF_KEY:
+        if FD_KEY or APISPORTS_KEY or AF_KEY:
             time.sleep(delay_secs)  # rate limiting
 
     print(f"\nTotal partidos insertados: {total_inserted}")

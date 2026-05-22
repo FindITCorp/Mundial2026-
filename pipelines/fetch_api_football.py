@@ -32,19 +32,31 @@ LOG_PATH   = BASE_DIR / "data" / "cache" / "api_calls_log.json"
 
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-API_BASE = "https://api-football-v1.p.rapidapi.com/v3"
-AF_HOST  = "api-football-v1.p.rapidapi.com"
 AF_KEY       = os.getenv("APIFOOT", "")
 APISPORTS_KEY = os.getenv("APISPORTS_KEY", "")
+
+# Use api-sports.io direct endpoint when APISPORTS_KEY is set; fall back to RapidAPI
+AF_BASE  = "https://v3.football.api-sports.io"
+AF_BASE_RAPID = "https://api-football-v1.p.rapidapi.com/v3"
+AF_HOST  = "api-football-v1.p.rapidapi.com"
+
+# Active API base URL depends on which key is available
+API_BASE = AF_BASE if APISPORTS_KEY else AF_BASE_RAPID
+
 
 def _af_headers() -> dict:
     """Return correct auth headers: direct api-sports.io or RapidAPI fallback."""
     if APISPORTS_KEY:
         return {"x-apisports-key": APISPORTS_KEY}
     return {
-        "x-rapidapi-host": "v3.football.api-sports.io",
+        "x-rapidapi-host": AF_HOST,
         "x-rapidapi-key": AF_KEY,
     }
+
+
+def _has_api_key() -> bool:
+    """Return True if at least one API key is configured."""
+    return bool(APISPORTS_KEY or AF_KEY)
 
 DAILY_LIMIT = 100  # Free tier limit
 
@@ -232,19 +244,16 @@ def _api_get(endpoint: str, params: dict, cache_key: str,
         if cached is not None:
             return cached
 
-    # Check rate limit
-    if not AF_KEY:
-        print(f"  [AF] Sin API key (APIFOOT no configurada)")
+    # Check API key availability
+    if not _has_api_key():
+        print(f"  [AF] Sin API key (APISPORTS_KEY y APIFOOT no configurados)")
         return None
 
     if not _can_make_call():
         return None
 
     url = f"{API_BASE}/{endpoint}"
-    headers = {
-        "x-rapidapi-host": AF_HOST,
-        "x-rapidapi-key": AF_KEY,
-    }
+    headers = _af_headers()
 
     try:
         r = requests.get(url, headers=headers, params=params, timeout=15)
@@ -253,7 +262,11 @@ def _api_get(endpoint: str, params: dict, cache_key: str,
         if r.status_code == 200:
             data = r.json()
             _save_cache(cache_key, data)
-            remaining_calls = r.headers.get("X-RateLimit-Requests-Remaining", "?")
+            # api-sports.io uses x-ratelimit-requests-remaining; RapidAPI uses X-RateLimit-Requests-Remaining
+            remaining_calls = (
+                r.headers.get("x-ratelimit-requests-remaining")
+                or r.headers.get("X-RateLimit-Requests-Remaining", "?")
+            )
             print(f"  [AF] {endpoint}: OK (calls remaining today: {remaining_calls})")
             return data
         elif r.status_code == 429:
@@ -737,8 +750,8 @@ def run_fetch_all_squads(teams: Optional[list] = None, season: int = 2026,
     print(f"\n=== Fetch All Squads (API-Football) ===\n")
     print(f"  Budget remaining: {DAILY_LIMIT - _get_calls_today()} calls")
 
-    if not AF_KEY:
-        print("  Sin APIFOOT — saltando fetch de squads")
+    if not _has_api_key():
+        print("  Sin API key — saltando fetch de squads")
         return {"teams_fetched": 0, "players_found": 0}
 
     if teams is None:
@@ -782,8 +795,8 @@ def run_fetch_team_form(teams: Optional[list] = None, last: int = 20,
     print(f"\n=== Fetch Team Form (API-Football) ===\n")
     print(f"  Budget remaining: {DAILY_LIMIT - _get_calls_today()} calls")
 
-    if not AF_KEY:
-        print("  Sin APIFOOT — saltando fetch de forma")
+    if not _has_api_key():
+        print("  Sin API key — saltando fetch de forma")
         return {"teams_fetched": 0, "matches_saved": 0}
 
     if teams is None:
@@ -828,7 +841,12 @@ def show_api_status():
     print(f"  Calls today: {calls_today}/{DAILY_LIMIT}")
     print(f"  Remaining: {remaining}")
     print(f"  Last reset: {log.get('last_reset', 'unknown')}")
-    print(f"  API Key configured: {'YES' if AF_KEY else 'NO'}")
+    if APISPORTS_KEY:
+        print(f"  Active key: APISPORTS_KEY (api-sports.io direct) — base: {AF_BASE}")
+    elif AF_KEY:
+        print(f"  Active key: APIFOOT (RapidAPI) — base: {AF_BASE_RAPID}")
+    else:
+        print(f"  API Key configured: NO")
 
     recent = log.get("calls", [])[-5:]
     if recent:
