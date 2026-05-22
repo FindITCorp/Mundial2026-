@@ -426,6 +426,33 @@ class PlayerRatingEngine:
         raw = (base + league_bonus + exp_bonus) * age_factor
         return round(max(4.5, min(9.5, raw)), 2)
 
+    def rate_team(self, team_id: int) -> int:
+        """Rate all players in a team; store results in player_ratings. Returns count."""
+        conn = self._conn()
+        cur  = conn.cursor()
+        players = cur.execute(
+            "SELECT * FROM players WHERE team_id=?", (team_id,)
+        ).fetchall()
+        rated = 0
+        for p in players:
+            season_rating = self.rate_from_club_stats(p["id"])
+            if season_rating is None:
+                season_rating = self.estimate_rating_from_profile(p)
+            if season_rating is None:
+                continue
+            try:
+                cur.execute("""
+                    INSERT OR REPLACE INTO player_ratings
+                        (player_id, match_id, context, rating, components)
+                    VALUES (?,NULL,'nat',?,'{}')
+                """, (p["id"], season_rating))
+                rated += 1
+            except Exception:
+                pass
+        conn.commit()
+        conn.close()
+        return rated
+
 
 def rate_squad_from_profiles(team_name: str, db_path: Optional[Path] = None) -> dict:
     """
@@ -470,6 +497,28 @@ def rate_squad_from_profiles(team_name: str, db_path: Optional[Path] = None) -> 
 
     conn.close()
     return result
+
+
+def compute_all_ratings(teams=None, db_path=None) -> int:
+    """Rate all players for all teams (or specific teams). Returns total rated."""
+    engine = PlayerRatingEngine(db_path)
+    conn = engine._conn()
+    if teams:
+        placeholders = ",".join("?" * len(teams))
+        rows = conn.execute(
+            f"SELECT id FROM teams WHERE name IN ({placeholders})", teams
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT id FROM teams").fetchall()
+    conn.close()
+    total = 0
+    for row in rows:
+        total += engine.rate_team(row["id"])
+    return total
+
+
+# Backward-compat alias used by full_update.py
+PlayerRater = PlayerRatingEngine
 
 
 if __name__ == "__main__":
