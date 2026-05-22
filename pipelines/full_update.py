@@ -22,6 +22,9 @@ from datetime import datetime
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
 LOGS_DIR = BASE_DIR / "data" / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
