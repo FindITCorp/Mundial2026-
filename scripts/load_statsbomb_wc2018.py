@@ -292,6 +292,15 @@ def process_match(match, competition_label, season_year, team_map, player_map):
             if 'Red' in card or 'Second Yellow' in card:
                 p['red_cards'] += 1
 
+        elif t == 'Foul Committed' and p:
+            foul_data = event.get('foul_committed', {})
+            card = foul_data.get('card', {}).get('name', '')
+            if card:
+                if 'Yellow' in card and 'Second' not in card:
+                    p['yellow_cards'] += 1
+                if 'Red' in card or 'Second Yellow' in card:
+                    p['red_cards'] += 1
+
         elif t == 'Duel' and p:
             duel = event.get('duel', {})
             if duel.get('type', {}).get('name') == 'Tackle':
