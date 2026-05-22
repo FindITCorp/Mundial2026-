@@ -8,9 +8,9 @@ on:
       - 'pipelines/**'
       - '.github/workflows/fetch_data.yml'
   schedule:
-    - cron: '0 6 * * 1'       # Lunes 6am UTC: actualización completa
-    - cron: '0 7 * * 0,2-6'   # Mar-Dom 7am UTC: forma reciente
-    - cron: '0 */6 * 6,7 *'   # Jun-Jul cada 6h: modo torneo
+    - cron: '0 6 * * 1'       # Lunes 6am UTC: actualización completa (scope=all)
+    - cron: '0 7 * * *'       # Diario 7am UTC: forma reciente (scope=form, o all el lunes)
+    - cron: '0 0 * * *'       # Diario 0am UTC modo torneo Jun-Jul (scope detectado auto)
   workflow_dispatch:
     inputs:
       scope:
