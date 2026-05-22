@@ -1174,7 +1174,7 @@ def seed_sample_match_history(conn: sqlite3.Connection):
             opp_id = opp_row["id"] if opp_row else None
 
             cur.execute("""
-                INSERT INTO team_matches
+                INSERT OR IGNORE INTO team_matches
                     (team_id, opponent_id, opponent_name, date, competition,
                      goals_for, goals_against, result, venue)
                 VALUES (?,?,?,?,?,?,?,?,?)
