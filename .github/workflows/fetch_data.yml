@@ -6,7 +6,7 @@ on:
       scope:
         description: 'What to update: all / squads / stats / form / lineups / wc'
         required: false
-        default: 'form'
+        default: 'all'
         type: choice
         options:
           - all
@@ -16,13 +16,17 @@ on:
           - lineups
           - wc
   schedule:
-    - cron: '0 */6 * * *'    # Every 6 hours during tournament
-    - cron: '0 8 * * 1'      # Weekly full update on Monday 8am UTC (off-season)
+    # Pre-torneo: actualización completa cada lunes 6am UTC
+    - cron: '0 6 * * 1'
+    # Pre-torneo: forma reciente cada día 7am UTC
+    - cron: '0 7 * * *'
+    # Durante el torneo (jun 11 - jul 19): cada 6 horas
+    - cron: '0 */6 * 6,7 *'
 
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -50,12 +54,36 @@ jobs:
           mkdir -p data/logs
           mkdir -p data/lineups
 
-      - name: Setup database (if needed)
+      - name: Setup database
         env:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
         run: python scripts/setup_db.py
+
+      - name: Determine scope automatically
+        id: scope
+        run: |
+          # Manual trigger: use selected scope
+          # Scheduled Monday: run "all" (full refresh)
+          # Scheduled daily: run "form" + "squads"
+          # Scheduled during tournament (every 6h): run "wc" + "lineups"
+          if [ -n "${{ github.event.inputs.scope }}" ]; then
+            SCOPE="${{ github.event.inputs.scope }}"
+          else
+            DOW=$(date +%u)   # 1=Monday
+            MONTH=$(date +%-m)
+            # June (6) or July (7) = tournament mode
+            if [ "$MONTH" = "6" ] || [ "$MONTH" = "7" ]; then
+              SCOPE="wc"
+            elif [ "$DOW" = "1" ]; then
+              SCOPE="all"
+            else
+              SCOPE="form"
+            fi
+          fi
+          echo "scope=$SCOPE" >> $GITHUB_OUTPUT
+          echo "Auto-selected scope: $SCOPE"
 
       - name: Run data update pipeline
         env:
@@ -63,16 +91,22 @@ jobs:
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
         run: |
-          SCOPE="${{ github.event.inputs.scope }}"
-          SCOPE="${SCOPE:-form}"
-          echo "Running pipeline with scope: $SCOPE"
-          python pipelines/full_update.py --scope "$SCOPE"
+          echo "Running with scope: ${{ steps.scope.outputs.scope }}"
+          python pipelines/full_update.py --scope "${{ steps.scope.outputs.scope }}"
+
+      - name: Fetch squads update (on full runs)
+        if: steps.scope.outputs.scope == 'all' || steps.scope.outputs.scope == 'squads'
+        env:
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
+          APIFOOT: ${{ secrets.APIFOOT }}
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+        run: python pipelines/full_update.py --scope squads || echo "Squads step done"
 
       - name: Fetch Football Prediction API signals
         env:
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
-        run: python pipelines/fetch_predictions.py || echo "Predictions pipeline optional"
+        run: python pipelines/fetch_predictions.py || echo "Predictions step done"
 
       - name: Show update summary
         run: |
@@ -83,6 +117,7 @@ jobs:
           if db.exists():
               conn = sqlite3.connect(db)
               tables = ["teams", "players", "team_matches", "wc_matches",
+                        "player_club_stats", "player_nat_stats",
                         "player_ratings", "squad_selections", "match_lineups"]
               print("\n=== DB Summary ===")
               for t in tables:
@@ -99,7 +134,7 @@ jobs:
           git config user.name "mundial-bot"
           git config user.email "bot@mundial2026.local"
           git add data/mundial2026.db data/cache/ data/logs/ data/lineups/ || true
-          git diff --staged --quiet || git commit -m "chore: auto-update WC2026 data [scope=${{ github.event.inputs.scope || 'form' }}] $(date +'%Y-%m-%d %H:%M')"
-          git push origin main || echo "Nothing to push or push failed"
+          git diff --staged --quiet || git commit -m "chore: auto-update [${{ steps.scope.outputs.scope }}] $(date +'%Y-%m-%d %H:%M UTC')"
+          git push origin main || echo "Nothing new to push"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
