@@ -435,6 +435,8 @@ Ejemplos:
                         help="Ver calendario completo")
     parser.add_argument("--json", action="store_true",
                         help="Output en formato JSON")
+    parser.add_argument("--expert", action="store_true",
+                        help="Analisis estilo experto deportivo (resultado concreto, sin probabilidades)")
 
     args = parser.parse_args()
 
@@ -458,6 +460,12 @@ Ejemplos:
     if not args.home or not args.away:
         parser.print_help()
         sys.exit(0)
+
+    # Expert analysis mode — concrete result, no probabilities
+    if args.expert:
+        from models.expert_analysis import analyze_match
+        print(analyze_match(args.home, args.away, str(DB_PATH)))
+        return
 
     # Load lineup if provided
     lineup_data = None
