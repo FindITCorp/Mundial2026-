@@ -1,10 +1,10 @@
 # MUNDIAL 2026 — SISTEMA DE PREDICCION AVANZADO
 
 ## ESTADO DEL PROYECTO
-**Ultima actualizacion:** 22 de mayo de 2026
+**Ultima actualizacion:** 23 de mayo de 2026
 **Proposito:** Sistema completo de prediccion y analisis del Mundial 2026
 **Stack:** Python 3.11 · SQLite · requests · scipy · StatsBomb open data
-**Estado:** 🟢 DATOS CARGADOS · WORKFLOWS PASANDO · SIMULADOR FUNCIONAL
+**Estado:** 🟢 DATOS CARGADOS · WORKFLOWS PASANDO · SIMULADOR FUNCIONAL · EXPERT ANALYSIS LISTO
 
 ---
 
@@ -131,7 +131,7 @@ mundial2026/
 
 ---
 
-## TAREA ACTIVA: expert_analysis.py
+## TAREA COMPLETADA: expert_analysis.py ✅
 
 ### Que quiere el usuario:
 Analisis estilo **analista experto** (no probabilidades), con:
@@ -277,7 +277,24 @@ git push -u origin main
 
 ## PROXIMOS PASOS
 
-- [ ] **CREAR `models/expert_analysis.py`** — analisis experto estilo periodista deportivo
-- [ ] Conectar expert_analysis con predict.py como modo `--expert`
+- [x] ~~CREAR `models/expert_analysis.py`~~ — LISTO, deployado
+- [x] ~~Conectar expert_analysis con predict.py como `--expert`~~ — LISTO
+- [x] ~~Corregir roster 48 equipos WC2026~~ — LISTO (script fix_teams_wc2026.py ejecutado)
+- [ ] Incorporar odds por partido (The Odds API, 500 req/mes gratis) — disponible cuando empiece torneo
 - [ ] Cuando esten las convocatorias oficiales: `scope=squads` via GitHub Actions
 - [ ] Durante torneo (desde 11 junio): `scope=wc` para actualizar resultados en tiempo real
+
+### Uso del analisis experto:
+```bash
+python3 predict.py --home "Panama" --away "Croatia" --expert
+# o directamente:
+python3 models/expert_analysis.py "Panama" "Croatia"
+```
+
+### Estado equipos (23 mayo 2026):
+- 48 equipos correctos (fixture oficial FIFA draw)
+- 14 equipos erroneos eliminados (Bolivia, Italy, Denmark, Poland, etc.)
+- 14 equipos nuevos agregados (Ivory Coast, Norway, Algeria, Haiti, etc.)
+- Grupos A-L asignados segun sorteo oficial
+- Rankings FIFA abril 2026: Francia #1, España #2, Argentina #3
+- Odds apuestas y probabilidades Opta cargadas para los 48 equipos
