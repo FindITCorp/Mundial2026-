@@ -23,6 +23,8 @@ jobs:
   match_day_update:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
@@ -213,6 +215,7 @@ jobs:
         run: |
           git config user.name "mundial-matchday-bot"
           git config user.email "matchday@mundial2026.local"
-          git add data/mundial2026.db data/cache/ data/lineups/ data/logs/ || true
-          git diff --staged --quiet || git commit -m "live: match day update $(date +'%Y-%m-%d %H:%M') UTC"
+          git add data/mundial2026.db
+          git add data/lineups/ 2>/dev/null || true
+          git diff --staged --quiet || git -c commit.gpgsign=false commit -m "live: match day update $(date +'%Y-%m-%d %H:%M') UTC"
           git push origin main || echo "Nothing new to push"

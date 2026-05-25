@@ -32,6 +32,8 @@ jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -165,8 +167,9 @@ jobs:
         run: |
           git config user.name "mundial-bot"
           git config user.email "bot@mundial2026.local"
-          git add data/mundial2026.db data/cache/ data/logs/ data/lineups/ || true
-          git diff --staged --quiet || git commit -m "data: auto-update [${{ steps.scope.outputs.scope }}] $(date +'%Y-%m-%d %H:%M UTC')"
+          git add data/mundial2026.db
+          git add data/lineups/ 2>/dev/null || true
+          git diff --staged --quiet || git -c commit.gpgsign=false commit -m "data: auto-update [${{ steps.scope.outputs.scope }}] $(date +'%Y-%m-%d %H:%M UTC')"
           git push origin main || echo "Nothing new to push"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

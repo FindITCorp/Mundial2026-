@@ -13,6 +13,8 @@ on:
 jobs:
   fetch-players:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
@@ -48,9 +50,9 @@ jobs:
       - name: Commit player data
         run: |
           git config user.name "mundial-bot"
-          git config user.email "bot@mundial2026"
-          git add data/processed/ data/cache/ || true
-          git diff --staged --quiet || git commit -m "chore: update player stats $(date +'%Y-%m-%d')"
-          git push origin main
+          git config user.email "bot@mundial2026.local"
+          git add data/mundial2026.db
+          git diff --staged --quiet || git -c commit.gpgsign=false commit -m "chore: update player stats $(date +'%Y-%m-%d')"
+          git push origin main || echo "Nothing new to push"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
