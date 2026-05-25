@@ -41,6 +41,7 @@ jobs:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+          FETCH_TEAM: ${{ github.event.inputs.team || 'all' }}
         run: |
           python -c "
           import sys
@@ -54,8 +55,6 @@ jobs:
           else:
               run_club_stats()
           "
-        env:
-          FETCH_TEAM: ${{ github.event.inputs.team || 'all' }}
 
       - name: DB summary
         run: |
