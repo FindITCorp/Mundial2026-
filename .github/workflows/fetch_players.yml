@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       team:
-        description: 'Team slug to fetch (e.g. mexico) or "all" for all 48'
+        description: 'Equipo a procesar (ej: "Mexico") o "all" para los 48'
         required: false
         default: 'all'
   schedule:
-    - cron: '0 8 * * 1'      # Weekly Monday 8am UTC
+    - cron: '0 8 * * 1'      # Lunes 8am UTC (100 req/dia api-sports)
 
 jobs:
   fetch-players:
@@ -17,6 +17,7 @@ jobs:
       contents: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
       - uses: actions/checkout@v4
 
@@ -32,27 +33,49 @@ jobs:
         env:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
         run: python scripts/setup_db.py
 
-      - name: Fetch player club stats (last 3 seasons)
+      - name: Fetch player club stats via api-sports
         env:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
-          FETCH_TEAM: ${{ github.event.inputs.team || 'all' }}
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
         run: |
           python -c "
-          import os, sys
+          import sys
           sys.path.insert(0, '.')
-          from pipelines.fetch_data import fetch_wc_teams
-          fetch_wc_teams()
+          import os
+          from pipelines.fetch_club_stats import run as run_club_stats
+
+          team_input = os.getenv('FETCH_TEAM', 'all').strip()
+          if team_input and team_input != 'all':
+              run_club_stats(teams=[team_input])
+          else:
+              run_club_stats()
+          "
+        env:
+          FETCH_TEAM: ${{ github.event.inputs.team || 'all' }}
+
+      - name: DB summary
+        run: |
+          python -c "
+          import sqlite3
+          conn = sqlite3.connect('data/mundial2026.db')
+          cs = conn.execute('SELECT COUNT(*) FROM player_club_stats').fetchone()[0]
+          pr = conn.execute('SELECT COUNT(*) FROM player_ratings').fetchone()[0]
+          pl = conn.execute('SELECT COUNT(*) FROM players').fetchone()[0]
+          print(f'players: {pl}  |  club_stats: {cs}  |  ratings: {pr}')
           "
 
-      - name: Commit player data
+      - name: Commit updated player data
         run: |
           git config user.name "mundial-bot"
           git config user.email "bot@mundial2026.local"
           git add data/mundial2026.db
-          git diff --staged --quiet || git -c commit.gpgsign=false commit -m "chore: update player stats $(date +'%Y-%m-%d')"
-          git push origin main || echo "Nothing new to push"
+          git diff --staged --quiet && echo "Sin cambios en DB" && exit 0
+          git -c commit.gpgsign=false commit -m "data: player club stats update $(date +'%Y-%m-%d')"
+          git pull --rebase origin main
+          git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

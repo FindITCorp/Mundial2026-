@@ -169,7 +169,9 @@ jobs:
           git config user.email "bot@mundial2026.local"
           git add data/mundial2026.db
           git add data/lineups/ 2>/dev/null || true
-          git diff --staged --quiet || git -c commit.gpgsign=false commit -m "data: auto-update [${{ steps.scope.outputs.scope }}] $(date +'%Y-%m-%d %H:%M UTC')"
-          git push origin main || echo "Nothing new to push"
+          git diff --staged --quiet && echo "Sin cambios en DB" && exit 0
+          git -c commit.gpgsign=false commit -m "data: auto-update [${{ steps.scope.outputs.scope }}] $(date +'%Y-%m-%d %H:%M UTC')"
+          git pull --rebase origin main
+          git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
