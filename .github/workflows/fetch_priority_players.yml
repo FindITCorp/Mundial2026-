@@ -93,16 +93,30 @@ jobs:
               sys.exit(1)
 
           DEFAULT_PRIORITY = [
-              'Mexico', 'Argentina',
-              'France', 'Colombia',
-              'England', 'Uruguay',
-              'Brazil', 'Croatia',
-              'Portugal', 'Switzerland',
-              'Germany',
-              'Belgium', 'Ecuador',
-              'Netherlands', 'South Korea',
-              'Spain', 'Senegal',
-              'Ghana', 'Turkey',
+              # Group A: Mexico, South Africa, South Korea, Czechia
+              'Mexico', 'South Korea',
+              # Group B: Canada, Bosnia and Herzegovina, Qatar, Switzerland
+              'Switzerland', 'Canada',
+              # Group C: Brazil, Morocco, Scotland, Haiti
+              'Brazil', 'Morocco',
+              # Group D: USA, Paraguay, Australia, Turkey
+              'USA', 'Turkey',
+              # Group E: Germany, Curacao, Ivory Coast, Ecuador
+              'Germany', 'Ecuador',
+              # Group F: Netherlands, Japan, Sweden, Tunisia
+              'Netherlands', 'Japan',
+              # Group G: Belgium, Egypt, Iran, New Zealand
+              'Belgium', 'Iran',
+              # Group H: Spain, Cape Verde, Saudi Arabia, Uruguay
+              'Spain', 'Uruguay',
+              # Group I: France, Senegal, Iraq, Norway
+              'France', 'Senegal',
+              # Group J: Argentina, Algeria, Austria, Jordan
+              'Argentina',
+              # Group K: Portugal, DR Congo, Uzbekistan, Colombia
+              'Portugal', 'Colombia',
+              # Group L: England, Croatia, Ghana, Panama
+              'England', 'Croatia', 'Ghana',
           ]
 
           custom = os.getenv('INPUT_TEAMS', '').strip()

@@ -1250,6 +1250,20 @@ def main():
     print("\n=== Sembrando historial de partidos ===")
     seed_sample_match_history(conn)
 
+    print("\n=== Corrigiendo equipos WC2026 (equipos oficiales) ===")
+    try:
+        from scripts.fix_teams_wc2026 import run as fix_teams
+        fix_teams()
+    except Exception as e:
+        print(f"  fix_teams (non-fatal): {e}")
+
+    print("\n=== Sembrando jugadores nuevos equipos ===")
+    try:
+        from scripts.seed_new_teams import run as seed_new
+        seed_new()
+    except Exception as e:
+        print(f"  seed_new_teams (non-fatal): {e}")
+
     # Summary
     cur = conn.cursor()
     counts = {
