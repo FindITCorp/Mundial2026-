@@ -200,6 +200,9 @@ def synthesize_stats_from_profile(player_row: sqlite3.Row) -> Optional[dict]:
     age = player_row["age"] or 25
     league = player_row["club_league"] or ""
 
+    # Goals ratio only meaningful when caps > 5 (avoid caps=0 explosion)
+    nat_gpc = (goals_nat / caps) if caps >= 5 else 0.0
+
     # Estimate matches played (typical season)
     matches = 30 if "Premier League" in league or "La Liga" in league else 25
 
@@ -215,13 +218,12 @@ def synthesize_stats_from_profile(player_row: sqlite3.Row) -> Optional[dict]:
         tackle_per_match = 2.5
         inter_per_match = 1.8
     elif pos == "MID":
-        goals_per_match = 0.15 + (goals_nat / max(1, caps)) * 0.5
+        goals_per_match = min(0.5, 0.15 + nat_gpc * 0.5)
         assists_per_match = 0.2
         tackle_per_match = 1.5
         inter_per_match = 1.0
     else:  # FWD
-        gpc = goals_nat / max(1, caps)
-        goals_per_match = min(0.8, gpc * 1.2)
+        goals_per_match = min(0.8, nat_gpc * 1.2)
         assists_per_match = 0.15
         tackle_per_match = 0.3
         inter_per_match = 0.2
