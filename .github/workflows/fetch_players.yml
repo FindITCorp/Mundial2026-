@@ -71,10 +71,11 @@ jobs:
         run: |
           git config user.name "mundial-bot"
           git config user.email "bot@mundial2026.local"
+          git config commit.gpgsign false
           git add data/mundial2026.db
           git diff --staged --quiet && echo "Sin cambios en DB" && exit 0
-          git -c commit.gpgsign=false commit -m "data: player club stats update $(date +'%Y-%m-%d')"
-          git pull --rebase origin main
-          git push origin main
+          git commit -m "data: player club stats update $(date +'%Y-%m-%d')"
+          git pull --rebase origin main || git rebase --abort
+          git push -u origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
