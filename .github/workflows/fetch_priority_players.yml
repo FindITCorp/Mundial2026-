@@ -30,6 +30,43 @@ jobs:
       - name: Create required directories
         run: mkdir -p data/cache/club_stats data/logs
 
+      - name: Test API connectivity
+        env:
+          APIFOOT: ${{ secrets.APIFOOT }}
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+        run: |
+          python - <<'PYEOF'
+          import os, requests
+
+          apisports_key = os.getenv('APISPORTS_KEY', '')
+          apifoot_key   = os.getenv('APIFOOT', '')
+
+          print(f"APISPORTS_KEY set: {bool(apisports_key)} ({apisports_key[:6]}...)" if apisports_key else "APISPORTS_KEY: NOT SET")
+          print(f"APIFOOT set: {bool(apifoot_key)} ({apifoot_key[:6]}...)" if apifoot_key else "APIFOOT: NOT SET")
+          print()
+
+          # Test 1: direct api-sports.io
+          if apisports_key:
+              try:
+                  r = requests.get('https://v3.football.api-sports.io/players',
+                      headers={'x-apisports-key': apisports_key},
+                      params={'search': 'Mbappe', 'season': 2024}, timeout=15)
+                  print(f"Direct api-sports: HTTP {r.status_code} — {r.text[:120]}")
+              except Exception as e:
+                  print(f"Direct api-sports ERROR: {e}")
+
+          # Test 2: RapidAPI
+          if apifoot_key:
+              try:
+                  r = requests.get('https://api-football-v1.p.rapidapi.com/v3/players',
+                      headers={'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
+                               'x-rapidapi-key': apifoot_key},
+                      params={'search': 'Mbappe', 'season': 2024}, timeout=15)
+                  print(f"RapidAPI: HTTP {r.status_code} — {r.text[:120]}")
+              except Exception as e:
+                  print(f"RapidAPI ERROR: {e}")
+          PYEOF
+
       - name: Setup database
         env:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
