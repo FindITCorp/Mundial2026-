@@ -27,18 +27,14 @@ DB_PATH   = BASE_DIR / "data" / "mundial2026.db"
 
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-AF_BASE = "https://v3.football.api-sports.io"
+AF_BASE_DIRECT  = "https://v3.football.api-sports.io"
+AF_BASE_RAPID   = "https://api-football-v1.p.rapidapi.com"
 AF_KEY        = os.getenv("APIFOOT", "")
 APISPORTS_KEY = os.getenv("APISPORTS_KEY", "")
 
 # Global request counter to stay within daily quota
 _request_count = 0
 REQUEST_LIMIT  = 90  # leave buffer from 100/day
-
-def _af_headers() -> dict:
-    if APISPORTS_KEY:
-        return {"x-apisports-key": APISPORTS_KEY}
-    return {"x-rapidapi-host": "v3.football.api-sports.io", "x-rapidapi-key": AF_KEY}
 
 # Map league names to api-football league IDs
 LEAGUE_AF_IDS = {
@@ -90,39 +86,60 @@ def save_cache(player_id: int, season: int, data: dict) -> None:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
-def fetch_player_stats_af(player_name: str, club: str, season: int) -> Optional[dict]:
-    """Fetch player stats from api-football for a given season."""
+def _try_api_request(url: str, headers: dict, params: dict) -> Optional[dict]:
+    """Make a single API request and return parsed JSON or None."""
     global _request_count
-    if not (APISPORTS_KEY or AF_KEY):
+    try:
+        r = requests.get(url, headers=headers, params=params, timeout=15)
+        _request_count += 1
+        if r.status_code == 429:
+            print(f"  [AF] Rate limit — stopping")
+            _request_count = REQUEST_LIMIT
+            return None
+        if r.status_code == 200:
+            return r.json()
         return None
+    except Exception as e:
+        print(f"  [AF] Request error: {e}")
+        return None
+
+
+def fetch_player_stats_af(player_name: str, club: str, season: int) -> Optional[dict]:
+    """Fetch player stats — tries direct api-sports first, then RapidAPI fallback."""
+    global _request_count
     if _request_count >= REQUEST_LIMIT:
         return None
 
-    headers = _af_headers()
-    search_url = f"{AF_BASE}/players"
     params = {"search": player_name[:15], "season": season}
+    data = None
 
-    try:
-        r = requests.get(search_url, headers=headers, params=params, timeout=15)
-        _request_count += 1
+    # 1. Direct api-sports.io
+    if APISPORTS_KEY:
+        data = _try_api_request(
+            f"{AF_BASE_DIRECT}/players",
+            {"x-apisports-key": APISPORTS_KEY},
+            params,
+        )
 
-        if r.status_code == 429:
-            print(f"  [AF] Rate limit hit after {_request_count} requests")
-            _request_count = REQUEST_LIMIT  # stop further calls
-            return None
-        if r.status_code != 200:
-            return None
+    # 2. RapidAPI fallback
+    if data is None and AF_KEY and _request_count < REQUEST_LIMIT:
+        data = _try_api_request(
+            f"{AF_BASE_RAPID}/v3/players",
+            {"x-rapidapi-host": "api-football-v1.p.rapidapi.com",
+             "x-rapidapi-key": AF_KEY},
+            params,
+        )
 
-        players = r.json().get("response", [])
-        for p in players:
-            player_data = p.get("player", {})
-            if player_name.lower() in player_data.get("name", "").lower():
-                stats = p.get("statistics", [])
-                if stats:
-                    return parse_af_stats(stats[0], season)
+    if data is None:
+        return None
 
-    except Exception as e:
-        print(f"  [AF] Stats error for {player_name}: {e}")
+    players = data.get("response", [])
+    for p in players:
+        player_data = p.get("player", {})
+        if player_name.lower() in player_data.get("name", "").lower():
+            stats = p.get("statistics", [])
+            if stats:
+                return parse_af_stats(stats[0], season)
 
     return None
 
