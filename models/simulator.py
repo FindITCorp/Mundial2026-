@@ -22,6 +22,7 @@ import numpy as np
 from scipy.stats import poisson
 
 from models.predictor import TeamSnapshot
+from models.formation_engine import formation_matchup_factor, get_team_tactics
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +134,8 @@ def simulate_match(
     away_fwd_mid_rating: Optional[float] = None,
     n: int = N_SIMULATIONS,
     rng_seed: Optional[int] = None,
+    apply_formation_factor: bool = True,
+    db_path=None,
 ) -> dict:
     """
     Simula n partidos usando distribucion de Poisson y devuelve estadisticas
@@ -145,8 +148,7 @@ def simulate_match(
     away : TeamSnapshot
         Datos del equipo visitante.
     all_teams : list[TeamSnapshot], opcional
-        Lista de todos los equipos del torneo para normalizar. Si no se
-        provee, se usan solo los dos equipos del partido.
+        Lista de todos los equipos del torneo para normalizar.
     home_fwd_mid_rating : float, opcional
         Rating promedio de FWD/MID del equipo local (escala 0-100).
     away_fwd_mid_rating : float, opcional
@@ -155,6 +157,10 @@ def simulate_match(
         Numero de simulaciones (default 10,000).
     rng_seed : int, opcional
         Semilla para reproducibilidad.
+    apply_formation_factor : bool
+        Si True, aplica multiplicador tactico basado en formaciones de los DTs.
+    db_path : opcional
+        Ruta a la base de datos (para cargar tacticas).
 
     Retorna
     -------
@@ -163,7 +169,9 @@ def simulate_match(
         home_wins_pct, draws_pct, away_wins_pct,
         most_likely_scoreline, most_likely_pct,
         top_scorelines (lista de dicts {scoreline, pct}),
-        raw_text (bloque de texto listo para imprimir)
+        raw_text (bloque de texto listo para imprimir),
+        tactical_analysis (str, analisis tactico del partido),
+        home_formation_factor, away_formation_factor
     """
     if all_teams is None:
         all_teams = [home, away]
@@ -171,6 +179,25 @@ def simulate_match(
     # --- Expected goals ---
     xg_home = compute_xg(home, away, all_teams, home_fwd_mid_rating)
     xg_away = compute_xg(away, home, all_teams, away_fwd_mid_rating)
+
+    # --- Formation / tactical factor ---
+    tactical_analysis = ""
+    home_formation_factor = 1.0
+    away_formation_factor = 1.0
+
+    if apply_formation_factor:
+        try:
+            home_tactics = get_team_tactics(home.name, db_path)
+            away_tactics = get_team_tactics(away.name, db_path)
+            if home_tactics and away_tactics:
+                matchup = formation_matchup_factor(home_tactics, away_tactics)
+                home_formation_factor = matchup["home_factor"]
+                away_formation_factor = matchup["away_factor"]
+                tactical_analysis = matchup.get("analysis", "")
+                xg_home = float(np.clip(xg_home * home_formation_factor, 0.2, 5.0))
+                xg_away = float(np.clip(xg_away * away_formation_factor, 0.2, 5.0))
+        except Exception:
+            pass  # formation factor is non-critical; simulation still runs
 
     # --- Simulacion ---
     rng = np.random.default_rng(rng_seed)
@@ -231,6 +258,9 @@ def simulate_match(
         "most_likely_pct": most_likely["pct"],
         "top_scorelines": top_scorelines,
         "raw_text": raw_text,
+        "tactical_analysis": tactical_analysis,
+        "home_formation_factor": round(home_formation_factor, 4),
+        "away_formation_factor": round(away_formation_factor, 4),
     }
 
 

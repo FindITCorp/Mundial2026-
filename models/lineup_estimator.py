@@ -24,24 +24,121 @@ from typing import Optional
 
 DB_PATH = Path(__file__).parent.parent / "data" / "mundial2026.db"
 
-# ── Coach preferred formations by team ──────────────────────────────────
+# ── Coach preferred formations by team (2025 season, WC2026) ────────────
+# Source: actual DT formations from qualifying campaigns / 2024-25 season
 COACH_FORMATIONS = {
-    "Brazil":       "4-3-3",
-    "Argentina":    "4-3-3",
-    "France":       "4-2-3-1",
-    "Germany":      "4-2-3-1",
-    "Spain":        "4-3-3",
-    "England":      "4-3-3",
-    "Portugal":     "4-3-3",
-    "Netherlands":  "3-4-3",
-    "Mexico":       "4-3-3",
-    "USA":          "4-3-3",
-    "Croatia":      "4-2-3-1",
-    "Panama":       "4-4-2",
-    "Morocco":      "4-3-3",
-    "Japan":        "4-2-3-1",
-    "Senegal":      "4-3-3",
-    # Default for all others: 4-4-2
+    # Group A
+    "Mexico":                  "4-4-2",    # Javier Aguirre
+    "South Africa":            "4-4-2",    # Hugo Broos
+    "South Korea":             "4-2-3-1",  # Hong Myung-Bo
+    "Czechia":                 "4-2-3-1",  # Ivan Hašek
+    # Group B
+    "Canada":                  "4-3-3",    # Jesse Marsch (high press)
+    "Bosnia and Herzegovina":  "4-2-3-1",  # Elvir Baljić
+    "Qatar":                   "4-3-3",    # Bartolomeu Sousa
+    "Switzerland":             "3-4-3",    # Murat Yakin
+    # Group C
+    "Brazil":                  "4-2-3-1",  # Dorival Jr.
+    "Morocco":                 "4-3-3",    # Walid Regragui
+    "Haiti":                   "4-4-2",    # Marc Collat
+    "Scotland":                "3-4-3",    # Steve Clarke
+    # Group D
+    "USA":                     "4-3-3",    # Mauricio Pochettino
+    "Paraguay":                "4-2-3-1",  # Diego Garnero
+    "Australia":               "4-3-3",    # Tony Popovic
+    "Turkey":                  "4-2-3-1",  # Vincenzo Montella
+    # Group E
+    "Germany":                 "4-2-3-1",  # Julian Nagelsmann
+    "Curacao":                 "4-4-2",    # Remko Bicentini
+    "Ivory Coast":             "4-3-3",    # Emerse Faé
+    "Ecuador":                 "4-4-2",    # Sebastián Beccacece
+    # Group F
+    "Netherlands":             "4-3-3",    # Ronald Koeman
+    "Japan":                   "4-2-3-1",  # Hajime Moriyasu
+    "Sweden":                  "4-4-2",    # Jon Dahl Tomasson
+    "Tunisia":                 "4-3-3",    # Faouzi Benzarti
+    # Group G
+    "Belgium":                 "4-3-3",    # Domenico Tedesco
+    "Egypt":                   "4-2-3-1",  # Hossam Hassan
+    "Iran":                    "4-5-1",    # Amir Ghalenoei
+    "New Zealand":             "4-3-3",    # Darren Bazeley
+    # Group H
+    "Spain":                   "4-3-3",    # Luis de la Fuente
+    "Cape Verde":              "4-3-3",    # Pedro Brito "Bubista"
+    "Saudi Arabia":            "4-3-3",    # Roberto Mancini
+    "Uruguay":                 "3-3-1-3",  # Marcelo Bielsa (asymmetric)
+    # Group I
+    "France":                  "4-2-3-1",  # Didier Deschamps
+    "Senegal":                 "4-3-3",    # Aliou Cissé
+    "Iraq":                    "4-5-1",    # Srečko Katanec
+    "Norway":                  "4-3-3",    # Ståle Solbakken
+    # Group J
+    "Argentina":               "4-3-3",    # Lionel Scaloni
+    "Algeria":                 "4-3-3",    # Vladimir Petković
+    "Austria":                 "4-2-3-1",  # Ralf Rangnick (gegenpress)
+    "Jordan":                  "4-5-1",    # Hossam Hassan
+    # Group K
+    "Portugal":                "4-3-3",    # Roberto Martínez
+    "DR Congo":                "4-3-3",    # Sébastien Desabre
+    "Uzbekistan":              "4-2-3-1",  # Srečko Katanec
+    "Colombia":                "4-2-3-1",  # Néstor Lorenzo
+    # Group L
+    "England":                 "4-2-3-1",  # Thomas Tuchel
+    "Croatia":                 "4-2-3-1",  # Zlatko Dalić
+    "Ghana":                   "4-2-3-1",  # Otto Addo
+    "Panama":                  "4-4-2",    # Thomas Christiansen
+}
+
+# Alt formations (defensive/adaptive context)
+COACH_ALT_FORMATIONS = {
+    "Mexico":                  "4-5-1",
+    "South Africa":            "5-4-1",
+    "South Korea":             "4-5-1",
+    "Czechia":                 "4-5-1",
+    "Canada":                  "4-4-2",
+    "Bosnia and Herzegovina":  "5-3-2",
+    "Qatar":                   "5-4-1",
+    "Switzerland":             "5-3-2",
+    "Brazil":                  "4-3-3",
+    "Morocco":                 "4-5-1",
+    "Haiti":                   "5-4-1",
+    "Scotland":                "5-4-1",
+    "USA":                     "4-4-2",
+    "Paraguay":                "4-5-1",
+    "Australia":               "4-5-1",
+    "Turkey":                  "4-5-1",
+    "Germany":                 "4-3-3",
+    "Curacao":                 "5-4-1",
+    "Ivory Coast":             "4-4-2",
+    "Ecuador":                 "4-5-1",
+    "Netherlands":             "4-4-2",
+    "Japan":                   "4-5-1",
+    "Sweden":                  "5-4-1",
+    "Tunisia":                 "4-5-1",
+    "Belgium":                 "4-4-2",
+    "Egypt":                   "4-5-1",
+    "Iran":                    "5-4-1",
+    "New Zealand":             "5-4-1",
+    "Spain":                   "4-4-2",
+    "Cape Verde":              "4-5-1",
+    "Saudi Arabia":            "4-5-1",
+    "Uruguay":                 "4-4-2",
+    "France":                  "4-4-2",
+    "Senegal":                 "4-4-2",
+    "Iraq":                    "5-4-1",
+    "Norway":                  "4-4-2",
+    "Argentina":               "4-2-3-1",
+    "Algeria":                 "4-5-1",
+    "Austria":                 "4-3-3",
+    "Jordan":                  "5-4-1",
+    "Portugal":                "4-2-3-1",
+    "DR Congo":                "4-4-2",
+    "Uzbekistan":              "4-5-1",
+    "Colombia":                "4-3-3",
+    "England":                 "4-3-3",
+    "Croatia":                 "4-5-1",
+    "Ghana":                   "4-4-2",
+    "Panama":                  "5-4-1",
 }
 
 DEFAULT_FORMATION = "4-4-2"
@@ -57,6 +154,10 @@ FORMATION_SLOTS = {
     "5-3-2":   {"GK": 1, "DEF": 5, "MID": 3, "FWD": 2},
     "4-5-1":   {"GK": 1, "DEF": 4, "MID": 5, "FWD": 1},
     "4-1-4-1": {"GK": 1, "DEF": 4, "MID": 5, "FWD": 1},
+    "3-3-1-3": {"GK": 1, "DEF": 3, "MID": 4, "FWD": 3},  # Bielsa asymmetric
+    "5-4-1":   {"GK": 1, "DEF": 5, "MID": 4, "FWD": 1},
+    "5-2-3":   {"GK": 1, "DEF": 5, "MID": 2, "FWD": 3},
+    "4-2-4":   {"GK": 1, "DEF": 4, "MID": 2, "FWD": 4},
 }
 
 
@@ -88,19 +189,37 @@ def _get_formation_slots(formation: str) -> dict:
     return FORMATION_SLOTS["4-4-2"]
 
 
-def _get_team_id_and_formation(team_name: str, db_path: Optional[Path] = None) -> tuple:
-    """Return (team_id, formation) for a team."""
+def _get_team_id_and_formation(
+    team_name: str,
+    db_path: Optional[Path] = None,
+    context: str = "normal",   # "normal" | "defensive" | "attacking"
+    opponent_ranking: Optional[int] = None,
+) -> tuple:
+    """Return (team_id, formation) for a team, adapting to match context."""
     conn = _conn(db_path)
     row = conn.execute(
-        "SELECT id, formation FROM teams WHERE name=? OR name LIKE ?",
+        "SELECT id, formation, fifa_ranking FROM teams WHERE name=? OR name LIKE ?",
         (team_name, f"%{team_name}%")
     ).fetchone()
     conn.close()
     if not row:
         return None, COACH_FORMATIONS.get(team_name, DEFAULT_FORMATION)
 
-    # Prefer hardcoded coach formation, fallback to DB
-    formation = COACH_FORMATIONS.get(team_name) or row["formation"] or DEFAULT_FORMATION
+    own_ranking = row["fifa_ranking"] or 50
+
+    # Determine context from rankings if not explicitly set
+    if context == "normal" and opponent_ranking:
+        rank_gap = opponent_ranking - own_ranking  # positive = we are stronger
+        if rank_gap < -25:   # we are heavy underdog
+            context = "defensive"
+        elif rank_gap > 25:  # we are heavy favorite
+            context = "attacking"
+
+    if context == "defensive":
+        formation = COACH_ALT_FORMATIONS.get(team_name) or row["formation"] or DEFAULT_FORMATION
+    else:
+        formation = COACH_FORMATIONS.get(team_name) or row["formation"] or DEFAULT_FORMATION
+
     return row["id"], formation
 
 
@@ -232,9 +351,14 @@ def _get_squad_players(team_id: int, db_path: Optional[Path] = None) -> list:
 def estimate_lineup(
     team_name: str,
     db_path: Optional[Path] = None,
+    context: str = "normal",
+    opponent_ranking: Optional[int] = None,
 ) -> dict:
     """
     Estimate the most probable starting XI for a team.
+
+    context: "normal" | "defensive" | "attacking"
+    opponent_ranking: FIFA ranking of opponent (used to auto-detect context)
 
     Returns:
     {
@@ -249,7 +373,9 @@ def estimate_lineup(
     """
     db = db_path or DB_PATH
 
-    team_id, formation = _get_team_id_and_formation(team_name, db)
+    team_id, formation = _get_team_id_and_formation(
+        team_name, db, context=context, opponent_ranking=opponent_ranking
+    )
 
     if team_id is None:
         return {
