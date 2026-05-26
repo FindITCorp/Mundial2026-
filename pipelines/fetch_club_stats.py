@@ -313,8 +313,8 @@ def process_team_players(team_name: str, use_api: bool = True, force_refresh: bo
         ).fetchone()
         conn2.close()
 
-        # Skip only if already has real data (xg > 0)
-        if existing and (existing["xg"] or 0) > 0:
+        # Skip only if already has real data (xg > 0); existing is (id, xg) tuple
+        if existing and (existing[1] or 0) > 0:
             continue
 
         # If force_refresh and synthetic exists, delete it so we can insert fresh
