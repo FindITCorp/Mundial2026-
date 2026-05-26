@@ -4,13 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       teams:
-        description: 'Teams comma-separated (default: first match teams Jun 11-15)'
+        description: 'Teams comma-separated (leave empty for first match teams Jun 11-15)'
         required: false
         default: ''
-  push:
-    paths:
-      - 'pipelines/fetch_club_stats.py'
-      - '.github/workflows/fetch_priority_players.yml'
 
 jobs:
   fetch-priority:
@@ -31,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Create required directories
+        run: mkdir -p data/cache/club_stats data/logs
+
       - name: Setup database
         env:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
@@ -38,19 +37,24 @@ jobs:
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
         run: python scripts/setup_db.py
 
-      - name: Fetch club stats for priority teams (force_refresh)
+      - name: Fetch club stats for priority teams
         env:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
           INPUT_TEAMS: ${{ github.event.inputs.teams }}
         run: |
-          python -c "
+          python - <<'PYEOF'
           import sys, os
           sys.path.insert(0, '.')
-          from pipelines.fetch_club_stats import run as run_club_stats
 
-          # First-match teams Jun 11-15 that exist in DB
+          try:
+              from pipelines.fetch_club_stats import run as run_club_stats
+          except Exception as e:
+              print(f"Import error: {e}")
+              import traceback; traceback.print_exc()
+              sys.exit(1)
+
           DEFAULT_PRIORITY = [
               'Mexico', 'Argentina',
               'France', 'Colombia',
@@ -67,19 +71,25 @@ jobs:
           custom = os.getenv('INPUT_TEAMS', '').strip()
           teams = [t.strip() for t in custom.split(',') if t.strip()] if custom else DEFAULT_PRIORITY
 
-          print(f'Processing {len(teams)} priority teams: {teams}')
+          print(f"Processing {len(teams)} priority teams")
+          print(f"Teams: {teams}")
           run_club_stats(teams=teams, force_refresh=True)
-          "
+          PYEOF
 
       - name: DB summary
+        if: always()
         run: |
-          python -c "
+          python - <<'PYEOF'
           import sqlite3
-          conn = sqlite3.connect('data/mundial2026.db')
+          from pathlib import Path
+          db = Path('data/mundial2026.db')
+          if not db.exists():
+              print("DB not found"); exit()
+          conn = sqlite3.connect(db)
           total = conn.execute('SELECT COUNT(*) FROM player_club_stats').fetchone()[0]
           real  = conn.execute('SELECT COUNT(*) FROM player_club_stats WHERE xg > 0').fetchone()[0]
           synth = conn.execute('SELECT COUNT(*) FROM player_club_stats WHERE xg = 0').fetchone()[0]
-          print(f'Total: {total} | Con xG real: {real} | Sintéticos: {synth}')
+          print(f'Total: {total} | Con xG real: {real} | Sinteticos: {synth}')
           rows = conn.execute('''
               SELECT p.name, t.name, pcs.goals, pcs.assists, pcs.xg
               FROM player_club_stats pcs
@@ -92,7 +102,8 @@ jobs:
               print('Top jugadores por xG:')
               for r in rows:
                   print(f'  {r[0]:<25} ({r[1]:<12}) G:{r[2]} A:{r[3]} xG:{r[4]:.2f}')
-          "
+          conn.close()
+          PYEOF
 
       - name: Commit updated player data
         run: |
