@@ -1,0 +1,107 @@
+name: Fetch Priority Player Stats (First Matches)
+
+on:
+  workflow_dispatch:
+    inputs:
+      teams:
+        description: 'Teams comma-separated (default: first match teams Jun 11-15)'
+        required: false
+        default: ''
+  push:
+    paths:
+      - 'pipelines/fetch_club_stats.py'
+      - '.github/workflows/fetch_priority_players.yml'
+
+jobs:
+  fetch-priority:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Setup database
+        env:
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
+          APIFOOT: ${{ secrets.APIFOOT }}
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+        run: python scripts/setup_db.py
+
+      - name: Fetch club stats for priority teams (force_refresh)
+        env:
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
+          APIFOOT: ${{ secrets.APIFOOT }}
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+          INPUT_TEAMS: ${{ github.event.inputs.teams }}
+        run: |
+          python -c "
+          import sys, os
+          sys.path.insert(0, '.')
+          from pipelines.fetch_club_stats import run as run_club_stats
+
+          # First-match teams Jun 11-15 that exist in DB
+          DEFAULT_PRIORITY = [
+              'Mexico', 'Argentina',
+              'France', 'Colombia',
+              'England', 'Uruguay',
+              'Brazil', 'Croatia',
+              'Portugal', 'Switzerland',
+              'Germany',
+              'Belgium', 'Ecuador',
+              'Netherlands', 'South Korea',
+              'Spain', 'Senegal',
+              'Ghana', 'Turkey',
+          ]
+
+          custom = os.getenv('INPUT_TEAMS', '').strip()
+          teams = [t.strip() for t in custom.split(',') if t.strip()] if custom else DEFAULT_PRIORITY
+
+          print(f'Processing {len(teams)} priority teams: {teams}')
+          run_club_stats(teams=teams, force_refresh=True)
+          "
+
+      - name: DB summary
+        run: |
+          python -c "
+          import sqlite3
+          conn = sqlite3.connect('data/mundial2026.db')
+          total = conn.execute('SELECT COUNT(*) FROM player_club_stats').fetchone()[0]
+          real  = conn.execute('SELECT COUNT(*) FROM player_club_stats WHERE xg > 0').fetchone()[0]
+          synth = conn.execute('SELECT COUNT(*) FROM player_club_stats WHERE xg = 0').fetchone()[0]
+          print(f'Total: {total} | Con xG real: {real} | Sintéticos: {synth}')
+          rows = conn.execute('''
+              SELECT p.name, t.name, pcs.goals, pcs.assists, pcs.xg
+              FROM player_club_stats pcs
+              JOIN players p ON p.id = pcs.player_id
+              JOIN teams t ON t.id = p.team_id
+              WHERE pcs.xg > 0
+              ORDER BY pcs.xg DESC LIMIT 10
+          ''').fetchall()
+          if rows:
+              print('Top jugadores por xG:')
+              for r in rows:
+                  print(f'  {r[0]:<25} ({r[1]:<12}) G:{r[2]} A:{r[3]} xG:{r[4]:.2f}')
+          "
+
+      - name: Commit updated player data
+        run: |
+          git config user.name "mundial-bot"
+          git config user.email "bot@mundial2026.local"
+          git add data/mundial2026.db
+          git diff --staged --quiet && echo "Sin cambios en DB" && exit 0
+          git -c commit.gpgsign=false commit -m "data: priority player stats (xG real) $(date +'%Y-%m-%d')"
+          git pull --rebase origin main
+          git push -u origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

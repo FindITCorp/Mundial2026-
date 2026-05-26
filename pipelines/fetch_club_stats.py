@@ -31,6 +31,10 @@ AF_BASE = "https://v3.football.api-sports.io"
 AF_KEY        = os.getenv("APIFOOT", "")
 APISPORTS_KEY = os.getenv("APISPORTS_KEY", "")
 
+# Global request counter to stay within daily quota
+_request_count = 0
+REQUEST_LIMIT  = 90  # leave buffer from 100/day
+
 def _af_headers() -> dict:
     if APISPORTS_KEY:
         return {"x-apisports-key": APISPORTS_KEY}
@@ -87,26 +91,29 @@ def save_cache(player_id: int, season: int, data: dict) -> None:
 
 
 def fetch_player_stats_af(player_name: str, club: str, season: int) -> Optional[dict]:
-    """
-    Fetch player stats from api-football for a given season.
-    Searches by name and club.
-    """
+    """Fetch player stats from api-football for a given season."""
+    global _request_count
     if not (APISPORTS_KEY or AF_KEY):
+        return None
+    if _request_count >= REQUEST_LIMIT:
         return None
 
     headers = _af_headers()
-
-    # First search for player ID
     search_url = f"{AF_BASE}/players"
     params = {"search": player_name[:15], "season": season}
 
     try:
-        r = requests.get(search_url, headers=headers, params=params, timeout=10)
+        r = requests.get(search_url, headers=headers, params=params, timeout=15)
+        _request_count += 1
+
+        if r.status_code == 429:
+            print(f"  [AF] Rate limit hit after {_request_count} requests")
+            _request_count = REQUEST_LIMIT  # stop further calls
+            return None
         if r.status_code != 200:
             return None
 
         players = r.json().get("response", [])
-        # Match by name and club
         for p in players:
             player_data = p.get("player", {})
             if player_name.lower() in player_data.get("name", "").lower():
@@ -139,6 +146,13 @@ def parse_af_stats(stat: dict, season: int) -> dict:
         except Exception:
             pass_acc = 0.0
 
+    xg_val = 0.0
+    expected = stat.get("expected", {})
+    if expected:
+        xg_val = float(expected.get("goals") or 0.0)
+    if not xg_val:
+        xg_val = float(goals.get("expected") or 0.0)
+
     return {
         "season": f"{season}/{str(season+1)[-2:]}",
         "league": stat.get("league", {}).get("name", "Unknown"),
@@ -154,6 +168,7 @@ def parse_af_stats(stat: dict, season: int) -> dict:
         "interceptions": int(tackles.get("interceptions") or 0),
         "yellow_cards": int(cards.get("yellow") or 0),
         "red_cards": int(cards.get("red") or 0),
+        "xg": xg_val,
     }
 
 
@@ -245,8 +260,8 @@ def save_stats_to_db(player_id: int, stats: dict) -> bool:
         INSERT OR REPLACE INTO player_club_stats
             (player_id, season, league, club, matches, minutes, goals, assists,
              shots_on_target, pass_accuracy, dribbles_completed, tackles,
-             interceptions, yellow_cards, red_cards)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             interceptions, yellow_cards, red_cards, xg)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, (
         player_id,
         stats["season"], stats["league"], stats["club"],
@@ -254,14 +269,18 @@ def save_stats_to_db(player_id: int, stats: dict) -> bool:
         stats["shots_on_target"], stats["pass_accuracy"],
         stats["dribbles_completed"], stats["tackles"],
         stats["interceptions"], stats["yellow_cards"], stats["red_cards"],
+        stats.get("xg", 0.0),
     ))
     conn.commit()
     conn.close()
     return True
 
 
-def process_team_players(team_name: str, use_api: bool = True) -> int:
-    """Process all players for a team, fetching/synthesizing club stats."""
+def process_team_players(team_name: str, use_api: bool = True, force_refresh: bool = False) -> int:
+    """Process all players for a team, fetching/synthesizing club stats.
+    force_refresh=True: re-fetch players that only have synthetic data (xg=0).
+    """
+    global _request_count
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
@@ -280,26 +299,37 @@ def process_team_players(team_name: str, use_api: bool = True) -> int:
 
     processed = 0
     for p in players:
+        if _request_count >= REQUEST_LIMIT:
+            print(f"  [LIMIT] Reached {REQUEST_LIMIT} API requests, stopping.")
+            break
+
         player_id = p["id"]
         player_name = p["name"]
 
-        # Check if stats already exist
         conn2 = sqlite3.connect(DB_PATH)
         existing = conn2.execute(
-            "SELECT id FROM player_club_stats WHERE player_id=? LIMIT 1",
+            "SELECT id, xg FROM player_club_stats WHERE player_id=? LIMIT 1",
             (player_id,)
         ).fetchone()
         conn2.close()
 
-        if existing:
-            continue  # Skip if already have stats
+        # Skip only if already has real data (xg > 0)
+        if existing and (existing["xg"] or 0) > 0:
+            continue
+
+        # If force_refresh and synthetic exists, delete it so we can insert fresh
+        if existing and force_refresh:
+            conn3 = sqlite3.connect(DB_PATH)
+            conn3.execute("DELETE FROM player_club_stats WHERE player_id=?", (player_id,))
+            conn3.commit()
+            conn3.close()
 
         stats = None
 
-        if use_api and (APISPORTS_KEY or AF_KEY):
+        if use_api and (APISPORTS_KEY or AF_KEY) and _request_count < REQUEST_LIMIT:
             stats = fetch_player_stats_af(player_name, p["club"] or "", 2024)
             if stats:
-                print(f"    [API] {player_name}: {stats['goals']}G {stats['assists']}A")
+                print(f"    [API] {player_name}: {stats['goals']}G {stats['assists']}A xG:{stats.get('xg',0):.2f}")
             time.sleep(0.5)
 
         if not stats:
@@ -312,9 +342,15 @@ def process_team_players(team_name: str, use_api: bool = True) -> int:
     return processed
 
 
-def run(teams: Optional[list] = None):
-    """Main pipeline entry point."""
+def run(teams: Optional[list] = None, force_refresh: bool = False):
+    """Main pipeline entry point.
+    force_refresh=True: re-fetch players with only synthetic data (xg=0).
+    """
+    global _request_count
+    _request_count = 0
     print("\n=== Pipeline: Fetch Club Stats ===\n")
+    print(f"Mode: {'force_refresh (replace synthetic)' if force_refresh else 'fill missing only'}")
+    print(f"API request limit: {REQUEST_LIMIT}/day\n")
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -328,20 +364,24 @@ def run(teams: Optional[list] = None):
 
     total = 0
     for i, t in enumerate(db_teams, 1):
-        print(f"[{i}/{len(db_teams)}] {t['name']}")
-        n = process_team_players(t["name"], use_api=bool(APISPORTS_KEY or AF_KEY))
+        if _request_count >= REQUEST_LIMIT:
+            print(f"\n[LIMIT] Reached {REQUEST_LIMIT} requests — stopping after {i-1} teams.")
+            break
+        print(f"[{i}/{len(db_teams)}] {t['name']}  (requests used: {_request_count}/{REQUEST_LIMIT})")
+        n = process_team_players(t["name"],
+                                 use_api=bool(APISPORTS_KEY or AF_KEY),
+                                 force_refresh=force_refresh)
         total += n
         if n:
-            print(f"    -> {n} jugadores procesados")
+            print(f"    -> {n} jugadores actualizados")
 
-    # Final count
     conn = sqlite3.connect(DB_PATH)
-    stats_count = conn.execute("SELECT COUNT(*) FROM player_club_stats").fetchone()[0]
-    ratings_count = conn.execute("SELECT COUNT(*) FROM player_ratings").fetchone()[0]
+    real = conn.execute("SELECT COUNT(*) FROM player_club_stats WHERE xg > 0").fetchone()[0]
+    total_stats = conn.execute("SELECT COUNT(*) FROM player_club_stats").fetchone()[0]
     conn.close()
 
-    print(f"\nTotal stats de club: {stats_count}")
-    print(f"Total ratings: {ratings_count}")
+    print(f"\nAPI requests usados: {_request_count}")
+    print(f"Con xG real: {real}/{total_stats}")
     print("Pipeline club_stats completado.\n")
     return total
 
