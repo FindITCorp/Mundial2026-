@@ -27,7 +27,210 @@ from typing import Optional
 
 DB_PATH = Path(__file__).parent.parent / "data" / "mundial2026.db"
 
-# Position averages for pass accuracy benchmark
+# ---------------------------------------------------------------------------
+# League quality multiplier
+# Applies to the BONUS above base rating — same stats in a weaker league
+# are worth less than the same stats in a top league.
+#
+# Formula: final = BASE + (raw_bonus) * LEAGUE_QUALITY[league]
+# Premier League (1.00) → full value
+# Liga Panameña  (0.55) → 55% of the bonus
+# ---------------------------------------------------------------------------
+LEAGUE_QUALITY: dict[str, float] = {
+    # ── Tier 1: Elite (1.00) ──────────────────────────────────────
+    "premier league":          1.00,
+    "la liga":                 1.00,
+    "bundesliga":              1.00,
+    "serie a":                 1.00,
+    "ligue 1":                 1.00,
+    "champions league":        1.05,  # CL level
+    "europa league":           0.98,
+    # ── Tier 2: Very high (0.92) ──────────────────────────────────
+    "eredivisie":              0.92,
+    "primeira liga":           0.92,
+    "primeira":                0.92,
+    "pro league":              0.92,  # Belgium
+    "first division a":        0.92,  # Belgium alias
+    "scottish prem":           0.88,
+    "scottish premiership":    0.88,
+    "spl":                     0.88,
+    "russian premier league":  0.88,
+    "rpl":                     0.88,
+    # ── Tier 3: High (0.84) ───────────────────────────────────────
+    "championship":            0.84,
+    "bundesliga 2":            0.84,
+    "2. bundesliga":           0.84,
+    "serie b":                 0.82,
+    "ligue 2":                 0.82,
+    "ligue 2 fr":              0.82,
+    "süper lig":               0.84,
+    "super lig":               0.84,
+    "turkish süper lig":       0.84,
+    "mls":                     0.82,
+    "brasileirao":             0.82,
+    "brasileirao a":           0.82,
+    "liga mx":                 0.82,
+    "liga betplay colombia":   0.78,
+    "superliga argentina":     0.78,
+    "primera division":        0.78,
+    "primera division uruguay":0.78,
+    "uruguayan primera":       0.78,
+    # ── Tier 4: Above average (0.76) ──────────────────────────────
+    "k league 1":              0.76,
+    "j1 league":               0.76,
+    "j-league":                0.76,
+    "j league":                0.76,
+    "saudi pro league":        0.74,
+    "saudi pro":               0.74,
+    "allsvenskan":             0.76,
+    "superliga":               0.76,   # Denmark / Argentina
+    "czech liga":              0.76,
+    "czech first league":      0.76,
+    "austrian bundesliga":     0.76,
+    "swiss super league":      0.76,
+    "swiss sl":                0.76,
+    "ukrainian premier league":0.74,
+    "ukrainian":               0.74,
+    "a-league":                0.72,
+    "eliteserien":             0.74,
+    "otb bank liga":           0.74,
+    "otp bank":                0.74,
+    "otp bank liga":           0.74,
+    "hnl":                     0.74,   # Croatia
+    "liganet":                 0.74,
+    # ── Tier 5: Average (0.68) ────────────────────────────────────
+    "psl":                     0.68,   # South Africa Premier Soccer League
+    "south african prem":      0.68,
+    "qsl":                     0.68,   # Qatar
+    "qatar stars league":      0.68,
+    "egyptian premier league": 0.68,
+    "egypt prem":              0.68,
+    "botola pro":              0.68,   # Morocco
+    "botola":                  0.68,
+    "mtn ligue 1":             0.68,   # Ivory Coast
+    "super league":            0.72,   # Greece
+    "super league greece":     0.72,
+    "ligat":                   0.68,   # Israel
+    "k league 2":              0.68,
+    "j2 league":               0.68,
+    "eerste divisie":          0.70,   # Netherlands second
+    "eerste":                  0.70,
+    "league one":              0.72,
+    "serie a ecuador":         0.65,
+    "ligapro ecuador":         0.65,
+    "ligapro":                 0.65,
+    "division profesional":    0.65,
+    "paraguayan primera":      0.65,
+    "división pro":            0.65,
+    "superettan":              0.70,
+    "allsvenskan":             0.74,
+    "belarusian":              0.60,
+    "bulgarian pro league":    0.66,
+    "bulgarian":               0.66,
+    "azerbaijani premier league": 0.62,
+    "azerbaijan":              0.62,
+    "moldovan premier league": 0.58,
+    "chinese super league":    0.68,
+    "ipl":                     0.65,
+    # ── Tier 6: Below average (0.60) ──────────────────────────────
+    "uae pro league":          0.63,
+    "uae pro":                 0.63,
+    "upl":                     0.60,   # Uzbekistan
+    "uzbekistan super league": 0.60,
+    "saudi first division":    0.62,
+    "jordan pro":              0.58,
+    "jordan premier league":   0.58,
+    "iraq stars":              0.58,
+    "iraqi stars league":      0.58,
+    "league of ireland":       0.62,
+    "loi":                     0.62,
+    "cpl":                     0.62,   # Canadian Premier League
+    "primera b":               0.65,
+    "primera b colombia":      0.65,
+    "liga 3 por":              0.60,
+    "segunda federacion":      0.58,
+    "segunda division":        0.62,
+    "serie b ecuador":         0.60,
+    "russian first":           0.70,
+    "premier bih":             0.60,
+    "Lebanese premier league": 0.55,
+    "football league greece":  0.62,
+    "first league":            0.64,
+    "cypriot first division":  0.64,
+    "cyprus first division":   0.64,
+    # ── Tier 7: Low (0.55) ────────────────────────────────────────
+    "usl":                     0.60,
+    "usl championship":        0.60,
+    "usl2":                    0.55,
+    "haiti nf":                0.50,
+    "guadeloupe":              0.50,
+    "venezolana":              0.52,
+    "venezuelan":              0.52,
+    "free":                    0.50,   # Unattached
+    "unattached":              0.50,
+    "caf":                     0.65,   # CAF club competition
+}
+
+# Baseline quality factor when league is unknown or not mapped
+_DEFAULT_LEAGUE_QUALITY = 0.70
+
+# ---------------------------------------------------------------------------
+# National team performance normalization by position
+# Reference goals-per-cap ratios in WC-level competition
+# ---------------------------------------------------------------------------
+_NAT_GPC_BASELINE = {"GK": 0.00, "DEF": 0.04, "MID": 0.10, "FWD": 0.28}
+_NAT_GPC_SCALE    = {"GK": 0.00, "DEF": 6.00, "MID": 4.00, "FWD": 2.00}
+_NAT_CAPS_WEIGHT  = {0: 0.0, 5: 0.3, 10: 0.5, 20: 0.7, 35: 0.85, 50: 1.0}
+
+
+def get_league_quality(league: str) -> float:
+    """Return quality multiplier [0.50–1.05] for a given league name."""
+    if not league:
+        return _DEFAULT_LEAGUE_QUALITY
+    key = league.strip().lower()
+    # Exact match first
+    if key in LEAGUE_QUALITY:
+        return LEAGUE_QUALITY[key]
+    # Substring match (handles "Premier" → "Premier League", etc.)
+    for name, q in LEAGUE_QUALITY.items():
+        if name in key or key in name:
+            return q
+    return _DEFAULT_LEAGUE_QUALITY
+
+
+def national_team_factor(caps: int, goals_as_nat: int, position: str) -> float:
+    """
+    Compute an adjustment factor based on national team performance.
+
+    Returns a float centered on 1.0:
+    - 1.0 = average international
+    - > 1.0 = outstanding nat team performer (e.g. striker with >0.4 goals/cap)
+    - < 1.0 = underperforms at national level
+
+    Caps weight: players with <10 caps get a muted factor (small sample size).
+    """
+    pos = (position or "MID").upper()
+    if pos not in _NAT_GPC_BASELINE:
+        pos = "MID"
+
+    # Caps experience weight — low caps = small sample → stay near 1.0
+    if caps <= 0:
+        return 1.0
+    caps_w = 0.0
+    for threshold, weight in sorted(_NAT_CAPS_WEIGHT.items()):
+        if caps >= threshold:
+            caps_w = weight
+
+    gpc = goals_as_nat / caps
+    baseline = _NAT_GPC_BASELINE[pos]
+    scale = _NAT_GPC_SCALE[pos]
+
+    # Raw delta from baseline, scaled to ±0.5 range
+    raw_delta = (gpc - baseline) * scale
+    capped_delta = max(-0.40, min(0.50, raw_delta))
+
+    # Apply caps weight — less experienced players get factor closer to 1.0
+    return round(1.0 + capped_delta * caps_w, 4)
 POSITION_PASS_AVG = {
     "GK":  72.0,
     "DEF": 82.0,
@@ -274,9 +477,31 @@ class PlayerRatingEngine:
         )
 
         rc = compute_player_rating(avg, player["position"], context="club")
+
+        # Apply league quality multiplier to bonus above base
+        league = stats_row["league"] or ""
+        lq = get_league_quality(league)
+        base = rc.base  # 6.0
+        bonus = rc.final_rating - base
+        league_adjusted = round(max(1.0, min(10.0, base + bonus * lq)), 2)
+        rc.final_rating = league_adjusted
+
+        # Apply national team factor from player profile
+        full_player = cur.execute(
+            "SELECT caps, goals_as_nat, position FROM players WHERE id=?", (player_id,)
+        ).fetchone()
+        if full_player:
+            nat_f = national_team_factor(
+                full_player["caps"] or 0,
+                full_player["goals_as_nat"] or 0,
+                full_player["position"] or "MID",
+            )
+            # Nat factor applied with 30% weight to league-adjusted rating
+            nat_blend = round(max(1.0, min(10.0, league_adjusted * (0.70 + 0.30 * nat_f))), 2)
+            rc.final_rating = nat_blend
+
         components_json = json.dumps(asdict(rc))
 
-        # Store in player_ratings
         cur.execute("""
             INSERT OR REPLACE INTO player_ratings
                 (player_id, match_id, context, rating, components)
@@ -381,50 +606,64 @@ class PlayerRatingEngine:
 
     def estimate_rating_from_profile(self, player_row: sqlite3.Row) -> float:
         """
-        Estimate a player's current rating from their profile data
-        (when no detailed match stats are available).
-        Uses caps, goals, age and league quality as proxies.
+        Estimate a player's rating combining club league quality + national team performance.
+
+        Formula:
+          base = 6.0
+          raw_bonus = stats-based bonus (goals/caps, experience, age)
+          league_factor = quality multiplier from LEAGUE_QUALITY [0.50–1.05]
+          nat_factor = national team performance adjustment [0.60–1.50]
+          final = base + raw_bonus * league_factor * nat_factor
         """
-        pos = player_row["position"] or "MID"
-        caps = player_row["caps"] or 0
-        goals = player_row["goals_as_nat"] or 0
-        age = player_row["age"] or 25
+        pos    = (player_row["position"] or "MID").upper()
+        caps   = player_row["caps"] or 0
+        goals  = player_row["goals_as_nat"] or 0
+        age    = player_row["age"] or 25
         league = player_row["club_league"] or ""
 
-        # League quality bonus (rough tiers)
-        league_bonus = 0.0
-        tier1 = ["Premier League", "La Liga", "Serie A", "Bundesliga", "Ligue 1", "Champions League"]
-        tier2 = ["Primeira Liga", "Eredivisie", "Pro League", "Scottish Prem", "MLS", "Brasileirao"]
-        for t in tier1:
-            if t.lower() in league.lower():
-                league_bonus = 0.5
-                break
-        else:
-            for t in tier2:
-                if t.lower() in league.lower():
-                    league_bonus = 0.2
-                    break
+        # ── 1. League quality multiplier ─────────────────────────────
+        lq = get_league_quality(league)
 
-        # Experience bonus
-        exp_bonus = min(0.5, caps * 0.003)
+        # ── 2. Experience (caps) bonus ────────────────────────────────
+        exp_bonus = min(0.8, caps * 0.006)
 
-        # Goals per cap ratio (for forwards)
+        # ── 3. Performance bonus (position-specific) ──────────────────
         base = 6.0
-        if pos in ("FWD", "MID") and caps > 5:
-            gpc = goals / max(1, caps)
-            goal_bonus = min(1.2, gpc * 3.0)
-            base += goal_bonus
+        perf_bonus = 0.0
+        if pos == "GK":
+            # GK: experience is the main driver
+            perf_bonus = min(1.0, caps * 0.008)
+        elif pos == "DEF":
+            if caps > 3:
+                gpc = goals / max(1, caps)
+                perf_bonus = min(1.0, gpc * 8.0 + caps * 0.005)
+        elif pos == "MID":
+            if caps > 3:
+                gpc = goals / max(1, caps)
+                perf_bonus = min(1.5, gpc * 4.0 + caps * 0.005)
+        else:  # FWD
+            if caps > 3:
+                gpc = goals / max(1, caps)
+                perf_bonus = min(2.0, gpc * 3.0 + caps * 0.005)
 
-        # Age factor: prime 24-30
+        # ── 4. Age factor ─────────────────────────────────────────────
         if 24 <= age <= 30:
-            age_factor = 1.0
+            age_factor = 1.00
         elif 21 <= age <= 33:
-            age_factor = 0.95
+            age_factor = 0.97
+        elif 19 <= age <= 34:
+            age_factor = 0.93
         else:
-            age_factor = 0.88
+            age_factor = 0.87
 
-        raw = (base + league_bonus + exp_bonus) * age_factor
-        return round(max(4.5, min(9.5, raw)), 2)
+        # ── 5. National team performance factor ───────────────────────
+        nat_f = national_team_factor(caps, goals, pos)
+
+        # ── 6. Combine: league quality multiplies the bonus above base ─
+        raw_bonus = (perf_bonus + exp_bonus) * lq * nat_f * age_factor
+        final = base + raw_bonus
+
+        return round(max(4.5, min(9.8, final)), 2)
 
     def rate_team(self, team_id: int) -> int:
         """Rate all players in a team; store results in player_ratings. Returns count."""

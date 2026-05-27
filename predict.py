@@ -147,20 +147,19 @@ def print_full_report(result, lineup_data=None):
     print(f"    Esquema: {away_info.get('formation', '?')}  |  "
           f"Estilo: {away_info.get('tactical_style', '?').title()}")
 
-    # Main prediction
+    # Main prediction — exact result, no percentages
     conf = result.get("confidence", {})
-    print(f"\n{'-'*65}")
-    print(f"  PREDICCION: {result['prediction'].upper()}")
-    print(f"  Marcador probable: {home} {result.get('predicted_scoreline', '?-?')}")
-    print(f"  Confianza: {conf.get('level', '?')} ({conf.get('pct', 0):.1f}%)")
-    print(f"{'-'*65}")
+    scoreline = result.get("predicted_scoreline", "?-?")
+    try:
+        sh, sa = scoreline.split("-")
+        exact_result = f"{home} {sh} – {sa} {away}"
+    except Exception:
+        exact_result = f"{home} vs {away}  ({scoreline})"
 
-    # Probabilities
-    print(f"\n  PROBABILIDADES:")
-    for outcome, prob in result.get("probabilities", {}).items():
-        bar_len = int(prob / 2)
-        bar = "|" * bar_len + "." * (50 - bar_len)
-        print(f"    {outcome:<32} {prob:>5.1f}%  {bar[:30]}")
+    print(f"\n{'═'*65}")
+    print(f"  RESULTADO PRONOSTICADO  [{conf.get('level', '?')} confianza]")
+    print(f"  ➤  {exact_result}")
+    print(f"{'═'*65}")
 
     # Line analysis
     print(f"\n{'-'*65}")
@@ -225,7 +224,8 @@ def print_full_report(result, lineup_data=None):
         results_str = " ".join(
             f"[{m['result']}]" for m in matches[:5]
         )
-        print(f"    {team_name:<22} Score: {score:.0f}%  {results_str}")
+        form_label = "Buena" if score >= 60 else "Regular" if score >= 40 else "Baja"
+        print(f"    {team_name:<22} Forma: {form_label:<8}  {results_str}")
         for m in matches[:3]:
             print(f"      vs {m['opponent']:<20} {m['result']}  {m['score']}  {m['comp']}")
 
@@ -253,7 +253,13 @@ def print_full_report(result, lineup_data=None):
             pw = proxy.get('win_pct', 0)
             pd = proxy.get('draw_pct', 0)
             pl = proxy.get('loss_pct', 0)
-            print(f"    {home}: {pw}% victorias  Empates: {pd}%  {away}: {pl}%")
+            if pw >= pd and pw >= pl:
+                proxy_result = f"Ventaja {home}"
+            elif pl >= pw and pl >= pd:
+                proxy_result = f"Ventaja {away}"
+            else:
+                proxy_result = "Equilibrado"
+            print(f"    Tendencia histórica similar: {proxy_result}")
     else:
         print(f"    Sin datos H2H disponibles.")
 
@@ -327,10 +333,7 @@ def print_full_report(result, lineup_data=None):
         if ext:
             print(f"\n{'-'*65}")
             print(f"  SEÑAL EXTERNA (Football Prediction API):")
-            print(f"    Predicción:   {ext.get('prediction', 'N/A')}")
-            print(f"    {home:<20} {ext.get('home_win_pct', 0):.1f}%")
-            print(f"    Empate        {ext.get('draw_pct', 0):.1f}%")
-            print(f"    {away:<20} {ext.get('away_win_pct', 0):.1f}%")
+            print(f"    Señal externa: {ext.get('prediction', 'N/A')}")
     except Exception:
         pass
 

@@ -268,6 +268,15 @@ def simulate_match(
 # Formato de salida
 # ---------------------------------------------------------------------------
 
+def _confidence_label(pct: float) -> str:
+    """Convert most-likely scoreline probability to a confidence label."""
+    if pct >= 18:
+        return "ALTA"
+    if pct >= 12:
+        return "MEDIA"
+    return "BAJA"
+
+
 def _format_output(
     home_name: str,
     away_name: str,
@@ -279,19 +288,28 @@ def _format_output(
     away_wins_pct: float,
     n: int,
 ) -> str:
+    conf = _confidence_label(most_likely_pct)
+
+    # Determine dominant outcome label
+    if home_wins_pct >= away_wins_pct and home_wins_pct >= draws_pct:
+        outcome = f"Victoria {home_name}"
+    elif away_wins_pct >= home_wins_pct and away_wins_pct >= draws_pct:
+        outcome = f"Victoria {away_name}"
+    else:
+        outcome = "Empate"
+
     lines = [
-        f"\nSIMULACION ({n:,} partidos):".replace(",", "."),
-        f"  Resultado mas probable:  {most_likely_label}  ({most_likely_pct}%)",
-        "",
-        "  Top 5 marcadores:",
+        f"\n  RESULTADO PRONOSTICADO  [{conf} confianza]",
+        f"  ══════════════════════════════════════════",
+        f"  {most_likely_label}",
+        f"",
+        f"  Otros marcadores probables:",
     ]
-    for i, s in enumerate(top_scorelines, 1):
-        lines.append(f"    {s['scoreline']}  ->  {s['pct']}%")
+    for s in top_scorelines[1:5]:
+        lines.append(f"    {s['scoreline']}")
 
     lines += [
-        "",
-        f"  Victoria {home_name}:{home_wins_pct:>8.1f}%",
-        f"  Empate:           {draws_pct:>8.1f}%",
-        f"  Victoria {away_name}:{away_wins_pct:>8.1f}%",
+        f"",
+        f"  Desenlace más probable: {outcome}",
     ]
     return "\n".join(lines)
