@@ -228,10 +228,11 @@ def print_full_report(result, lineup_data=None):
         results_str = " ".join(
             f"[{m['result']}]" for m in matches[:5]
         )
-        form_label = "Buena" if score >= 60 else "Regular" if score >= 40 else "Baja"
-        print(f"    {team_name:<22} Forma: {form_label:<8}  {results_str}")
-        for m in matches[:3]:
-            print(f"      vs {m['opponent']:<20} {m['result']}  {m['score']}  {m['comp']}")
+        form_label = "Excelente" if score >= 80 else "Buena" if score >= 60 else "Regular" if score >= 40 else "Baja"
+        print(f"    {team_name:<22} Forma: {form_label:<10} ({score:.0f}/100)  {results_str}")
+        for m in matches[:5]:
+            comp_short = m['comp'][:30] if m.get('comp') else ''
+            print(f"      vs {m['opponent']:<20} {m['result']}  {m['score']:<6}  {comp_short}")
 
     # H2H
     print(f"\n{'-'*65}")

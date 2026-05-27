@@ -38,6 +38,60 @@ WC_ROUND_POINTS = {
     "Champion": 7,
 }
 
+# Competition quality multiplier applied to each match in form_score.
+# More specific patterns MUST appear before broader ones (first match wins).
+# Keys matched against competition.lower() with accent-stripped normalization.
+_COMP_WEIGHT: list[tuple[str, float]] = [
+    # Qualification rounds — BEFORE the broader "fifa world cup" match
+    ("world cup qualification", 1.20),
+    ("wcq", 1.20),
+    ("african cup of nations qualification", 1.10),
+    ("africa cup of nations qualification", 1.10),
+    ("uefa euro qualification", 1.10),
+    ("afc asian cup qualification", 1.05),
+    ("copa america qualification", 1.05),
+    ("copa americana qualification", 1.05),
+    # WC final tournament
+    ("fifa world cup", 1.50),
+    ("world cup", 1.50),
+    # Major continental finals
+    ("copa america", 1.40),
+    ("copa americana", 1.40),
+    ("uefa euro", 1.40),
+    ("african cup of nations", 1.30),
+    ("africa cup of nations", 1.30),
+    ("afc asian cup", 1.25),
+    ("gold cup", 1.20),
+    ("concacaf gold cup", 1.20),
+    ("oceania nations cup", 1.15),
+    # Secondary competitive tournaments
+    ("nations league", 1.15),
+    ("concacaf nations league", 1.15),
+    ("gulf cup", 1.10),
+    ("arab cup", 1.05),
+    ("kirin cup", 1.00),
+    # FIFA series / test events
+    ("fifa series", 0.90),
+    # Friendlies
+    ("friendly", 0.80),
+]
+
+_FRIENDLY_DEFAULT_WEIGHT = 0.80
+
+_ACCENT_MAP = str.maketrans("áéíóúàèìòùãõâêîôûäëïöü", "aeiouaeiouaoaeiouaeiou")
+
+
+def _competition_weight(competition: str) -> float:
+    """Return the competitive weight for a given competition name."""
+    if not competition:
+        return _FRIENDLY_DEFAULT_WEIGHT
+    # Normalize: lowercase + strip accents for reliable substring matching
+    comp_norm = competition.lower().translate(_ACCENT_MAP)
+    for keyword, weight in _COMP_WEIGHT:
+        if keyword in comp_norm:
+            return weight
+    return 1.00  # unknown competition treated as neutral
+
 
 def _conn(db_path: Optional[Path] = None) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path or DB_PATH)
@@ -73,7 +127,7 @@ def load_squad_ratings(team_name: str, db_path: Optional[Path] = None) -> dict:
     return rate_squad_from_profiles(team_name, db_path)
 
 
-def load_recent_form(team_name: str, last_n: int = 10, db_path: Optional[Path] = None) -> list[dict]:
+def load_recent_form(team_name: str, last_n: int = 15, db_path: Optional[Path] = None) -> list[dict]:
     """Load last N matches for a team from DB."""
     conn = _conn(db_path)
     team_row = conn.execute("SELECT id FROM teams WHERE name=?", (team_name,)).fetchone()
@@ -172,7 +226,7 @@ def form_score(matches: list[dict], team_name: str = "", decay: float = 0.88) ->
             dominance_ratio = gf / (gf + ga) if (gf + ga) > 0 else 0.5
             pts = 0.6 * outcome_pts + 0.4 * dominance_ratio
 
-            # Strength-of-schedule
+            # Strength-of-schedule (opponent quality)
             opp_ranking = m.get("opp_ranking")
             if opp_ranking:
                 opp_weight = 1.0 + (0.5 - math.log(opp_ranking) / math.log(200)) * 0.3
@@ -180,8 +234,11 @@ def form_score(matches: list[dict], team_name: str = "", decay: float = 0.88) ->
             else:
                 opp_weight = 1.0
 
-            score += pts * weights[i] * opp_weight
-            total_weight += weights[i]
+            # Competition quality multiplier
+            comp_w = _competition_weight(m.get("competition", ""))
+
+            score += pts * weights[i] * opp_weight * comp_w
+            total_weight += weights[i] * comp_w
         return score / total_weight if total_weight > 0 else 0.50
 
     score = _score_matches(matches)
@@ -507,8 +564,8 @@ def predict_match(
     away_player_score = normalize_rating(away_overall)
 
     # ── 4. Recent form ──
-    home_form_matches = load_recent_form(home_name, 10, db)
-    away_form_matches = load_recent_form(away_name, 10, db)
+    home_form_matches = load_recent_form(home_name, 15, db)
+    away_form_matches = load_recent_form(away_name, 15, db)
 
     home_form = form_score(home_form_matches)
     away_form = form_score(away_form_matches)
