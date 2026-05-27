@@ -257,25 +257,46 @@ def form_score(matches: list[dict], team_name: str = "", decay: float = 0.88) ->
 def h2h_score(h2h_matches: list[dict], team_id: int) -> float:
     """
     H2H score [0,1] for a specific team with recency decay.
-    team_id is used to determine which 'side' of each match is team's.
-    Matches already sorted by date DESC from load_h2h.
+    Applies two independent decay factors:
+      1. Match-order decay (0.85 per match) — penalizes older matches in sequence
+      2. Time-based decay (year-based) — matches > 4 years old get a steep discount
+         so a squad that has completely changed is not penalized/rewarded for history
     """
     if not h2h_matches:
         return 0.50
-    # Sort by date desc — already sorted from load_h2h
+
+    import datetime
+    current_year = datetime.date.today().year
+
     total_weight = 0.0
     weighted_score = 0.0
-    decay = 0.85
+    sequence_decay = 0.85
+
     for i, m in enumerate(h2h_matches):
-        w = decay ** i
+        # Sequence decay
+        seq_w = sequence_decay ** i
+
+        # Time-based decay: each year older than 2 years → -20% weight
+        match_year = int((m.get("date") or "2020-01-01")[:4])
+        years_ago = max(0, current_year - match_year)
+        if years_ago <= 2:
+            time_w = 1.0
+        elif years_ago <= 4:
+            time_w = 1.0 - (years_ago - 2) * 0.20  # -20%/yr from 3rd year
+        else:
+            time_w = max(0.10, 1.0 - (years_ago - 2) * 0.25)  # steep after 4 yrs
+
+        w = seq_w * time_w
+
         if m.get("team_id") == team_id:
             pts = {"W": 1.0, "D": 0.5, "L": 0.0}.get(m.get("result", "D"), 0.5)
         else:
-            # This row is from opponent perspective
             flip = {"W": 0.0, "L": 1.0, "D": 0.5}
             pts = flip.get(m.get("result", "D"), 0.5)
+
         weighted_score += pts * w
         total_weight += w
+
     return round(weighted_score / total_weight, 4) if total_weight > 0 else 0.50
 
 

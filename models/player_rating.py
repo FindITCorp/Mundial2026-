@@ -178,8 +178,11 @@ _DEFAULT_LEAGUE_QUALITY = 0.70
 # National team performance normalization by position
 # Reference goals-per-cap ratios in WC-level competition
 # ---------------------------------------------------------------------------
-_NAT_GPC_BASELINE = {"GK": 0.00, "DEF": 0.04, "MID": 0.10, "FWD": 0.28}
-_NAT_GPC_SCALE    = {"GK": 0.00, "DEF": 6.00, "MID": 4.00, "FWD": 2.00}
+# FWD baseline lowered from 0.28 → 0.22: the average international FWD scores
+# roughly 0.22 goals/cap; 0.28+ is already world-class territory and should
+# generate a positive nat_f bonus (as it does for Mbappe, Kane, Lukaku).
+_NAT_GPC_BASELINE = {"GK": 0.00, "DEF": 0.04, "MID": 0.10, "FWD": 0.22}
+_NAT_GPC_SCALE    = {"GK": 0.00, "DEF": 6.00, "MID": 4.00, "FWD": 2.50}
 _NAT_CAPS_WEIGHT  = {0: 0.0, 5: 0.3, 10: 0.5, 20: 0.7, 35: 0.85, 50: 1.0}
 
 
@@ -206,10 +209,11 @@ _PEAK_AGE_END   = {"GK": 35, "DEF": 32, "MID": 30, "FWD": 29}
 def _age_factor(age: Optional[int], position: str = "MID") -> float:
     """
     Continuous age factor by position.
-    Returns multiplier in [0.78, 1.00].
+    Returns multiplier in [0.60, 1.00].
     - Pre-peak: gradual growth (+3%/yr off peak)
     - Peak window: 1.00
-    - Post-peak: gradual decline (-4%/yr off peak, GK/DEF slower at -3%/yr)
+    - Post-peak: gradual decline, accelerating past 36
+      GK/DEF: -3%/yr to 36, then -5%/yr; MID/FWD: -4%/yr to 36, then -7%/yr
     """
     if age is None:
         return 0.96  # unknown age: slight default penalty
@@ -217,6 +221,7 @@ def _age_factor(age: Optional[int], position: str = "MID") -> float:
     pos = position if position in _PEAK_AGE_START else "MID"
     peak_start = _PEAK_AGE_START[pos]
     peak_end   = _PEAK_AGE_END[pos]
+    steep_age  = 36  # age at which decline accelerates
 
     if peak_start <= age <= peak_end:
         return 1.00
@@ -224,10 +229,20 @@ def _age_factor(age: Optional[int], position: str = "MID") -> float:
         years_off = peak_start - age
         return max(0.82, 1.00 - years_off * 0.03)
     else:
-        years_off = age - peak_end
-        # GK/DEF decline more slowly than FWD/MID
-        decline_rate = 0.03 if pos in ("GK", "DEF") else 0.04
-        return max(0.78, 1.00 - years_off * decline_rate)
+        years_off_peak = age - peak_end
+        base_rate   = 0.03 if pos in ("GK", "DEF") else 0.04
+        steep_rate  = 0.05 if pos in ("GK", "DEF") else 0.07
+
+        if age <= steep_age:
+            factor = 1.00 - years_off_peak * base_rate
+        else:
+            # Phase 1: peak_end → steep_age
+            phase1 = (steep_age - peak_end) * base_rate
+            # Phase 2: steep_age → age (steeper)
+            phase2 = (age - steep_age) * steep_rate
+            factor = 1.00 - phase1 - phase2
+
+        return round(max(0.60, factor), 3)
 
 
 def _recency_weight(age: Optional[int], caps: int) -> float:
@@ -679,27 +694,34 @@ class PlayerRatingEngine:
         # ── 1. League quality multiplier ─────────────────────────────
         lq = get_league_quality(league)
 
-        # ── 2. Experience (caps) bonus ────────────────────────────────
-        exp_bonus = min(0.8, caps * 0.006)
+        # ── 2. Experience (caps) bonus — with diminishing returns past 80 ──
+        # Prevents retired/senior players from saturating the formula with
+        # career-accumulated caps. 80 caps → 0.48, 150 caps → 0.55 (not 0.90).
+        if caps <= 80:
+            exp_bonus = caps * 0.006
+        else:
+            exp_bonus = 0.48 + (caps - 80) * 0.001  # much slower past 80 caps
+        exp_bonus = min(0.60, exp_bonus)
 
         # ── 3. Performance bonus (position-specific) ──────────────────
         base = 6.0
         perf_bonus = 0.0
+        # Caps contribution also has diminishing returns past 80
+        caps_contrib = min(80, caps) * 0.005 + max(0, caps - 80) * 0.001
         if pos == "GK":
-            # GK: experience is the main driver
             perf_bonus = min(1.0, caps * 0.008)
         elif pos == "DEF":
             if caps > 3:
                 gpc = goals / max(1, caps)
-                perf_bonus = min(1.0, gpc * 8.0 + caps * 0.005)
+                perf_bonus = min(1.0, gpc * 8.0 + caps_contrib)
         elif pos == "MID":
             if caps > 3:
                 gpc = goals / max(1, caps)
-                perf_bonus = min(1.5, gpc * 4.0 + caps * 0.005)
+                perf_bonus = min(1.5, gpc * 4.0 + caps_contrib)
         else:  # FWD
             if caps > 3:
                 gpc = goals / max(1, caps)
-                perf_bonus = min(2.0, gpc * 3.0 + caps * 0.005)
+                perf_bonus = min(2.0, gpc * 3.0 + caps_contrib)
 
         # ── 4. Age factor (continuous, position-aware) ────────────────
         age_factor = _age_factor(age if player_row["age"] is not None else None, pos)
@@ -710,6 +732,20 @@ class PlayerRatingEngine:
         # ── 6. Combine: league quality multiplies the bonus above base ─
         raw_bonus = (perf_bonus + exp_bonus) * lq * nat_f * age_factor
         final = base + raw_bonus
+
+        # ── 7. Elite-league floor: top-5 league starters deserve minimum ──
+        # Defenders/GKs/MIDs don't score goals but elite clubs only pick the best.
+        # A player who earns 15+ caps AND plays in Tier-1 league is proven quality.
+        _ELITE_FLOOR = {
+            "GK":  7.00,   # top-5 GKs
+            "DEF": 7.20,   # top-5 CBs/FBs (Kim Min-jae ↑)
+            "MID": 6.90,   # top-5 MIDs
+            "FWD": 6.80,   # top-5 FWDs (already high via goals)
+        }
+        if lq >= 1.00 and caps >= 15:
+            final = max(_ELITE_FLOOR.get(pos, 6.80), final)
+        elif lq >= 0.92 and caps >= 20:  # Tier-2 leagues (Eredivisie, etc.)
+            final = max(6.50, final)
 
         return round(max(4.5, min(9.8, final)), 2)
 
