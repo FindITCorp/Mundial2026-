@@ -373,30 +373,76 @@ def scoreline_estimate(
     """
     Estimate the most likely scoreline using Dixon-Coles style attack/defense model.
 
+    Strategy:
+    1. Compute Poisson lambdas from attack/defense stats and team strength.
+    2. Determine the most probable OUTCOME (home win / draw / away win) by summing
+       joint probabilities — avoids the argmax-is-always-draw trap when lambdas ≈ 1.
+    3. Return the most probable scoreline *within* that winning outcome.
+
     home_strength, away_strength: relative team strengths [0.2, 1.2]
     """
-    # Attack rating factor
-    home_attack = (home_goals_avg * home_strength) * (1.0 / max(0.5, away_conceded_avg / 1.5))
-    away_attack = (away_goals_avg * away_strength) * (1.0 / max(0.5, home_conceded_avg / 1.5))
+    # Attack rating factor — defense multiplier is direct (not inverted).
+    # away_conceded_avg / 1.5 < 1.0 means tight defense → attacker scores fewer goals.
+    home_attack = (home_goals_avg * home_strength) * max(0.30, away_conceded_avg / 1.5)
+    away_attack = (away_goals_avg * away_strength) * max(0.30, home_conceded_avg / 1.5)
 
-    # Cap reasonable range
     home_lambda = round(max(0.3, min(3.5, home_attack)), 2)
     away_lambda = round(max(0.3, min(3.5, away_attack)), 2)
 
-    # Find most probable scoreline using Poisson distribution
-    best_prob = -1
-    best_score = (1, 1)
+    # Pre-compute Poisson PMF table (0..6 goals)
+    def pmf(lam: float, k: int) -> float:
+        return (math.e ** -lam * lam ** k) / math.factorial(k)
+
+    home_pmf = [pmf(home_lambda, k) for k in range(7)]
+    away_pmf = [pmf(away_lambda, k) for k in range(7)]
+
+    # Integrate outcome probabilities across the joint distribution
+    p_home_win = p_draw = p_away_win = 0.0
+    best: dict[str, tuple[int, int, float]] = {
+        "home_win": (1, 0, -1.0),
+        "draw":     (1, 1, -1.0),
+        "away_win": (0, 1, -1.0),
+    }
     for h in range(7):
         for a in range(7):
-            # Poisson PMF
-            prob_h = (math.e ** -home_lambda * home_lambda**h) / math.factorial(h)
-            prob_a = (math.e ** -away_lambda * away_lambda**a) / math.factorial(a)
-            prob = prob_h * prob_a
-            if prob > best_prob:
-                best_prob = prob
-                best_score = (h, a)
+            p = home_pmf[h] * away_pmf[a]
+            if h > a:
+                p_home_win += p
+                if p > best["home_win"][2]:
+                    best["home_win"] = (h, a, p)
+            elif h == a:
+                p_draw += p
+                if p > best["draw"][2]:
+                    best["draw"] = (h, a, p)
+            else:
+                p_away_win += p
+                if p > best["away_win"][2]:
+                    best["away_win"] = (h, a, p)
 
-    return best_score
+    # Pick outcome. When the leading outcome dominates by >=8pp, use it.
+    # In close matches (margin < 8pp) fall back to joint-argmax, which naturally
+    # picks the most probable single scoreline (often a 1-1 draw when λs ≈ 1).
+    outcomes = sorted(
+        [("home_win", p_home_win), ("draw", p_draw), ("away_win", p_away_win)],
+        key=lambda x: x[1], reverse=True
+    )
+    winner_name, winner_prob = outcomes[0]
+    runner_name, runner_prob = outcomes[1]
+
+    if winner_prob - runner_prob >= 0.08:  # clear winner — use outcome-based scoreline
+        h, a, _ = best[winner_name]
+    else:
+        # Close match — find joint argmax (naturally lands on draws when λs ≈ 1)
+        best_p = -1.0
+        h, a = 1, 1
+        for hg in range(7):
+            for ag in range(7):
+                p = home_pmf[hg] * away_pmf[ag]
+                if p > best_p:
+                    best_p = p
+                    h, a = hg, ag
+
+    return (h, a)
 
 
 def confidence_level(
@@ -694,7 +740,7 @@ def predict_match(
 
     # ── 10. Predicted scoreline ──
     score_h, score_a = scoreline_estimate(
-        home_strength=home_strength_adj / 0.6,  # rescale to useful range
+        home_strength=home_strength_adj / 0.6,
         away_strength=away_strength / 0.6,
         home_goals_avg=home_team.get("goals_scored_avg", 1.5),
         away_goals_avg=away_team.get("goals_scored_avg", 1.5),

@@ -403,7 +403,15 @@ def _get_confirmed_lineup_from_db(team_name: str, match_id: int = None) -> list:
 
     rows = conn.execute(query, params).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+
+    # Deduplicate by player_id (same player can appear in multiple historical lineups)
+    seen = set()
+    unique = []
+    for r in [dict(r) for r in rows]:
+        if r["player_id"] not in seen:
+            seen.add(r["player_id"])
+            unique.append(r)
+    return unique
 
 
 def _show_lineup_estimate(home_team: str, away_team: str) -> None:
