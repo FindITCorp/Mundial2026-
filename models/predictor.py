@@ -673,6 +673,19 @@ def predict_match(
     similar_to_home = find_similar_teams(home_name, db, top_n=3, exclude=[away_name])
     similar_to_away = find_similar_teams(away_name, db, top_n=3, exclude=[home_name])
 
+    # ── 15. DNA tactical identity & matchup analysis ──
+    home_matchup_analysis = ""
+    away_matchup_analysis = ""
+    try:
+        from models.team_dna import get_team_dna, matchup_xg_factor, format_matchup_analysis
+        h_dna = get_team_dna(home_name)
+        a_dna = get_team_dna(away_name)
+        if h_dna and a_dna:
+            home_matchup_analysis = format_matchup_analysis(home_name, away_name, h_dna, a_dna)
+            away_matchup_analysis = format_matchup_analysis(away_name, home_name, a_dna, h_dna)
+    except Exception:
+        pass
+
     # ── Assemble full result ──
     result = {
         "match": f"{home_name} vs {away_name}",
@@ -814,6 +827,10 @@ def predict_match(
             home_name: [f"{t['team_name']} ({t['similarity_score']:.2f})" for t in similar_to_home],
             away_name: [f"{t['team_name']} ({t['similarity_score']:.2f})" for t in similar_to_away],
         },
+
+        # DNA tactical matchup analysis
+        "home_matchup_analysis": home_matchup_analysis,
+        "away_matchup_analysis": away_matchup_analysis,
     }
 
     return result

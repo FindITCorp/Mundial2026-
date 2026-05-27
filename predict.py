@@ -305,6 +305,27 @@ def print_full_report(result, lineup_data=None):
         winner = "<" if hv > av else (">" if av > hv else "=")
         print(f"  {label:<22} {hv:>18.3f}  {av:<18.3f}  {winner}")
 
+    # DNA tactical identity & matchup analysis
+    home_dna_txt = result.get("home_matchup_analysis", "")
+    away_dna_txt = result.get("away_matchup_analysis", "")
+    if home_dna_txt or away_dna_txt:
+        print(f"\n{'-'*65}")
+        print(f"  ANÁLISIS DE IDENTIDAD TÁCTICA (DNA):")
+        if home_dna_txt:
+            print(home_dna_txt)
+        if away_dna_txt:
+            print(away_dna_txt)
+
+    # Scout reports
+    try:
+        from models.team_scout import format_scouting_summary
+        print(f"\n{'-'*65}")
+        print(f"  INFORME DE SCOUTING:")
+        print(format_scouting_summary(home))
+        print(format_scouting_summary(away))
+    except Exception:
+        pass
+
     # Similar teams context
     sim = result.get("similar_teams", {})
     if sim.get(home) or sim.get(away):

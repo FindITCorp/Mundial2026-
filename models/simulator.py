@@ -125,6 +125,17 @@ def compute_xg(
     set_piece_bonus = (set_piece_index - 0.18) * 0.67  # normalized around league avg
     xg = xg * (1.0 + set_piece_bonus * 0.20)  # max ±4% effect on total xG
 
+    # DNA matchup factor: adjusts xG based on team identity vs opponent
+    try:
+        from models.team_dna import get_team_dna, matchup_xg_factor as dna_xg_factor
+        att_dna = get_team_dna(attacking_team.name)
+        def_dna = get_team_dna(defending_team.name)
+        if att_dna and def_dna:
+            dna_factor = dna_xg_factor(att_dna, def_dna)
+            xg = xg * dna_factor
+    except Exception:
+        pass  # DNA factor is non-critical
+
     # Limitamos a un rango razonable
     return float(np.clip(xg, 0.2, 5.0))
 
@@ -274,6 +285,19 @@ def simulate_match(
         f"– {most_likely['away_goals']} {away.name}"
     )
 
+    # --- DNA matchup analysis ---
+    try:
+        from models.team_dna import get_team_dna, format_matchup_analysis
+        h_dna = get_team_dna(home.name)
+        a_dna = get_team_dna(away.name)
+        if h_dna and a_dna:
+            home_matchup_txt = format_matchup_analysis(home.name, away.name, h_dna, a_dna)
+            away_matchup_txt = format_matchup_analysis(away.name, home.name, a_dna, h_dna)
+        else:
+            home_matchup_txt = away_matchup_txt = ""
+    except Exception:
+        home_matchup_txt = away_matchup_txt = ""
+
     # --- Texto de salida ---
     raw_text = _format_output(
         home_name=home.name,
@@ -304,6 +328,8 @@ def simulate_match(
         "venue": venue,
         "home_set_piece_index": round(home_spi, 3),
         "away_set_piece_index": round(away_spi, 3),
+        "home_matchup_analysis": home_matchup_txt,
+        "away_matchup_analysis": away_matchup_txt,
     }
 
 
