@@ -198,7 +198,50 @@ def get_league_quality(league: str) -> float:
     return _DEFAULT_LEAGUE_QUALITY
 
 
-def national_team_factor(caps: int, goals_as_nat: int, position: str) -> float:
+# Peak age ranges by position — GKs and CBs peak later, FWDs earlier
+_PEAK_AGE_START = {"GK": 27, "DEF": 26, "MID": 25, "FWD": 24}
+_PEAK_AGE_END   = {"GK": 35, "DEF": 32, "MID": 30, "FWD": 29}
+
+
+def _age_factor(age: Optional[int], position: str = "MID") -> float:
+    """
+    Continuous age factor by position.
+    Returns multiplier in [0.78, 1.00].
+    - Pre-peak: gradual growth (+3%/yr off peak)
+    - Peak window: 1.00
+    - Post-peak: gradual decline (-4%/yr off peak, GK/DEF slower at -3%/yr)
+    """
+    if age is None:
+        return 0.96  # unknown age: slight default penalty
+
+    pos = position if position in _PEAK_AGE_START else "MID"
+    peak_start = _PEAK_AGE_START[pos]
+    peak_end   = _PEAK_AGE_END[pos]
+
+    if peak_start <= age <= peak_end:
+        return 1.00
+    elif age < peak_start:
+        years_off = peak_start - age
+        return max(0.82, 1.00 - years_off * 0.03)
+    else:
+        years_off = age - peak_end
+        # GK/DEF decline more slowly than FWD/MID
+        decline_rate = 0.03 if pos in ("GK", "DEF") else 0.04
+        return max(0.78, 1.00 - years_off * decline_rate)
+
+
+def _recency_weight(age: Optional[int], caps: int) -> float:
+    """Downweight career stats for older players (stale data)."""
+    if age is None or caps == 0:
+        return 1.0
+    if age <= 32:
+        return 1.0
+    # Post-32: each year reduces relevance by 8%, min 0.60
+    years_past_32 = age - 32
+    return max(0.60, 1.0 - years_past_32 * 0.08)
+
+
+def national_team_factor(caps: int, goals_as_nat: int, position: str, age: Optional[int] = None) -> float:
     """
     Compute an adjustment factor based on national team performance.
 
@@ -208,6 +251,7 @@ def national_team_factor(caps: int, goals_as_nat: int, position: str) -> float:
     - < 1.0 = underperforms at national level
 
     Caps weight: players with <10 caps get a muted factor (small sample size).
+    Age-based recency weight: downweights career totals for older players.
     """
     pos = (position or "MID").upper()
     if pos not in _NAT_GPC_BASELINE:
@@ -216,12 +260,19 @@ def national_team_factor(caps: int, goals_as_nat: int, position: str) -> float:
     # Caps experience weight — low caps = small sample → stay near 1.0
     if caps <= 0:
         return 1.0
+
+    # Recency heuristic: downweight career stats for older players
+    recency_w = _recency_weight(age, caps)
+    effective_goals = goals_as_nat * recency_w
+    effective_caps = caps * recency_w
+
+    # caps_w uses effective_caps so older players also lose experience weight
     caps_w = 0.0
     for threshold, weight in sorted(_NAT_CAPS_WEIGHT.items()):
-        if caps >= threshold:
+        if effective_caps >= threshold:
             caps_w = weight
 
-    gpc = goals_as_nat / caps
+    gpc = effective_goals / max(1, effective_caps)
     baseline = _NAT_GPC_BASELINE[pos]
     scale = _NAT_GPC_SCALE[pos]
 
@@ -491,10 +542,14 @@ class PlayerRatingEngine:
             "SELECT caps, goals_as_nat, position FROM players WHERE id=?", (player_id,)
         ).fetchone()
         if full_player:
+            full_player_age = cur.execute(
+                "SELECT age FROM players WHERE id=?", (player_id,)
+            ).fetchone()
             nat_f = national_team_factor(
                 full_player["caps"] or 0,
                 full_player["goals_as_nat"] or 0,
                 full_player["position"] or "MID",
+                age=full_player_age["age"] if full_player_age else None,
             )
             # Nat factor applied with 30% weight to league-adjusted rating
             nat_blend = round(max(1.0, min(10.0, league_adjusted * (0.70 + 0.30 * nat_f))), 2)
@@ -646,18 +701,11 @@ class PlayerRatingEngine:
                 gpc = goals / max(1, caps)
                 perf_bonus = min(2.0, gpc * 3.0 + caps * 0.005)
 
-        # ── 4. Age factor ─────────────────────────────────────────────
-        if 24 <= age <= 30:
-            age_factor = 1.00
-        elif 21 <= age <= 33:
-            age_factor = 0.97
-        elif 19 <= age <= 34:
-            age_factor = 0.93
-        else:
-            age_factor = 0.87
+        # ── 4. Age factor (continuous, position-aware) ────────────────
+        age_factor = _age_factor(age if player_row["age"] is not None else None, pos)
 
         # ── 5. National team performance factor ───────────────────────
-        nat_f = national_team_factor(caps, goals, pos)
+        nat_f = national_team_factor(caps, goals, pos, age=age if player_row["age"] is not None else None)
 
         # ── 6. Combine: league quality multiplies the bonus above base ─
         raw_bonus = (perf_bonus + exp_bonus) * lq * nat_f * age_factor
@@ -709,9 +757,10 @@ def rate_squad_from_profiles(team_name: str, db_path: Optional[Path] = None) -> 
 
     team_id = team_row["id"]
     players = cur.execute("""
-        SELECT p.* FROM players p
-        JOIN squad_selections ss ON ss.player_id = p.id
-        WHERE ss.team_id = ? AND ss.confirmed = 1
+        SELECT p.*, ss.confirmed as confirmed
+        FROM players p
+        LEFT JOIN squad_selections ss ON ss.player_id = p.id AND ss.team_id = p.team_id
+        WHERE p.team_id = ?
     """, (team_id,)).fetchall()
 
     result = {"GK": [], "DEF": [], "MID": [], "FWD": []}
@@ -720,6 +769,15 @@ def rate_squad_from_profiles(team_name: str, db_path: Optional[Path] = None) -> 
         pos = p["position"] or "MID"
         if pos not in result:
             pos = "MID"
+
+        # Availability: confirmed=0 means major doubt → penalize rating
+        confirmed = p["confirmed"] if "confirmed" in p.keys() else None
+        if confirmed == 0:
+            rating = round(rating * 0.75, 2)
+            availability = "doubt"
+        else:
+            availability = "available"
+
         result[pos].append({
             "player_id": p["id"],
             "name": p["name"],
@@ -728,6 +786,7 @@ def rate_squad_from_profiles(team_name: str, db_path: Optional[Path] = None) -> 
             "age": p["age"],
             "caps": p["caps"],
             "rating": rating,
+            "availability": availability,
         })
 
     # Sort by rating descending within each position

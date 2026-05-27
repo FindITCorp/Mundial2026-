@@ -123,9 +123,12 @@ def print_full_report(result, lineup_data=None):
     away = result["away"]
     sep = "=" * 65
 
+    venue = result.get("venue", "")
     print(f"\n{sep}")
     print(f"  ANALISIS PREDICTIVO -- MUNDIAL 2026")
     print(f"  {home.upper()} vs {away.upper()}")
+    if venue:
+        print(f"  Sede: {venue}")
     print(f"{sep}")
 
     # Team info
@@ -198,7 +201,8 @@ def print_full_report(result, lineup_data=None):
         for pos in ["GK", "DEF", "MID", "FWD"]:
             players = top.get(pos, [])
             for p in players[:2]:
-                print(f"    {pos}  {p['name']:<28} {p['rating']:>4.1f}  {p.get('club', '')}")
+                doubt = "  [BAJA?]" if p.get("availability") == "doubt" else ""
+                print(f"    {pos}  {p['name']:<28} {p['rating']:>4.1f}  {p.get('club', '')}{doubt}")
 
     # Key matchups
     matchups = result.get("key_matchups", [])
@@ -431,6 +435,8 @@ Ejemplos:
                         help="Sede neutral (default en Mundial)")
     parser.add_argument("--no-neutral", dest="neutral", action="store_false",
                         help="Sede no neutral")
+    parser.add_argument("--venue", default="",
+                        help="Ciudad sede del partido (ej: 'Mexico City', 'New York', 'Toronto')")
     parser.add_argument("--list-teams", action="store_true",
                         help="Listar todos los equipos clasificados")
     parser.add_argument("--group", help="Ver partidos de un grupo: A-L")
@@ -486,11 +492,32 @@ Ejemplos:
     # Run prediction
     print(f"\nCalculando prediccion: {args.home} vs {args.away}...")
 
+    # Resolve venue from schedule if not provided
+    venue = args.venue or ""
+    if not venue and args.home and args.away:
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            m = conn.execute("""
+                SELECT city FROM wc_matches
+                WHERE (home_team_name=? AND away_team_name=?)
+                   OR (home_team_name=? AND away_team_name=?)
+                LIMIT 1
+            """, (args.home, args.away, args.away, args.home)).fetchone()
+            if m:
+                venue = m[0] or ""
+            conn.close()
+        except Exception:
+            pass
+
+    if venue:
+        print(f"  Sede: {venue}")
+
     try:
         result = predict_match(
             home_name=args.home,
             away_name=args.away,
             neutral=args.neutral,
+            venue=venue,
         )
     except ValueError as e:
         print(f"\nERROR: {e}")

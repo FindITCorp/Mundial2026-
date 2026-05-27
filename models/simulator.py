@@ -102,12 +102,13 @@ def compute_xg(
     defending_team: TeamSnapshot,
     all_teams: list[TeamSnapshot],
     fwd_mid_rating: Optional[float] = None,
+    set_piece_index: float = 0.18,
 ) -> float:
     """
     Calcula los expected goals (xG) del equipo atacante contra el equipo
     defensor, dado el contexto de todos los equipos del torneo.
 
-    xG = base * ataque_norm * defensa_rival_norm * factor_calidad * factor_bajas
+    xG = base * ataque_norm * defensa_rival_norm * factor_calidad * factor_bajas * factor_set_piece
     """
     attack_strength  = _normalize_attack(attacking_team, all_teams)
     defense_weakness = _normalize_defense(defending_team, all_teams)
@@ -118,6 +119,12 @@ def compute_xg(
     )
 
     xg = _LEAGUE_AVG_GOALS * attack_strength * defense_weakness * quality_factor * missing_factor
+
+    # Set piece bonus: teams with high set_piece_index generate more threats
+    # Bonus ranges from -0.05 (0.0 index) to +0.12 (0.45 index)
+    set_piece_bonus = (set_piece_index - 0.18) * 0.67  # normalized around league avg
+    xg = xg * (1.0 + set_piece_bonus * 0.20)  # max ±4% effect on total xG
+
     # Limitamos a un rango razonable
     return float(np.clip(xg, 0.2, 5.0))
 
@@ -136,6 +143,7 @@ def simulate_match(
     rng_seed: Optional[int] = None,
     apply_formation_factor: bool = True,
     db_path=None,
+    venue: str = "",           # NEW: e.g. "Mexico City"
 ) -> dict:
     """
     Simula n partidos usando distribucion de Poisson y devuelve estadisticas
@@ -161,6 +169,8 @@ def simulate_match(
         Si True, aplica multiplicador tactico basado en formaciones de los DTs.
     db_path : opcional
         Ruta a la base de datos (para cargar tacticas).
+    venue : str
+        Nombre del estadio/ciudad anfitriona (e.g. "Mexico City", "New York").
 
     Retorna
     -------
@@ -171,14 +181,44 @@ def simulate_match(
         top_scorelines (lista de dicts {scoreline, pct}),
         raw_text (bloque de texto listo para imprimir),
         tactical_analysis (str, analisis tactico del partido),
-        home_formation_factor, away_formation_factor
+        home_formation_factor, away_formation_factor,
+        venue, home_set_piece_index, away_set_piece_index
     """
     if all_teams is None:
         all_teams = [home, away]
 
+    # --- Load set piece indices from DB if available ---
+    home_spi = getattr(home, 'set_piece_index', 0.18) or 0.18
+    away_spi = getattr(away, 'set_piece_index', 0.18) or 0.18
+
+    # If db_path provided, try loading from teams table
+    if db_path:
+        try:
+            import sqlite3
+            conn = sqlite3.connect(db_path)
+            row = conn.execute("SELECT set_piece_index FROM teams WHERE name=?", (home.name,)).fetchone()
+            if row and row[0] is not None:
+                home_spi = float(row[0])
+            row = conn.execute("SELECT set_piece_index FROM teams WHERE name=?", (away.name,)).fetchone()
+            if row and row[0] is not None:
+                away_spi = float(row[0])
+            conn.close()
+        except Exception:
+            pass
+
     # --- Expected goals ---
-    xg_home = compute_xg(home, away, all_teams, home_fwd_mid_rating)
-    xg_away = compute_xg(away, home, all_teams, away_fwd_mid_rating)
+    xg_home = compute_xg(home, away, all_teams, home_fwd_mid_rating, set_piece_index=home_spi)
+    xg_away = compute_xg(away, home, all_teams, away_fwd_mid_rating, set_piece_index=away_spi)
+
+    # --- Altitude penalty/bonus based on venue ---
+    try:
+        from models.venue_model import altitude_xg_factor
+        home_alt_f = altitude_xg_factor(venue, home.name)
+        away_alt_f = altitude_xg_factor(venue, away.name)
+        xg_home = float(np.clip(xg_home * home_alt_f, 0.2, 5.0))
+        xg_away = float(np.clip(xg_away * away_alt_f, 0.2, 5.0))
+    except Exception:
+        pass  # venue model is non-critical
 
     # --- Formation / tactical factor ---
     tactical_analysis = ""
@@ -261,6 +301,9 @@ def simulate_match(
         "tactical_analysis": tactical_analysis,
         "home_formation_factor": round(home_formation_factor, 4),
         "away_formation_factor": round(away_formation_factor, 4),
+        "venue": venue,
+        "home_set_piece_index": round(home_spi, 3),
+        "away_set_piece_index": round(away_spi, 3),
     }
 
 
