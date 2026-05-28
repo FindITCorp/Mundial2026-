@@ -50,6 +50,7 @@ LEAGUE_QUALITY: dict[str, float] = {
     "primeira liga":           0.92,
     "primeira":                0.92,
     "pro league":              0.92,  # Belgium
+    "ligue pro":               0.92,  # Belgian Pro League variant
     "first division a":        0.92,  # Belgium alias
     "scottish prem":           0.88,
     "scottish premiership":    0.88,
@@ -66,6 +67,8 @@ LEAGUE_QUALITY: dict[str, float] = {
     "süper lig":               0.84,
     "super lig":               0.84,
     "turkish süper lig":       0.84,
+    "türkiye süper lig":       0.84,
+    "türkiye 1.":              0.84,   # Turkish Süper Lig variant
     "mls":                     0.82,
     "brasileirao":             0.82,
     "brasileirao a":           0.82,
@@ -84,6 +87,7 @@ LEAGUE_QUALITY: dict[str, float] = {
     "saudi pro":               0.74,
     "allsvenskan":             0.76,
     "superliga":               0.76,   # Denmark / Argentina
+    "liga pro arg":            0.76,   # Argentina (variant name)
     "czech liga":              0.76,
     "czech first league":      0.76,
     "austrian bundesliga":     0.76,
@@ -746,6 +750,34 @@ class PlayerRatingEngine:
             final = max(_ELITE_FLOOR.get(pos, 6.80), final)
         elif lq >= 0.92 and caps >= 20:  # Tier-2 leagues (Eredivisie, etc.)
             final = max(6.50, final)
+
+        # ── 8. Recent nat-team form blend (from player_nat_stats) ────────
+        # If we have match ratings in player_nat_stats, use a weighted average
+        # of the last 5 matches to slightly adjust the profile-based rating.
+        # Effect is intentionally small (±0.3 max) so it doesn't override
+        # the structural quality signal.
+        try:
+            conn_form = self._conn()
+            nat_rows = conn_form.execute("""
+                SELECT rating FROM player_nat_stats
+                WHERE player_id=? AND rating IS NOT NULL
+                ORDER BY match_date DESC, rowid DESC
+                LIMIT 5
+            """, (player_row["id"],)).fetchall()
+            conn_form.close()
+
+            if nat_rows:
+                # Exponential decay: most recent match has most weight
+                weights = [0.5 ** i for i in range(len(nat_rows))]
+                w_sum = sum(weights)
+                nat_form_avg = sum(r["rating"] * w for r, w in zip(nat_rows, weights)) / w_sum
+                # Blend: 85% structural, 15% nat-form signal
+                # Clamp adjustment to [-0.3, +0.3] to prevent over-correction
+                nat_adj = (nat_form_avg - final) * 0.15
+                nat_adj = max(-0.30, min(0.30, nat_adj))
+                final = round(final + nat_adj, 2)
+        except Exception:
+            pass  # form data is non-critical
 
         return round(max(4.5, min(9.8, final)), 2)
 
