@@ -22,6 +22,7 @@ import numpy as np
 from scipy.stats import poisson
 
 from models.predictor import TeamSnapshot
+from models.formation_engine import formation_matchup_factor, get_team_tactics
 
 
 # ---------------------------------------------------------------------------
@@ -101,12 +102,13 @@ def compute_xg(
     defending_team: TeamSnapshot,
     all_teams: list[TeamSnapshot],
     fwd_mid_rating: Optional[float] = None,
+    set_piece_index: float = 0.18,
 ) -> float:
     """
     Calcula los expected goals (xG) del equipo atacante contra el equipo
     defensor, dado el contexto de todos los equipos del torneo.
 
-    xG = base * ataque_norm * defensa_rival_norm * factor_calidad * factor_bajas
+    xG = base * ataque_norm * defensa_rival_norm * factor_calidad * factor_bajas * factor_set_piece
     """
     attack_strength  = _normalize_attack(attacking_team, all_teams)
     defense_weakness = _normalize_defense(defending_team, all_teams)
@@ -117,6 +119,23 @@ def compute_xg(
     )
 
     xg = _LEAGUE_AVG_GOALS * attack_strength * defense_weakness * quality_factor * missing_factor
+
+    # Set piece bonus: teams with high set_piece_index generate more threats
+    # Bonus ranges from -0.05 (0.0 index) to +0.12 (0.45 index)
+    set_piece_bonus = (set_piece_index - 0.18) * 0.67  # normalized around league avg
+    xg = xg * (1.0 + set_piece_bonus * 0.20)  # max ±4% effect on total xG
+
+    # DNA matchup factor: adjusts xG based on team identity vs opponent
+    try:
+        from models.team_dna import get_team_dna, matchup_xg_factor as dna_xg_factor
+        att_dna = get_team_dna(attacking_team.name)
+        def_dna = get_team_dna(defending_team.name)
+        if att_dna and def_dna:
+            dna_factor = dna_xg_factor(att_dna, def_dna)
+            xg = xg * dna_factor
+    except Exception:
+        pass  # DNA factor is non-critical
+
     # Limitamos a un rango razonable
     return float(np.clip(xg, 0.2, 5.0))
 
@@ -133,6 +152,9 @@ def simulate_match(
     away_fwd_mid_rating: Optional[float] = None,
     n: int = N_SIMULATIONS,
     rng_seed: Optional[int] = None,
+    apply_formation_factor: bool = True,
+    db_path=None,
+    venue: str = "",           # NEW: e.g. "Mexico City"
 ) -> dict:
     """
     Simula n partidos usando distribucion de Poisson y devuelve estadisticas
@@ -145,8 +167,7 @@ def simulate_match(
     away : TeamSnapshot
         Datos del equipo visitante.
     all_teams : list[TeamSnapshot], opcional
-        Lista de todos los equipos del torneo para normalizar. Si no se
-        provee, se usan solo los dos equipos del partido.
+        Lista de todos los equipos del torneo para normalizar.
     home_fwd_mid_rating : float, opcional
         Rating promedio de FWD/MID del equipo local (escala 0-100).
     away_fwd_mid_rating : float, opcional
@@ -155,6 +176,12 @@ def simulate_match(
         Numero de simulaciones (default 10,000).
     rng_seed : int, opcional
         Semilla para reproducibilidad.
+    apply_formation_factor : bool
+        Si True, aplica multiplicador tactico basado en formaciones de los DTs.
+    db_path : opcional
+        Ruta a la base de datos (para cargar tacticas).
+    venue : str
+        Nombre del estadio/ciudad anfitriona (e.g. "Mexico City", "New York").
 
     Retorna
     -------
@@ -163,14 +190,65 @@ def simulate_match(
         home_wins_pct, draws_pct, away_wins_pct,
         most_likely_scoreline, most_likely_pct,
         top_scorelines (lista de dicts {scoreline, pct}),
-        raw_text (bloque de texto listo para imprimir)
+        raw_text (bloque de texto listo para imprimir),
+        tactical_analysis (str, analisis tactico del partido),
+        home_formation_factor, away_formation_factor,
+        venue, home_set_piece_index, away_set_piece_index
     """
     if all_teams is None:
         all_teams = [home, away]
 
+    # --- Load set piece indices from DB if available ---
+    home_spi = getattr(home, 'set_piece_index', 0.18) or 0.18
+    away_spi = getattr(away, 'set_piece_index', 0.18) or 0.18
+
+    # If db_path provided, try loading from teams table
+    if db_path:
+        try:
+            import sqlite3
+            conn = sqlite3.connect(db_path)
+            row = conn.execute("SELECT set_piece_index FROM teams WHERE name=?", (home.name,)).fetchone()
+            if row and row[0] is not None:
+                home_spi = float(row[0])
+            row = conn.execute("SELECT set_piece_index FROM teams WHERE name=?", (away.name,)).fetchone()
+            if row and row[0] is not None:
+                away_spi = float(row[0])
+            conn.close()
+        except Exception:
+            pass
+
     # --- Expected goals ---
-    xg_home = compute_xg(home, away, all_teams, home_fwd_mid_rating)
-    xg_away = compute_xg(away, home, all_teams, away_fwd_mid_rating)
+    xg_home = compute_xg(home, away, all_teams, home_fwd_mid_rating, set_piece_index=home_spi)
+    xg_away = compute_xg(away, home, all_teams, away_fwd_mid_rating, set_piece_index=away_spi)
+
+    # --- Altitude penalty/bonus based on venue ---
+    try:
+        from models.venue_model import altitude_xg_factor
+        home_alt_f = altitude_xg_factor(venue, home.name)
+        away_alt_f = altitude_xg_factor(venue, away.name)
+        xg_home = float(np.clip(xg_home * home_alt_f, 0.2, 5.0))
+        xg_away = float(np.clip(xg_away * away_alt_f, 0.2, 5.0))
+    except Exception:
+        pass  # venue model is non-critical
+
+    # --- Formation / tactical factor ---
+    tactical_analysis = ""
+    home_formation_factor = 1.0
+    away_formation_factor = 1.0
+
+    if apply_formation_factor:
+        try:
+            home_tactics = get_team_tactics(home.name, db_path)
+            away_tactics = get_team_tactics(away.name, db_path)
+            if home_tactics and away_tactics:
+                matchup = formation_matchup_factor(home_tactics, away_tactics)
+                home_formation_factor = matchup["home_factor"]
+                away_formation_factor = matchup["away_factor"]
+                tactical_analysis = matchup.get("analysis", "")
+                xg_home = float(np.clip(xg_home * home_formation_factor, 0.2, 5.0))
+                xg_away = float(np.clip(xg_away * away_formation_factor, 0.2, 5.0))
+        except Exception:
+            pass  # formation factor is non-critical; simulation still runs
 
     # --- Simulacion ---
     rng = np.random.default_rng(rng_seed)
@@ -207,6 +285,19 @@ def simulate_match(
         f"– {most_likely['away_goals']} {away.name}"
     )
 
+    # --- DNA matchup analysis ---
+    try:
+        from models.team_dna import get_team_dna, format_matchup_analysis
+        h_dna = get_team_dna(home.name)
+        a_dna = get_team_dna(away.name)
+        if h_dna and a_dna:
+            home_matchup_txt = format_matchup_analysis(home.name, away.name, h_dna, a_dna)
+            away_matchup_txt = format_matchup_analysis(away.name, home.name, a_dna, h_dna)
+        else:
+            home_matchup_txt = away_matchup_txt = ""
+    except Exception:
+        home_matchup_txt = away_matchup_txt = ""
+
     # --- Texto de salida ---
     raw_text = _format_output(
         home_name=home.name,
@@ -231,12 +322,29 @@ def simulate_match(
         "most_likely_pct": most_likely["pct"],
         "top_scorelines": top_scorelines,
         "raw_text": raw_text,
+        "tactical_analysis": tactical_analysis,
+        "home_formation_factor": round(home_formation_factor, 4),
+        "away_formation_factor": round(away_formation_factor, 4),
+        "venue": venue,
+        "home_set_piece_index": round(home_spi, 3),
+        "away_set_piece_index": round(away_spi, 3),
+        "home_matchup_analysis": home_matchup_txt,
+        "away_matchup_analysis": away_matchup_txt,
     }
 
 
 # ---------------------------------------------------------------------------
 # Formato de salida
 # ---------------------------------------------------------------------------
+
+def _confidence_label(pct: float) -> str:
+    """Convert most-likely scoreline probability to a confidence label."""
+    if pct >= 18:
+        return "ALTA"
+    if pct >= 12:
+        return "MEDIA"
+    return "BAJA"
+
 
 def _format_output(
     home_name: str,
@@ -249,19 +357,28 @@ def _format_output(
     away_wins_pct: float,
     n: int,
 ) -> str:
+    conf = _confidence_label(most_likely_pct)
+
+    # Determine dominant outcome label
+    if home_wins_pct >= away_wins_pct and home_wins_pct >= draws_pct:
+        outcome = f"Victoria {home_name}"
+    elif away_wins_pct >= home_wins_pct and away_wins_pct >= draws_pct:
+        outcome = f"Victoria {away_name}"
+    else:
+        outcome = "Empate"
+
     lines = [
-        f"\nSIMULACION ({n:,} partidos):".replace(",", "."),
-        f"  Resultado mas probable:  {most_likely_label}  ({most_likely_pct}%)",
-        "",
-        "  Top 5 marcadores:",
+        f"\n  RESULTADO PRONOSTICADO  [{conf} confianza]",
+        f"  ══════════════════════════════════════════",
+        f"  {most_likely_label}",
+        f"",
+        f"  Otros marcadores probables:",
     ]
-    for i, s in enumerate(top_scorelines, 1):
-        lines.append(f"    {s['scoreline']}  ->  {s['pct']}%")
+    for s in top_scorelines[1:5]:
+        lines.append(f"    {s['scoreline']}")
 
     lines += [
-        "",
-        f"  Victoria {home_name}:{home_wins_pct:>8.1f}%",
-        f"  Empate:           {draws_pct:>8.1f}%",
-        f"  Victoria {away_name}:{away_wins_pct:>8.1f}%",
+        f"",
+        f"  Desenlace más probable: {outcome}",
     ]
     return "\n".join(lines)

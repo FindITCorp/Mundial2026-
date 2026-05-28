@@ -123,9 +123,12 @@ def print_full_report(result, lineup_data=None):
     away = result["away"]
     sep = "=" * 65
 
+    venue = result.get("venue", "")
     print(f"\n{sep}")
     print(f"  ANALISIS PREDICTIVO -- MUNDIAL 2026")
     print(f"  {home.upper()} vs {away.upper()}")
+    if venue:
+        print(f"  Sede: {venue}")
     print(f"{sep}")
 
     # Team info
@@ -147,20 +150,19 @@ def print_full_report(result, lineup_data=None):
     print(f"    Esquema: {away_info.get('formation', '?')}  |  "
           f"Estilo: {away_info.get('tactical_style', '?').title()}")
 
-    # Main prediction
+    # Main prediction — exact result, no percentages
     conf = result.get("confidence", {})
-    print(f"\n{'-'*65}")
-    print(f"  PREDICCION: {result['prediction'].upper()}")
-    print(f"  Marcador probable: {home} {result.get('predicted_scoreline', '?-?')}")
-    print(f"  Confianza: {conf.get('level', '?')} ({conf.get('pct', 0):.1f}%)")
-    print(f"{'-'*65}")
+    scoreline = result.get("predicted_scoreline", "?-?")
+    try:
+        sh, sa = scoreline.split("-")
+        exact_result = f"{home} {sh} – {sa} {away}"
+    except Exception:
+        exact_result = f"{home} vs {away}  ({scoreline})"
 
-    # Probabilities
-    print(f"\n  PROBABILIDADES:")
-    for outcome, prob in result.get("probabilities", {}).items():
-        bar_len = int(prob / 2)
-        bar = "|" * bar_len + "." * (50 - bar_len)
-        print(f"    {outcome:<32} {prob:>5.1f}%  {bar[:30]}")
+    print(f"\n{'═'*65}")
+    print(f"  RESULTADO PRONOSTICADO  [{conf.get('level', '?')} confianza]")
+    print(f"  ➤  {exact_result}")
+    print(f"{'═'*65}")
 
     # Line analysis
     print(f"\n{'-'*65}")
@@ -199,7 +201,8 @@ def print_full_report(result, lineup_data=None):
         for pos in ["GK", "DEF", "MID", "FWD"]:
             players = top.get(pos, [])
             for p in players[:2]:
-                print(f"    {pos}  {p['name']:<28} {p['rating']:>4.1f}  {p.get('club', '')}")
+                doubt = "  [BAJA?]" if p.get("availability") == "doubt" else ""
+                print(f"    {pos}  {p['name']:<28} {p['rating']:>4.1f}  {p.get('club', '')}{doubt}")
 
     # Key matchups
     matchups = result.get("key_matchups", [])
@@ -225,9 +228,11 @@ def print_full_report(result, lineup_data=None):
         results_str = " ".join(
             f"[{m['result']}]" for m in matches[:5]
         )
-        print(f"    {team_name:<22} Score: {score:.0f}%  {results_str}")
-        for m in matches[:3]:
-            print(f"      vs {m['opponent']:<20} {m['result']}  {m['score']}  {m['comp']}")
+        form_label = "Excelente" if score >= 80 else "Buena" if score >= 60 else "Regular" if score >= 40 else "Baja"
+        print(f"    {team_name:<22} Forma: {form_label:<10} ({score:.0f}/100)  {results_str}")
+        for m in matches[:5]:
+            comp_short = m['comp'][:30] if m.get('comp') else ''
+            print(f"      vs {m['opponent']:<20} {m['result']}  {m['score']:<6}  {comp_short}")
 
     # H2H
     print(f"\n{'-'*65}")
@@ -253,7 +258,13 @@ def print_full_report(result, lineup_data=None):
             pw = proxy.get('win_pct', 0)
             pd = proxy.get('draw_pct', 0)
             pl = proxy.get('loss_pct', 0)
-            print(f"    {home}: {pw}% victorias  Empates: {pd}%  {away}: {pl}%")
+            if pw >= pd and pw >= pl:
+                proxy_result = f"Ventaja {home}"
+            elif pl >= pw and pl >= pd:
+                proxy_result = f"Ventaja {away}"
+            else:
+                proxy_result = "Equilibrado"
+            print(f"    Tendencia histórica similar: {proxy_result}")
     else:
         print(f"    Sin datos H2H disponibles.")
 
@@ -295,6 +306,27 @@ def print_full_report(result, lineup_data=None):
         winner = "<" if hv > av else (">" if av > hv else "=")
         print(f"  {label:<22} {hv:>18.3f}  {av:<18.3f}  {winner}")
 
+    # DNA tactical identity & matchup analysis
+    home_dna_txt = result.get("home_matchup_analysis", "")
+    away_dna_txt = result.get("away_matchup_analysis", "")
+    if home_dna_txt or away_dna_txt:
+        print(f"\n{'-'*65}")
+        print(f"  ANÁLISIS DE IDENTIDAD TÁCTICA (DNA):")
+        if home_dna_txt:
+            print(home_dna_txt)
+        if away_dna_txt:
+            print(away_dna_txt)
+
+    # Scout reports
+    try:
+        from models.team_scout import format_scouting_summary
+        print(f"\n{'-'*65}")
+        print(f"  INFORME DE SCOUTING:")
+        print(format_scouting_summary(home))
+        print(format_scouting_summary(away))
+    except Exception:
+        pass
+
     # Similar teams context
     sim = result.get("similar_teams", {})
     if sim.get(home) or sim.get(away):
@@ -327,10 +359,7 @@ def print_full_report(result, lineup_data=None):
         if ext:
             print(f"\n{'-'*65}")
             print(f"  SEÑAL EXTERNA (Football Prediction API):")
-            print(f"    Predicción:   {ext.get('prediction', 'N/A')}")
-            print(f"    {home:<20} {ext.get('home_win_pct', 0):.1f}%")
-            print(f"    Empate        {ext.get('draw_pct', 0):.1f}%")
-            print(f"    {away:<20} {ext.get('away_win_pct', 0):.1f}%")
+            print(f"    Señal externa: {ext.get('prediction', 'N/A')}")
     except Exception:
         pass
 
@@ -374,7 +403,15 @@ def _get_confirmed_lineup_from_db(team_name: str, match_id: int = None) -> list:
 
     rows = conn.execute(query, params).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+
+    # Deduplicate by player_id (same player can appear in multiple historical lineups)
+    seen = set()
+    unique = []
+    for r in [dict(r) for r in rows]:
+        if r["player_id"] not in seen:
+            seen.add(r["player_id"])
+            unique.append(r)
+    return unique
 
 
 def _show_lineup_estimate(home_team: str, away_team: str) -> None:
@@ -428,6 +465,8 @@ Ejemplos:
                         help="Sede neutral (default en Mundial)")
     parser.add_argument("--no-neutral", dest="neutral", action="store_false",
                         help="Sede no neutral")
+    parser.add_argument("--venue", default="",
+                        help="Ciudad sede del partido (ej: 'Mexico City', 'New York', 'Toronto')")
     parser.add_argument("--list-teams", action="store_true",
                         help="Listar todos los equipos clasificados")
     parser.add_argument("--group", help="Ver partidos de un grupo: A-L")
@@ -483,11 +522,32 @@ Ejemplos:
     # Run prediction
     print(f"\nCalculando prediccion: {args.home} vs {args.away}...")
 
+    # Resolve venue from schedule if not provided
+    venue = args.venue or ""
+    if not venue and args.home and args.away:
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            m = conn.execute("""
+                SELECT city FROM wc_matches
+                WHERE (home_team_name=? AND away_team_name=?)
+                   OR (home_team_name=? AND away_team_name=?)
+                LIMIT 1
+            """, (args.home, args.away, args.away, args.home)).fetchone()
+            if m:
+                venue = m[0] or ""
+            conn.close()
+        except Exception:
+            pass
+
+    if venue:
+        print(f"  Sede: {venue}")
+
     try:
         result = predict_match(
             home_name=args.home,
             away_name=args.away,
             neutral=args.neutral,
+            venue=venue,
         )
     except ValueError as e:
         print(f"\nERROR: {e}")

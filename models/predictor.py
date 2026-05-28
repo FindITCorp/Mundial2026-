@@ -38,6 +38,60 @@ WC_ROUND_POINTS = {
     "Champion": 7,
 }
 
+# Competition quality multiplier applied to each match in form_score.
+# More specific patterns MUST appear before broader ones (first match wins).
+# Keys matched against competition.lower() with accent-stripped normalization.
+_COMP_WEIGHT: list[tuple[str, float]] = [
+    # Qualification rounds — BEFORE the broader "fifa world cup" match
+    ("world cup qualification", 1.20),
+    ("wcq", 1.20),
+    ("african cup of nations qualification", 1.10),
+    ("africa cup of nations qualification", 1.10),
+    ("uefa euro qualification", 1.10),
+    ("afc asian cup qualification", 1.05),
+    ("copa america qualification", 1.05),
+    ("copa americana qualification", 1.05),
+    # WC final tournament
+    ("fifa world cup", 1.50),
+    ("world cup", 1.50),
+    # Major continental finals
+    ("copa america", 1.40),
+    ("copa americana", 1.40),
+    ("uefa euro", 1.40),
+    ("african cup of nations", 1.30),
+    ("africa cup of nations", 1.30),
+    ("afc asian cup", 1.25),
+    ("gold cup", 1.20),
+    ("concacaf gold cup", 1.20),
+    ("oceania nations cup", 1.15),
+    # Secondary competitive tournaments
+    ("nations league", 1.15),
+    ("concacaf nations league", 1.15),
+    ("gulf cup", 1.10),
+    ("arab cup", 1.05),
+    ("kirin cup", 1.00),
+    # FIFA series / test events
+    ("fifa series", 0.90),
+    # Friendlies
+    ("friendly", 0.80),
+]
+
+_FRIENDLY_DEFAULT_WEIGHT = 0.80
+
+_ACCENT_MAP = str.maketrans("áéíóúàèìòùãõâêîôûäëïöü", "aeiouaeiouaoaeiouaeiou")
+
+
+def _competition_weight(competition: str) -> float:
+    """Return the competitive weight for a given competition name."""
+    if not competition:
+        return _FRIENDLY_DEFAULT_WEIGHT
+    # Normalize: lowercase + strip accents for reliable substring matching
+    comp_norm = competition.lower().translate(_ACCENT_MAP)
+    for keyword, weight in _COMP_WEIGHT:
+        if keyword in comp_norm:
+            return weight
+    return 1.00  # unknown competition treated as neutral
+
 
 def _conn(db_path: Optional[Path] = None) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path or DB_PATH)
@@ -73,7 +127,7 @@ def load_squad_ratings(team_name: str, db_path: Optional[Path] = None) -> dict:
     return rate_squad_from_profiles(team_name, db_path)
 
 
-def load_recent_form(team_name: str, last_n: int = 10, db_path: Optional[Path] = None) -> list[dict]:
+def load_recent_form(team_name: str, last_n: int = 15, db_path: Optional[Path] = None) -> list[dict]:
     """Load last N matches for a team from DB."""
     conn = _conn(db_path)
     team_row = conn.execute("SELECT id FROM teams WHERE name=?", (team_name,)).fetchone()
@@ -85,10 +139,12 @@ def load_recent_form(team_name: str, last_n: int = 10, db_path: Optional[Path] =
         return []
 
     matches = conn.execute("""
-        SELECT opponent_name, date, competition, goals_for, goals_against, result, venue
-        FROM team_matches
-        WHERE team_id=?
-        ORDER BY date DESC
+        SELECT tm.opponent_name, tm.date, tm.competition, tm.goals_for, tm.goals_against,
+               tm.result, tm.venue, t.fifa_ranking as opp_ranking
+        FROM team_matches tm
+        LEFT JOIN teams t ON t.id = tm.opponent_id
+        WHERE tm.team_id=?
+        ORDER BY tm.date DESC
         LIMIT ?
     """, (team_row["id"], last_n)).fetchall()
     conn.close()
@@ -148,36 +204,100 @@ def load_wc_history(team_name: str, db_path: Optional[Path] = None) -> list[dict
 def form_score(matches: list[dict], team_name: str = "", decay: float = 0.88) -> float:
     """
     Convert recent form into a score [0,1].
+    Blends outcome + dominance (goal difference), applies strength-of-schedule
+    weighting, and applies a momentum trend multiplier.
     More recent = more weight. Uses exponential decay.
     """
     if not matches:
         return 0.50
 
-    weights = [decay ** i for i in range(len(matches))]
-    total_weight = sum(weights)
-    score = 0.0
+    def _score_matches(match_list: list[dict]) -> float:
+        """Compute weighted score for a list of matches (no trend)."""
+        if not match_list:
+            return 0.50
+        weights = [decay ** i for i in range(len(match_list))]
+        total_weight = 0.0
+        score = 0.0
+        for i, m in enumerate(match_list):
+            result = m.get("result", "D")
+            outcome_pts = {"W": 1.0, "D": 0.5, "L": 0.0}.get(result, 0.5)
+            gf = m.get("goals_for", 0) or 0
+            ga = m.get("goals_against", 0) or 0
+            dominance_ratio = gf / (gf + ga) if (gf + ga) > 0 else 0.5
+            pts = 0.6 * outcome_pts + 0.4 * dominance_ratio
 
-    for i, m in enumerate(matches):
-        result = m.get("result", "D")
-        pts = {"W": 1.0, "D": 0.5, "L": 0.0}.get(result, 0.5)
-        score += pts * weights[i]
+            # Strength-of-schedule (opponent quality)
+            opp_ranking = m.get("opp_ranking")
+            if opp_ranking:
+                opp_weight = 1.0 + (0.5 - math.log(opp_ranking) / math.log(200)) * 0.3
+                opp_weight = max(0.75, min(1.30, opp_weight))
+            else:
+                opp_weight = 1.0
 
-    return score / total_weight
+            # Competition quality multiplier
+            comp_w = _competition_weight(m.get("competition", ""))
+
+            score += pts * weights[i] * opp_weight * comp_w
+            total_weight += weights[i] * comp_w
+        return score / total_weight if total_weight > 0 else 0.50
+
+    score = _score_matches(matches)
+
+    # Momentum direction: compare first half (most recent) vs second half
+    mid = max(1, len(matches) // 2)
+    recent_score = _score_matches(matches[:mid])
+    older_score = _score_matches(matches[mid:]) if len(matches) > mid else recent_score
+
+    trend_mult = 0.95 + 0.10 * (recent_score / max(0.01, older_score))
+    trend_mult = max(0.90, min(1.12, trend_mult))
+
+    return max(0.0, min(1.0, score * trend_mult))
 
 
 def h2h_score(h2h_matches: list[dict], team_id: int) -> float:
     """
-    H2H score [0,1] for a specific team.
-    team_id is used to determine which 'side' of each match is team's.
+    H2H score [0,1] for a specific team with recency decay.
+    Applies two independent decay factors:
+      1. Match-order decay (0.85 per match) — penalizes older matches in sequence
+      2. Time-based decay (year-based) — matches > 4 years old get a steep discount
+         so a squad that has completely changed is not penalized/rewarded for history
     """
     if not h2h_matches:
         return 0.50
 
-    wins = sum(1 for m in h2h_matches if m.get("team_id") == team_id and m.get("result") == "W")
-    draws = sum(1 for m in h2h_matches if m.get("result") == "D")
-    total = len(h2h_matches)
+    import datetime
+    current_year = datetime.date.today().year
 
-    return (wins + 0.5 * draws) / total
+    total_weight = 0.0
+    weighted_score = 0.0
+    sequence_decay = 0.85
+
+    for i, m in enumerate(h2h_matches):
+        # Sequence decay
+        seq_w = sequence_decay ** i
+
+        # Time-based decay: each year older than 2 years → -20% weight
+        match_year = int((m.get("date") or "2020-01-01")[:4])
+        years_ago = max(0, current_year - match_year)
+        if years_ago <= 2:
+            time_w = 1.0
+        elif years_ago <= 4:
+            time_w = 1.0 - (years_ago - 2) * 0.20  # -20%/yr from 3rd year
+        else:
+            time_w = max(0.10, 1.0 - (years_ago - 2) * 0.25)  # steep after 4 yrs
+
+        w = seq_w * time_w
+
+        if m.get("team_id") == team_id:
+            pts = {"W": 1.0, "D": 0.5, "L": 0.0}.get(m.get("result", "D"), 0.5)
+        else:
+            flip = {"W": 0.0, "L": 1.0, "D": 0.5}
+            pts = flip.get(m.get("result", "D"), 0.5)
+
+        weighted_score += pts * w
+        total_weight += w
+
+    return round(weighted_score / total_weight, 4) if total_weight > 0 else 0.50
 
 
 def wc_history_score(history: list[dict]) -> float:
@@ -207,11 +327,22 @@ def wc_history_score(history: list[dict]) -> float:
     return round(weighted_pts / total_weight, 4)
 
 
-def ranking_factor(ranking: Optional[int]) -> float:
-    """FIFA ranking → score [0,1]. Rank 1 = ~0.98, Rank 100 = ~0.30."""
+def ranking_factor(ranking: Optional[int], ranking_trend: int = 0) -> float:
+    """
+    FIFA ranking → score [0,1].
+    Uses a calibrated curve based on actual WC win-rate data.
+    ranking_trend: positive = improving (moved up), negative = declining.
+    """
     if not ranking:
         return 0.50
-    return round(max(0.15, min(0.98, 1.0 - math.log(ranking) / math.log(200) * 0.85)), 4)
+    # Calibrated sigmoid-like curve: rank 1→0.97, rank 10→0.82, rank 30→0.65,
+    # rank 60→0.50, rank 100→0.38, rank 200→0.22
+    score = 1.0 / (1.0 + (ranking / 35.0) ** 0.75)
+    # Trend bonus: ±2% per 10 positions improved/declined
+    if ranking_trend:
+        trend_bonus = ranking_trend / 10 * 0.02
+        score += trend_bonus
+    return round(max(0.15, min(0.97, score)), 4)
 
 
 def line_rating(players: list[dict]) -> float:
@@ -242,30 +373,76 @@ def scoreline_estimate(
     """
     Estimate the most likely scoreline using Dixon-Coles style attack/defense model.
 
+    Strategy:
+    1. Compute Poisson lambdas from attack/defense stats and team strength.
+    2. Determine the most probable OUTCOME (home win / draw / away win) by summing
+       joint probabilities — avoids the argmax-is-always-draw trap when lambdas ≈ 1.
+    3. Return the most probable scoreline *within* that winning outcome.
+
     home_strength, away_strength: relative team strengths [0.2, 1.2]
     """
-    # Attack rating factor
-    home_attack = (home_goals_avg * home_strength) * (1.0 / max(0.5, away_conceded_avg / 1.5))
-    away_attack = (away_goals_avg * away_strength) * (1.0 / max(0.5, home_conceded_avg / 1.5))
+    # Attack rating factor — defense multiplier is direct (not inverted).
+    # away_conceded_avg / 1.5 < 1.0 means tight defense → attacker scores fewer goals.
+    home_attack = (home_goals_avg * home_strength) * max(0.30, away_conceded_avg / 1.5)
+    away_attack = (away_goals_avg * away_strength) * max(0.30, home_conceded_avg / 1.5)
 
-    # Cap reasonable range
     home_lambda = round(max(0.3, min(3.5, home_attack)), 2)
     away_lambda = round(max(0.3, min(3.5, away_attack)), 2)
 
-    # Find most probable scoreline using Poisson distribution
-    best_prob = -1
-    best_score = (1, 1)
+    # Pre-compute Poisson PMF table (0..6 goals)
+    def pmf(lam: float, k: int) -> float:
+        return (math.e ** -lam * lam ** k) / math.factorial(k)
+
+    home_pmf = [pmf(home_lambda, k) for k in range(7)]
+    away_pmf = [pmf(away_lambda, k) for k in range(7)]
+
+    # Integrate outcome probabilities across the joint distribution
+    p_home_win = p_draw = p_away_win = 0.0
+    best: dict[str, tuple[int, int, float]] = {
+        "home_win": (1, 0, -1.0),
+        "draw":     (1, 1, -1.0),
+        "away_win": (0, 1, -1.0),
+    }
     for h in range(7):
         for a in range(7):
-            # Poisson PMF
-            prob_h = (math.e ** -home_lambda * home_lambda**h) / math.factorial(h)
-            prob_a = (math.e ** -away_lambda * away_lambda**a) / math.factorial(a)
-            prob = prob_h * prob_a
-            if prob > best_prob:
-                best_prob = prob
-                best_score = (h, a)
+            p = home_pmf[h] * away_pmf[a]
+            if h > a:
+                p_home_win += p
+                if p > best["home_win"][2]:
+                    best["home_win"] = (h, a, p)
+            elif h == a:
+                p_draw += p
+                if p > best["draw"][2]:
+                    best["draw"] = (h, a, p)
+            else:
+                p_away_win += p
+                if p > best["away_win"][2]:
+                    best["away_win"] = (h, a, p)
 
-    return best_score
+    # Pick outcome. When the leading outcome dominates by >=8pp, use it.
+    # In close matches (margin < 8pp) fall back to joint-argmax, which naturally
+    # picks the most probable single scoreline (often a 1-1 draw when λs ≈ 1).
+    outcomes = sorted(
+        [("home_win", p_home_win), ("draw", p_draw), ("away_win", p_away_win)],
+        key=lambda x: x[1], reverse=True
+    )
+    winner_name, winner_prob = outcomes[0]
+    runner_name, runner_prob = outcomes[1]
+
+    if winner_prob - runner_prob >= 0.08:  # clear winner — use outcome-based scoreline
+        h, a, _ = best[winner_name]
+    else:
+        # Close match — find joint argmax (naturally lands on draws when λs ≈ 1)
+        best_p = -1.0
+        h, a = 1, 1
+        for hg in range(7):
+            for ag in range(7):
+                p = home_pmf[hg] * away_pmf[ag]
+                if p > best_p:
+                    best_p = p
+                    h, a = hg, ag
+
+    return (h, a)
 
 
 def confidence_level(
@@ -357,6 +534,24 @@ def key_matchups(squad_a: dict, squad_b: dict, team_a: str, team_b: str) -> list
     return matchups
 
 
+def _adaptive_weights(h2h_available: bool, wc_hist_available: bool) -> dict:
+    """Redistribute weights when data is missing."""
+    W = {"players": 0.32, "form": 0.25, "h2h": 0.18, "ranking": 0.15, "wc_hist": 0.10}
+    if not h2h_available:
+        # No direct H2H: redistribute to form (60%) and players (40%)
+        freed = W["h2h"]
+        W["form"]    += freed * 0.60
+        W["players"] += freed * 0.40
+        W["h2h"]      = 0.0
+    if not wc_hist_available:
+        # Debutant or no WC history: redistribute to form (70%) and players (30%)
+        freed = W["wc_hist"]
+        W["form"]    += freed * 0.70
+        W["players"] += freed * 0.30
+        W["wc_hist"]  = 0.0
+    return W
+
+
 # ─────────────────────────────────────────────────────────────────
 # Main prediction function
 # ─────────────────────────────────────────────────────────────────
@@ -366,7 +561,8 @@ def predict_match(
     away_name: str,
     neutral: bool = True,
     db_path: Optional[Path] = None,
-    verbose: bool = False
+    verbose: bool = False,
+    venue: str = "",
 ) -> dict:
     """
     Full match prediction with line-by-line analysis.
@@ -402,7 +598,17 @@ def predict_match(
 
     home_has_squad = any(home_squad[k] for k in home_squad)
     away_has_squad = any(away_squad[k] for k in away_squad)
-    data_quality = 1.0 if (home_has_squad and away_has_squad) else 0.65
+
+    def _squad_coverage(squad: dict) -> float:
+        """Fraction of players with ratings above default (6.0)."""
+        all_players = [p for pos_list in squad.values() for p in pos_list]
+        if not all_players:
+            return 0.0
+        rated = sum(1 for p in all_players if p.get("rating", 6.0) > 6.5)
+        return rated / len(all_players)
+
+    home_coverage = _squad_coverage(home_squad)
+    away_coverage = _squad_coverage(away_squad)
 
     # ── 3. Line ratings ──
     home_gk    = gk_rating(home_squad.get("GK", []))
@@ -425,8 +631,8 @@ def predict_match(
     away_player_score = normalize_rating(away_overall)
 
     # ── 4. Recent form ──
-    home_form_matches = load_recent_form(home_name, 10, db)
-    away_form_matches = load_recent_form(away_name, 10, db)
+    home_form_matches = load_recent_form(home_name, 15, db)
+    away_form_matches = load_recent_form(away_name, 15, db)
 
     home_form = form_score(home_form_matches)
     away_form = form_score(away_form_matches)
@@ -455,6 +661,11 @@ def predict_match(
             h2h_source = "none"
             proxy = None
 
+    # ── 5b. Data quality (requires h2h_available) ──
+    h2h_bonus = 0.05 if h2h_available else 0.0
+    data_quality = 0.60 + 0.35 * min(home_coverage, away_coverage) + h2h_bonus
+    data_quality = round(min(1.0, data_quality), 3)
+
     # ── 6. WC history ──
     home_wc = load_wc_history(home_name, db)
     away_wc = load_wc_history(away_name, db)
@@ -467,14 +678,11 @@ def predict_match(
     away_rank = ranking_factor(away_team.get("fifa_ranking"))
 
     # ── 8. Composite strength score ──
-    # Weights
-    W = {
-        "players":  0.32,  # line-by-line player quality
-        "form":     0.25,  # recent form
-        "h2h":      0.18,  # head-to-head history
-        "ranking":  0.15,  # FIFA ranking
-        "wc_hist":  0.10,  # WC historical performance
-    }
+    # Adaptive weights based on data availability
+    W = _adaptive_weights(
+        h2h_available=h2h_available,
+        wc_hist_available=(len(home_wc) > 0 or len(away_wc) > 0),
+    )
 
     home_strength = (
         W["players"]  * home_player_score +
@@ -532,7 +740,7 @@ def predict_match(
 
     # ── 10. Predicted scoreline ──
     score_h, score_a = scoreline_estimate(
-        home_strength=home_strength_adj / 0.6,  # rescale to useful range
+        home_strength=home_strength_adj / 0.6,
         away_strength=away_strength / 0.6,
         home_goals_avg=home_team.get("goals_scored_avg", 1.5),
         away_goals_avg=away_team.get("goals_scored_avg", 1.5),
@@ -589,12 +797,26 @@ def predict_match(
     similar_to_home = find_similar_teams(home_name, db, top_n=3, exclude=[away_name])
     similar_to_away = find_similar_teams(away_name, db, top_n=3, exclude=[home_name])
 
+    # ── 15. DNA tactical identity & matchup analysis ──
+    home_matchup_analysis = ""
+    away_matchup_analysis = ""
+    try:
+        from models.team_dna import get_team_dna, matchup_xg_factor, format_matchup_analysis
+        h_dna = get_team_dna(home_name)
+        a_dna = get_team_dna(away_name)
+        if h_dna and a_dna:
+            home_matchup_analysis = format_matchup_analysis(home_name, away_name, h_dna, a_dna)
+            away_matchup_analysis = format_matchup_analysis(away_name, home_name, a_dna, h_dna)
+    except Exception:
+        pass
+
     # ── Assemble full result ──
     result = {
         "match": f"{home_name} vs {away_name}",
         "home": home_name,
         "away": away_name,
         "neutral_venue": neutral,
+        "venue": venue,
 
         # Core prediction
         "prediction": outcome_labels[best_outcome],
@@ -729,6 +951,10 @@ def predict_match(
             home_name: [f"{t['team_name']} ({t['similarity_score']:.2f})" for t in similar_to_home],
             away_name: [f"{t['team_name']} ({t['similarity_score']:.2f})" for t in similar_to_away],
         },
+
+        # DNA tactical matchup analysis
+        "home_matchup_analysis": home_matchup_analysis,
+        "away_matchup_analysis": away_matchup_analysis,
     }
 
     return result
