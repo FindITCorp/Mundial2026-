@@ -739,16 +739,30 @@ class PlayerRatingEngine:
 
         # ── 7. Elite-league floor: top-5 league starters deserve minimum ──
         # Defenders/GKs/MIDs don't score goals but elite clubs only pick the best.
-        # A player who earns 15+ caps AND plays in Tier-1 league is proven quality.
+        # Progressive cap-based floors prevent defensive/creative MIDs from being
+        # undervalued purely because they lack a scorer's goals/cap ratio.
         _ELITE_FLOOR = {
-            "GK":  7.00,   # top-5 GKs
-            "DEF": 7.20,   # top-5 CBs/FBs (Kim Min-jae ↑)
-            "MID": 6.90,   # top-5 MIDs
-            "FWD": 6.80,   # top-5 FWDs (already high via goals)
+            "GK":  7.00,
+            "DEF": 7.20,
+            "MID": 6.90,
+            "FWD": 6.80,
         }
         if lq >= 1.00 and caps >= 15:
-            final = max(_ELITE_FLOOR.get(pos, 6.80), final)
-        elif lq >= 0.92 and caps >= 20:  # Tier-2 leagues (Eredivisie, etc.)
+            floor = _ELITE_FLOOR.get(pos, 6.80)
+            # MID floor: raise to 7.20 — DMs/playmakers with few goals but elite caps
+            # deserve parity with DEF floor (7.20). Formula's goal-dependency
+            # systematically undervalues holders and box-to-box players.
+            if pos == "MID":
+                floor = max(7.20, floor)
+                # 50+ caps at Tier-1 league = long-term proven starter
+                if caps >= 50:
+                    floor = max(7.40, floor)
+            # Young elite bonus: ≤24, Tier-1 club, 30+ caps = exceptional talent
+            # (Bellingham, Gavi, Pedri, Musiala, Camavinga tier)
+            if age <= 24 and caps >= 30:
+                floor = max(7.50, floor)
+            final = max(floor, final)
+        elif lq >= 0.92 and caps >= 20:
             final = max(6.50, final)
 
         # ── 8. Recent nat-team form blend (from player_nat_stats) ────────
