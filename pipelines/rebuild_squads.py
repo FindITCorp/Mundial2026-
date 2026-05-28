@@ -56,6 +56,21 @@ def rebuild(team_filter: list[str] | None = None) -> dict:
     conn.row_factory = sqlite3.Row
     rater = PlayerRater()
 
+    # Idempotente: crea tablas si no existen
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS wc26_squad (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id INTEGER NOT NULL, player_id INTEGER NOT NULL, squad_rank INTEGER,
+            UNIQUE(team_id, player_id)
+        );
+        CREATE TABLE IF NOT EXISTS projected_lineups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id INTEGER NOT NULL, player_id INTEGER NOT NULL,
+            is_starter INTEGER DEFAULT 0, formation_slot TEXT,
+            UNIQUE(team_id, player_id)
+        );
+    """)
+
     if team_filter:
         teams = conn.execute(
             "SELECT * FROM teams WHERE name IN ({})".format(
