@@ -357,6 +357,21 @@ def step_fetch_live_lineups(upcoming_only=True):
         logger.error(f"  fetch_live_lineups error: {e}")
 
 
+def step_rebuild_projected_lineups(teams=None):
+    """Step 8: Rebuild wc26_squad + projected_lineups from current DB state."""
+    try:
+        from pipelines.rebuild_squads import rebuild
+        stats = rebuild(team_filter=teams)
+        logger.info(
+            f"  Projected lineups: {stats['teams']} equipos | "
+            f"{stats['starters']} titulares | {stats['bench']} suplentes"
+        )
+        if stats["warnings"]:
+            logger.warning(f"  {len(stats['warnings'])} data warnings en rebuild")
+    except Exception as e:
+        logger.error(f"  rebuild_projected_lineups error: {e}")
+
+
 # ── Main orchestrator ─────────────────────────────────────────────────────────
 
 def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
@@ -421,6 +436,7 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
     if scope == "squads":
         _step("Fetch Official Squads", step_fetch_squads, teams, delay)
         _step("Update Squad Selections", step_update_squad_selections, teams)
+        _step("Rebuild Projected Lineups", step_rebuild_projected_lineups, teams)
         _print_summary(_db_summary())
         return True
 
@@ -463,7 +479,10 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
     # Step 7: Update squad selections
     _step("Update Squad Selections", step_update_squad_selections, teams)
 
-    # Step 8: WC results (even before tournament = setup/verify wc_matches)
+    # Step 8: Rebuild projected lineups (wc26_squad + projected_lineups)
+    _step("Rebuild Projected Lineups", step_rebuild_projected_lineups, teams)
+
+    # Step 9: WC results (even before tournament = setup/verify wc_matches)
     _step("Update WC Results/Schedule", step_update_wc_results)
 
     # Final summary

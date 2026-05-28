@@ -1,5 +1,12 @@
 name: Update WC2026 Data
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Requiere estos GitHub Secrets (Settings → Secrets → Actions):
+#   FOOTBALL_DATA_KEY  → football-data.org free key
+#   APIFOOT            → RapidAPI key para api-football.com
+#   APISPORTS_KEY      → api-sports.io direct key
+# ──────────────────────────────────────────────────────────────────────────────
+
 on:
   push:
     branches: [main]
@@ -9,12 +16,12 @@ on:
       - '.github/workflows/fetch_data.yml'
   schedule:
     - cron: '0 6 * * 1'       # Lunes 6am UTC: actualización completa (scope=all)
-    - cron: '0 7 * * *'       # Diario 7am UTC: forma reciente (scope=form, o all el lunes)
-    - cron: '0 0 * * *'       # Diario 0am UTC modo torneo Jun-Jul (scope detectado auto)
+    - cron: '0 7 * * *'       # Diario 7am UTC: forma reciente (scope=form)
+    - cron: '0 0,12 * 6,7 *'  # Jun-Jul (torneo): 2 veces/día 0am y 12pm UTC
   workflow_dispatch:
     inputs:
       scope:
-        description: 'Scope (dejar vacío = automático)'
+        description: 'Scope de actualización'
         required: false
         default: ''
         type: choice
@@ -31,7 +38,7 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: write
     env:
@@ -73,15 +80,13 @@ jobs:
           from pathlib import Path
           from datetime import datetime
 
-          # 1. If manually specified, use that
           manual = "${{ github.event.inputs.scope }}".strip()
           if manual:
-              print(f"scope={manual}")
               with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                   f.write(f"scope={manual}\n")
+              print(f"Scope manual: {manual}")
               exit(0)
 
-          # 2. Check if DB has real data (bootstrap detection)
           db = Path("data/mundial2026.db")
           needs_bootstrap = True
           if db.exists():
@@ -91,20 +96,18 @@ jobs:
                   nat   = conn.execute("SELECT COUNT(*) FROM player_nat_stats").fetchone()[0]
                   form  = conn.execute("SELECT COUNT(*) FROM team_matches").fetchone()[0]
                   conn.close()
-                  # Has real data if any of these > seed values
                   needs_bootstrap = (stats == 0 and nat == 0 and form <= 100)
               except Exception:
                   needs_bootstrap = True
 
           if needs_bootstrap:
               scope = "all"
-              print("Bootstrap detected: DB has no real data -> running scope=all")
+              print("Bootstrap: DB sin datos reales -> scope=all")
           else:
               now   = datetime.utcnow()
               month = now.month
               dow   = now.weekday()  # 0=Monday
 
-              # Check if historical data has been loaded
               try:
                   conn2 = sqlite3.connect(db)
                   mp_count = conn2.execute("SELECT COUNT(*) FROM match_players").fetchone()[0]
@@ -114,64 +117,95 @@ jobs:
 
               if mp_count < 100:
                   scope = "historical"
-                  print(f"Historical data sparse ({mp_count} records) -> running scope=historical")
+                  print(f"Datos históricos escasos ({mp_count}) -> scope=historical")
               elif month in (6, 7):
                   scope = "wc"
+                  print("Torneo en curso (Jun/Jul) -> scope=wc")
               elif dow == 0:
                   scope = "all"
+                  print("Lunes -> scope=all (actualización completa)")
               else:
                   scope = "form"
+                  print(f"Día {dow} -> scope=form")
 
-          print(f"Auto-selected scope: {scope}")
+          print(f"Scope seleccionado: {scope}")
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"scope={scope}\n")
           PYEOF
 
-      - name: Run data update pipeline
+      - name: Verificar API keys disponibles
         env:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
         run: |
-          echo "=== Running scope: ${{ steps.scope.outputs.scope }} ==="
+          python - <<'EOF'
+          import os
+          keys = {
+              "FOOTBALL_DATA_KEY": os.getenv("FOOTBALL_DATA_KEY",""),
+              "APIFOOT":           os.getenv("APIFOOT",""),
+              "APISPORTS_KEY":     os.getenv("APISPORTS_KEY",""),
+          }
+          for name, val in keys.items():
+              status = "✅ configurado" if val else "❌ FALTA"
+              print(f"  {name}: {status}")
+          if not any(keys.values()):
+              print("\n⚠️  Sin ninguna API key — los pipelines usarán datos en caché")
+          EOF
+
+      - name: Ejecutar pipeline de datos
+        env:
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
+          APIFOOT: ${{ secrets.APIFOOT }}
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+        run: |
+          echo "=== Scope: ${{ steps.scope.outputs.scope }} ==="
           python pipelines/full_update.py --scope "${{ steps.scope.outputs.scope }}"
 
-      - name: Fetch Football Prediction signals
+      - name: Actualizar señales de predicción
         env:
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
-        run: python pipelines/fetch_predictions.py || echo "Predictions done"
+        run: python pipelines/fetch_predictions.py || echo "fetch_predictions finalizado"
 
-      - name: DB Summary
+      - name: Resumen de la DB
         run: |
           python - <<'EOF'
           import sqlite3
           from pathlib import Path
           db = Path("data/mundial2026.db")
           if not db.exists():
-              print("DB not found"); exit()
+              print("DB no encontrada"); exit()
           conn = sqlite3.connect(db)
-          tables = ["teams","players","team_matches","player_club_stats",
-                    "player_nat_stats","player_ratings","squad_selections","match_lineups"]
-          print("\n=== DB Summary ===")
+          tables = [
+              "teams","players","squad_selections","wc26_squad",
+              "projected_lineups","team_matches","player_club_stats",
+              "player_nat_stats","player_ratings","match_lineups","wc_matches",
+          ]
+          print("\n=== Estado DB ===")
           for t in tables:
               try:
                   c = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
                   print(f"  {t:<25}: {c:>6}")
               except Exception:
-                  pass
+                  print(f"  {t:<25}: tabla ausente")
           conn.close()
           EOF
 
-      - name: Commit and push updated data
+      - name: Commit y push de datos actualizados
         run: |
           git config user.name "mundial-bot"
           git config user.email "bot@mundial2026.local"
           git config commit.gpgsign false
           git add data/mundial2026.db
           git add data/lineups/ 2>/dev/null || true
-          git diff --staged --quiet && echo "Sin cambios en DB" && exit 0
-          git commit -m "data: auto-update [${{ steps.scope.outputs.scope }}] $(date +'%Y-%m-%d %H:%M UTC')"
+          if git diff --staged --quiet; then
+            echo "Sin cambios en DB — nada que commitear"
+            exit 0
+          fi
+          SCOPE="${{ steps.scope.outputs.scope }}"
+          FECHA=$(date +'%Y-%m-%d %H:%M UTC')
+          git commit -m "data: auto-update [${SCOPE}] ${FECHA}"
           git pull --rebase origin main || git rebase --abort
           git push -u origin main
         env:
