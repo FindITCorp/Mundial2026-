@@ -357,6 +357,19 @@ def step_fetch_live_lineups(upcoming_only=True):
         logger.error(f"  fetch_live_lineups error: {e}")
 
 
+def step_fetch_martj42(since: str = "2023-01-01", teams=None):
+    """Step: Import open-source international results from martj42/international_results."""
+    try:
+        from pipelines.fetch_martj42 import run as martj42_run
+        stats = martj42_run(since=since, team_filter=teams)
+        logger.info(
+            f"  martj42: +{stats['matches_inserted']} partidos | "
+            f"{stats['goals_linked']} goles vinculados"
+        )
+    except Exception as e:
+        logger.error(f"  fetch_martj42 error: {e}")
+
+
 def step_rebuild_projected_lineups(teams=None):
     """Step 8: Rebuild wc26_squad + projected_lineups from current DB state."""
     try:
@@ -427,6 +440,7 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
     # ── Scope: form (team recent form only) ──────────────────────────────────
     if scope == "form":
         _step("Fetch WC Schedule", step_fetch_wc_schedule)
+        _step("martj42 open results (2023+)", step_fetch_martj42, "2023-01-01", teams)
         _step("Fetch Team Form (last 20 matches)",
               step_fetch_team_form, teams, delay)
         _print_summary(_db_summary())
@@ -451,6 +465,9 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
     # ── Scope: all — full pipeline ───────────────────────────────────────────
     # Step 1: WC Schedule (football-data.org)
     _step("Fetch WC Schedule (football-data.org)", step_fetch_wc_schedule)
+
+    # Step 1b: Open-source international results (no API key needed)
+    _step("martj42 open results (2023+)", step_fetch_martj42, "2023-01-01", teams)
 
     # Step 2: Team recent form (last 20 matches for all 48 teams)
     if not quick:
