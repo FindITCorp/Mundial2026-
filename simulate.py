@@ -130,6 +130,16 @@ def cmd_scorers(args):
               f"{s['goals_share']:>7.1f}%{s['prob_anytime']:>9.1f}%  {pen}")
 
 
+def cmd_profile(args):
+    from models.team_stats_analyzer import get_team_profile, format_team_profile
+    t = _tid(args.profile)
+    if not t:
+        print(f"  ⚠ Equipo no encontrado: {args.profile}")
+        return
+    profile = get_team_profile(t, DB_PATH)
+    print(format_team_profile(profile, verbose=True))
+
+
 def cmd_draw(args):
     from models.tournament import TournamentSimulator, GROUPS
     sim = TournamentSimulator(db_path=DB_PATH)
@@ -155,6 +165,8 @@ def main():
     p.add_argument("--referees", action="store_true", help="Listar árbitros")
     p.add_argument("--scorers", metavar="EQUIPO", help="Tabla de goleadores de un equipo")
     p.add_argument("--draw", action="store_true", help="Ver el sorteo de grupos")
+    p.add_argument("--profile", metavar="EQUIPO",
+                   help="Perfil estadístico histórico completo de un equipo")
     p.add_argument("--stage", default="group",
                    choices=["group", "round_of_16", "quarter_final", "semi_final", "final"],
                    help="Etapa del partido (afecta árbitro)")
@@ -185,6 +197,7 @@ def main():
     elif args.referees:     cmd_referees(args)
     elif args.scorers:      cmd_scorers(args)
     elif args.draw:         cmd_draw(args)
+    elif args.profile:      cmd_profile(args)
     else:                   p.print_help()
 
 

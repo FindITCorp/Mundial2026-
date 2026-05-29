@@ -31,6 +31,7 @@ from models.match_events import (
     expected_events, simulate_events, _poisson_sample, _conversion,
 )
 from models.goal_scorer import scorer_weights, simulate_scorers, build_squad_with_subs, _finishing_weight
+from models.team_stats_analyzer import get_team_profile
 
 DB_PATH = Path(__file__).parent.parent / "data" / "mundial2026.db"
 
@@ -112,8 +113,13 @@ def simulate_full_match(
     exp_ev = expected_events(home, away, lam_h, lam_a, poss_h, poss_a,
                             press_h, press_a, style_h, style_a, ref, rivalry)
 
-    # ── 4. Pesos de goleadores base (sin cambios) ─────────────────────────────
-    # Se recalculan por iteración cuando with_subs=True
+    # ── 4. Perfiles históricos y pesos de goleadores base ─────────────────────
+    # Cargar perfil histórico (sustituciones + estadísticas)
+    profile_h = get_team_profile(home_id, db_path)
+    profile_a = get_team_profile(away_id, db_path)
+    sub_pat_h = profile_h.sub_pattern
+    sub_pat_a = profile_a.sub_pattern
+
     sw_h_base = scorer_weights(home_id, db_path, exclude=home_exclude)
     sw_a_base = scorer_weights(away_id, db_path, exclude=away_exclude)
     names_h_base = [w["name"] for w in sw_h_base] or ["?"]
@@ -121,8 +127,7 @@ def simulate_full_match(
     names_a_base = [w["name"] for w in sw_a_base] or ["?"]
     probs_a_base = [w["weight"] for w in sw_a_base] or [1.0]
 
-    # Penalty taker: se basa en el XI base (el suplente raramente tira penaltis
-    # a menos que entre por el titular lanzador — simplificación razonable)
+    # Penalty taker: se basa en el XI base
     pen_taker_h = next((w["name"] for w in sw_h_base if w["pen_taker"]), names_h_base[0])
     pen_taker_a = next((w["name"] for w in sw_a_base if w["pen_taker"]), names_a_base[0])
 
@@ -180,9 +185,11 @@ def simulate_full_match(
         # ── Goleadores con sustituciones ──────────────────────────────────────
         if with_subs:
             players_h, mins_h = build_squad_with_subs(
-                home_id, db_path, exclude=home_exclude, rng=sub_rng)
+                home_id, db_path, exclude=home_exclude, rng=sub_rng,
+                sub_pattern=sub_pat_h)
             players_a, mins_a = build_squad_with_subs(
-                away_id, db_path, exclude=away_exclude, rng=sub_rng)
+                away_id, db_path, exclude=away_exclude, rng=sub_rng,
+                sub_pattern=sub_pat_a)
 
             # Registrar suplentes que entraron (diferencia con XI base)
             base_names_h = {w["name"] for w in sw_h_base}
@@ -319,6 +326,27 @@ def simulate_full_match(
         # Sustituciones
         "subs_home": top_subs_h,
         "subs_away": top_subs_a,
+        # Estadísticas históricas del perfil de cada equipo
+        "hist_home": {
+            "sot_for": profile_h.match_stats.sot_for_pg,
+            "sot_against": profile_h.match_stats.sot_against_pg,
+            "set_piece_frac": profile_h.match_stats.set_piece_frac_for,
+            "clean_sheet_rate": profile_h.match_stats.clean_sheet_rate,
+            "corners_for": profile_h.match_stats.est_corners_for_pg,
+            "corners_against": profile_h.match_stats.est_corners_against_pg,
+            "fouls": profile_h.match_stats.fouls_pg,
+            "subs_per_game": sub_pat_h.subs_per_game_mean,
+        },
+        "hist_away": {
+            "sot_for": profile_a.match_stats.sot_for_pg,
+            "sot_against": profile_a.match_stats.sot_against_pg,
+            "set_piece_frac": profile_a.match_stats.set_piece_frac_for,
+            "clean_sheet_rate": profile_a.match_stats.clean_sheet_rate,
+            "corners_for": profile_a.match_stats.est_corners_for_pg,
+            "corners_against": profile_a.match_stats.est_corners_against_pg,
+            "fouls": profile_a.match_stats.fouls_pg,
+            "subs_per_game": sub_pat_a.subs_per_game_mean,
+        },
         "n_sims": n,
     }
 

@@ -65,12 +65,25 @@ def _get_elo(conn, team_id: int) -> float:
     return row["elo"] if row else 1500.0
 
 
+# Strength-of-schedule: Elo asumido para rivales que no clasificaron al Mundial
+# (no tienen fila en team_elo) — se asume nivel débil-medio.
+SOS_DEFAULT_ELO = 1430.0
+SOS_PIVOT       = 1550.0   # Elo de rival "neutro"
+SOS_EXP         = 2.0      # sensibilidad del peso a la fuerza del rival
+# Regularización bayesiana: prior que regresa los promedios hacia la media
+PRIOR_N         = 4.0
+PRIOR_GF        = 1.35
+PRIOR_GA        = 1.20
+
+
 def _get_form(conn, team_id: int, n: int = 10) -> dict:
     rows = conn.execute("""
-        SELECT goals_for gf, goals_against ga, result, opponent_name, competition
-        FROM team_matches
-        WHERE team_id=? AND goals_for IS NOT NULL
-        ORDER BY date DESC LIMIT 30
+        SELECT tm.goals_for gf, tm.goals_against ga, tm.result,
+               tm.opponent_name, tm.competition, te.elo AS opp_elo
+        FROM team_matches tm
+        LEFT JOIN team_elo te ON te.team_id = tm.opponent_id
+        WHERE tm.team_id=? AND tm.goals_for IS NOT NULL
+        ORDER BY tm.date DESC LIMIT 30
     """, (team_id,)).fetchall()
     filtered = [r for r in rows if r["opponent_name"] not in MINNOWS][:n]
     if not filtered:
@@ -78,8 +91,24 @@ def _get_form(conn, team_id: int, n: int = 10) -> dict:
     if not filtered:
         return {"avg_gf": 1.1, "avg_ga": 1.1, "form_score": 0.40,
                 "last5": [], "gp": 0, "wins": 0, "draws": 0, "losses": 0}
-    gf = [r["gf"] for r in filtered]
-    ga = [r["ga"] for r in filtered]
+
+    # ── Strength-of-schedule: ponderar goles por fuerza del rival ────────────
+    # Marcar/conceder frente a rivales fuertes pesa más que frente a débiles.
+    num_gf = num_ga = denom = 0.0
+    for r in filtered:
+        opp_elo = r["opp_elo"] if r["opp_elo"] is not None else SOS_DEFAULT_ELO
+        w = (opp_elo / SOS_PIVOT) ** SOS_EXP
+        num_gf += r["gf"] * w
+        num_ga += r["ga"] * w
+        denom  += w
+    w_gf = num_gf / denom if denom else 1.3
+    w_ga = num_ga / denom if denom else 1.2
+
+    # ── Regularización bayesiana hacia la media (amortigua extremos) ─────────
+    k = len(filtered)
+    avg_gf = (w_gf * k + PRIOR_GF * PRIOR_N) / (k + PRIOR_N)
+    avg_ga = (w_ga * k + PRIOR_GA * PRIOR_N) / (k + PRIOR_N)
+
     wins  = sum(1 for r in filtered if r["result"] == "W")
     draws = sum(1 for r in filtered if r["result"] == "D")
     # Ponderación temporal (recientes pesan más)
@@ -90,8 +119,8 @@ def _get_form(conn, team_id: int, n: int = 10) -> dict:
     )
     max_pts = sum(1.5 * (1 + i * 0.07) for i in range(len(filtered)))
     return {
-        "avg_gf":     sum(gf) / len(gf),
-        "avg_ga":     sum(ga) / len(ga),
+        "avg_gf":     avg_gf,
+        "avg_ga":     avg_ga,
         "form_score": w_pts / max_pts if max_pts else 0.40,
         "last5":      [f'{r["result"]}({r["gf"]}-{r["ga"]})' for r in filtered[:5]],
         "gp": len(filtered), "wins": wins, "draws": draws,
@@ -234,9 +263,15 @@ def predict_match(
     elo_lambda_a = BASE_GOALS * (0.7 + (1 - e_home) * 0.6)
 
     # ── 3. Factor xG / forma (25% + 15%) ─────────────────────────────────
-    # Cap att/def ratios to prevent extreme inflation
-    h_att = min(1.85, home_form["avg_gf"] / BASE_GOALS)
-    a_att = min(1.85, away_form["avg_gf"] / BASE_GOALS)
+    # Ataque = blend de goles recientes (forma) y Elo absoluto (calidad).
+    # Esto sube a los top con pocos goles recientes (p.ej. Argentina, que gana
+    # 1-0) y baja a equipos con avg_gf inflado por goleadas a rivales débiles.
+    h_att_form = min(1.70, home_form["avg_gf"] / BASE_GOALS)
+    a_att_form = min(1.70, away_form["avg_gf"] / BASE_GOALS)
+    h_att_elo  = (home_elo / 1550.0)
+    a_att_elo  = (away_elo / 1550.0)
+    h_att = (h_att_form ** 0.55) * (h_att_elo ** 0.45)
+    a_att = (a_att_form ** 0.55) * (a_att_elo ** 0.45)
     # Raíz cuadrada para suavizar el efecto de defensas muy sólidas
     h_def = (1.0 / max(0.60, home_form["avg_ga"] / BASE_GOALS)) ** 0.55
     a_def = (1.0 / max(0.60, away_form["avg_ga"] / BASE_GOALS)) ** 0.55
@@ -277,10 +312,11 @@ def predict_match(
     # ── 9. Combinar con pesos ─────────────────────────────────────────────
     # Lambda combinado como promedio ponderado de los factores
     w = WEIGHTS
+    ELO_LAMBDA_EXP = 0.90      # ancla Elo reforzada (antes 0.60)
     lh_raw = (
         BASE_GOALS
         * h_att * a_def                              # ataque vs defensa rival
-        * (elo_lambda_h / BASE_GOALS) ** (w["elo"] * 2)
+        * (elo_lambda_h / BASE_GOALS) ** ELO_LAMBDA_EXP
         * h_xg_f   ** (w["xg"] * 2)
         * h_form_f ** (w["form"] * 2)
         * h_xi_f   ** (w["xi_rating"] * 2)
@@ -293,7 +329,7 @@ def predict_match(
     la_raw = (
         BASE_GOALS
         * a_att * h_def
-        * (elo_lambda_a / BASE_GOALS) ** (w["elo"] * 2)
+        * (elo_lambda_a / BASE_GOALS) ** ELO_LAMBDA_EXP
         * a_xg_f   ** (w["xg"] * 2)
         * a_form_f ** (w["form"] * 2)
         * a_xi_f   ** (w["xi_rating"] * 2)
@@ -304,9 +340,9 @@ def predict_match(
         * (1 - away_absence)
     )
 
-    # Cap realista (máximo ~3 goles esperados en partido entre selecciones)
-    lh = min(max(lh_raw, 0.30), 3.20)
-    la = min(max(la_raw, 0.30), 3.20)
+    # Cap realista (máximo ~2.9 goles esperados en partido entre selecciones)
+    lh = min(max(lh_raw, 0.30), 2.90)
+    la = min(max(la_raw, 0.30), 2.90)
 
     # ── 10. Distribución Poisson ──────────────────────────────────────────
     probs = {}

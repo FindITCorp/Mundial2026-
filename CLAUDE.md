@@ -85,7 +85,9 @@ git -c commit.gpgsign=false commit -m "mensaje"
 mundial2026/
   CLAUDE.md                        — Este archivo (memoria del proyecto)
   requirements.txt
-  predict.py                       — Script maestro CLI
+  predict.py                       — CLI clasico (analisis 1 partido, predictor.py)
+  simulate.py                      — ★ CLI INTEGRAL: --match / --tournament / --group
+                                     / --scorers / --referees / --draw
 
   scripts/
     setup_db.py                    — Crea/migra BD SQLite
@@ -93,13 +95,36 @@ mundial2026/
     populate_match_players.py      — Carga StatsBomb WC2022 → match_players
     load_statsbomb_wc2018.py       — Carga StatsBomb WC2018 → match_players
     expand_squads_step1/2/3.py     — Expansion de plantillas a 32+ jugadores
+    seed_tactics.py                — Tabla team_tactics (formacion, pressing, linea)
+    seed_wc_groups.py              — ★ Sorteo valido 12 grupos de 4 (bombos Elo)
+                                     → tabla wc_group_draw (datos de grupos limpios)
+    validate_squads.py             — Validador de integridad de plantillas
+    update_official_squads_may2026.py — Squads oficiales confirmados (10 equipos)
 
   models/
-    predictor.py                   — Motor prediccion (predict_match, TeamSnapshot)
+    predictor.py                   — Motor prediccion clasico (predict_match, TeamSnapshot)
+    match_predictor.py             — ★ Motor Poisson 6-factores (Elo+xG+forma+XI+BP+pressing)
+                                     con strength-of-schedule, regularizacion y ancla Elo
+    elo.py                         — Sistema Elo dinamico (EloSystem, build_from_history)
     player_rating.py               — Rating 1-10 (PlayerRatingEngine, compute_all_ratings)
     simulator.py                   — Simulador Poisson 10,000 iteraciones (simulate_match)
     team_similarity.py             — Similitud entre equipos (8 dimensiones)
-    expert_analysis.py             — ⚠ PENDIENTE DE CREAR (tarea activa)
+    team_dna.py / team_scout.py    — Perfiles tacticos e informes de scouting
+    formation_engine.py            — Matchup de formaciones (multiplicadores xG)
+    lineup_estimator.py            — XI estimado por historial del DT
+    venue_model.py                 — Factor altitud sedes WC2026
+    expert_analysis.py             — Analisis narrativo estilo experto
+    ── NUEVOS (simulador integral) ──
+    referee_model.py               — ★ 19 arbitros elite FIFA (tarjetas/penaltis/sesgo)
+                                     + asignacion neutral por confederacion
+    goal_scorer.py                 — ★ Modelo de goleador por jugador (goals_as_nat,
+                                     posicion, forma club) + penalty taker + exclusiones
+    match_events.py                — ★ Corners, tiros, faltas, tarjetas, penaltis
+                                     (conversion SoT→gol real por equipo)
+    full_match_sim.py              — ★ Simulador integral 1 partido (Monte Carlo):
+                                     marcador + goleadores + eventos + arbitro + mercados
+    tournament.py                  — ★ Monte Carlo del torneo completo (grupos→final):
+                                     P(campeon/semis/etc) por equipo, ~1.2s/3000 torneos
 
   pipelines/
     full_update.py                 — Orquestador maestro (--scope all/squads/stats/form/lineups/wc/historical)
