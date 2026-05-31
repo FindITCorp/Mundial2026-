@@ -33,6 +33,14 @@ WEIGHTS = {
     "possession": 0.08,
 }
 
+# ── Parámetros Dixon-Coles (calibración dinámica) ─────────────────────────────
+# Nro mínimo de partidos competitivos para confiar en el historial del equipo
+MIN_COMP_MATCHES = 5
+# Competiciones de alto peso para el cálculo HAS/HDS/AAS/ADS
+COMP_KEYWORDS = ("world cup", "copa america", "euro", "nations league",
+                 "qualifier", "wcq", "gold cup", "afcon", "asian cup",
+                 "confederation")
+
 MINNOWS = {
     # Europa
     "Liechtenstein", "Gibraltar", "Faroe Islands", "San Marino", "Andorra",
@@ -74,6 +82,128 @@ SOS_EXP         = 2.0      # sensibilidad del peso a la fuerza del rival
 PRIOR_N         = 4.0
 PRIOR_GF        = 1.35
 PRIOR_GA        = 1.20
+
+
+def _is_competitive(competition: str) -> bool:
+    if not competition:
+        return False
+    c = competition.lower()
+    return any(kw in c for kw in COMP_KEYWORDS)
+
+
+def _get_global_goal_averages(conn) -> dict:
+    """
+    Promedio global de goles marcados/concedidos en partidos competitivos,
+    separado por local/visitante. Sirve como denominador en HAS/HDS/AAS/ADS.
+    Equivalente al avg_home_scored / avg_away_scored del repo Football_matches.
+    """
+    rows = conn.execute("""
+        SELECT team_id, goals_for, goals_against, venue, competition
+        FROM team_matches
+        WHERE goals_for IS NOT NULL AND opponent_id IS NOT NULL
+    """).fetchall()
+
+    comp = [r for r in rows if _is_competitive(r["competition"])]
+    if len(comp) < 200:   # fallback si hay pocos datos competitivos
+        comp = list(rows)
+
+    home_gf = [r["goals_for"]  for r in comp if r["venue"] == "home"]
+    away_gf = [r["goals_for"]  for r in comp if r["venue"] == "away"]
+    neut_gf = [r["goals_for"]  for r in comp if r["venue"] not in ("home", "away")]
+
+    avg_h = sum(home_gf) / len(home_gf) if home_gf else 1.45
+    avg_a = sum(away_gf) / len(away_gf) if away_gf else 1.10
+    avg_n = sum(neut_gf) / len(neut_gf) if neut_gf else 1.25
+    return {"avg_h": avg_h, "avg_a": avg_a, "avg_n": avg_n}
+
+
+_GLOBAL_AVG_CACHE: dict = {}   # cache por db_path string
+
+
+def _cached_global_avg(conn, db_key: str) -> dict:
+    if db_key not in _GLOBAL_AVG_CACHE:
+        _GLOBAL_AVG_CACHE[db_key] = _get_global_goal_averages(conn)
+    return _GLOBAL_AVG_CACHE[db_key]
+
+
+def _get_attack_defense_strength(conn, team_id: int, db_key: str) -> dict:
+    """
+    Calcula HAS / HDS / AAS / ADS al estilo del repo Football_matches:
+
+      HAS (Home Attacking Strength)  = avg_gf_home / global_avg_home_gf
+      HDS (Home Defensive Strength)  = avg_ga_home / global_avg_home_ga
+      AAS (Away Attacking Strength)  = avg_gf_away / global_avg_away_gf
+      ADS (Away Defensive Strength)  = avg_ga_away / global_avg_away_ga
+
+    Valores > 1 → mejor que la media;  < 1 → peor que la media.
+    Incluye regularización bayesiana para equipos con pocos datos.
+    Usa solo partidos competitivos (WCQ, torneos continentales, etc.).
+    """
+    rows = conn.execute("""
+        SELECT goals_for, goals_against, venue, competition
+        FROM team_matches
+        WHERE team_id=? AND goals_for IS NOT NULL AND opponent_id IS NOT NULL
+        ORDER BY date DESC LIMIT 60
+    """, (team_id,)).fetchall()
+
+    comp = [r for r in rows if _is_competitive(r["competition"])]
+    if len(comp) < MIN_COMP_MATCHES:
+        comp = list(rows[:20])
+
+    home_gf = [r["goals_for"]  for r in comp if r["venue"] == "home"]
+    home_ga = [r["goals_against"] for r in comp if r["venue"] == "home"]
+    away_gf = [r["goals_for"]  for r in comp if r["venue"] == "away"]
+    away_ga = [r["goals_against"] for r in comp if r["venue"] == "away"]
+    neut_gf = [r["goals_for"]  for r in comp if r["venue"] not in ("home","away")]
+    neut_ga = [r["goals_against"] for r in comp if r["venue"] not in ("home","away")]
+
+    g = _cached_global_avg(conn, db_key)
+
+    def _norm_att(vals, global_avg, prior_gf=PRIOR_GF):
+        n = len(vals)
+        if n == 0:
+            return 1.0
+        raw = (sum(vals) / n * n + prior_gf * PRIOR_N) / (n + PRIOR_N)
+        return raw / global_avg if global_avg else 1.0
+
+    def _norm_def(vals, global_avg, prior_ga=PRIOR_GA):
+        n = len(vals)
+        if n == 0:
+            return 1.0
+        raw = (sum(vals) / n * n + prior_ga * PRIOR_N) / (n + PRIOR_N)
+        return raw / global_avg if global_avg else 1.0
+
+    # Combinar neutral con home/away (neutral cuenta como ~0.5 de cada uno)
+    all_gf = home_gf + neut_gf * 1 + away_gf
+    all_ga = home_ga + neut_ga * 1 + away_ga
+
+    HAS = _norm_att(home_gf + neut_gf, g["avg_h"])
+    HDS = _norm_def(home_ga + neut_ga, g["avg_a"])
+    AAS = _norm_att(away_gf + neut_gf, g["avg_a"])
+    ADS = _norm_def(away_ga + neut_ga, g["avg_h"])
+    # General (neutral, por si acaso)
+    GAS = _norm_att(all_gf, g["avg_n"])
+    GDS = _norm_def(all_ga, g["avg_n"])
+
+    # Shots-on-target ratio desde player_club_stats (proxy de presión ofensiva)
+    sot_rows = conn.execute("""
+        SELECT AVG(pcs.shots_on_target) AS avg_sot
+        FROM projected_lineups pl
+        JOIN player_club_stats pcs ON pcs.player_id = pl.player_id
+            AND pcs.season = '2024/25'
+        WHERE pl.team_id = ? AND pl.is_starter = 1
+    """, (team_id,)).fetchone()
+    avg_sot = sot_rows["avg_sot"] if sot_rows and sot_rows["avg_sot"] else 2.5
+    # Normalizar: media ~2.5 SOT/jugador/X partidos → factor 0.95–1.05
+    sot_factor = max(0.93, min(1.07, avg_sot / 2.5))
+
+    return {
+        "HAS": round(HAS, 4), "HDS": round(HDS, 4),
+        "AAS": round(AAS, 4), "ADS": round(ADS, 4),
+        "GAS": round(GAS, 4), "GDS": round(GDS, 4),
+        "sot_factor": round(sot_factor, 4),
+        "n_home": len(home_gf), "n_away": len(away_gf),
+    }
 
 
 def _get_form(conn, team_id: int, n: int = 10) -> dict:
@@ -231,6 +361,7 @@ def predict_match(
     home_absence: float = 0.0,   # 0–0.3: penalización por bajas clave
     away_absence: float = 0.0,
     db_path: str | Path = DB_PATH,
+    use_strength: bool = True,   # activar mejora HAS/HDS/AAS/ADS
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -239,6 +370,7 @@ def predict_match(
     conn.row_factory = sqlite3.Row
 
     # ── 1. Recopilar datos ────────────────────────────────────────────────
+    db_key    = str(db_path)
     home_elo  = _get_elo(conn, home_id)
     away_elo  = _get_elo(conn, away_id)
     home_form = _get_form(conn, home_id)
@@ -250,6 +382,10 @@ def predict_match(
     home_tac  = _get_tactics(conn, home_id)
     away_tac  = _get_tactics(conn, away_id)
     h2h       = _get_h2h(conn, home_id, away_id)
+    # Nuevas métricas Dixon-Coles (repo Football_matches)
+    if use_strength:
+        h_str = _get_attack_defense_strength(conn, home_id, db_key)
+        a_str = _get_attack_defense_strength(conn, away_id, db_key)
 
     home_name = conn.execute("SELECT name FROM teams WHERE id=?", (home_id,)).fetchone()["name"]
     away_name = conn.execute("SELECT name FROM teams WHERE id=?", (away_id,)).fetchone()["name"]
@@ -263,18 +399,40 @@ def predict_match(
     elo_lambda_a = BASE_GOALS * (0.7 + (1 - e_home) * 0.6)
 
     # ── 3. Factor xG / forma (25% + 15%) ─────────────────────────────────
-    # Ataque = blend de goles recientes (forma) y Elo absoluto (calidad).
-    # Esto sube a los top con pocos goles recientes (p.ej. Argentina, que gana
-    # 1-0) y baja a equipos con avg_gf inflado por goleadas a rivales débiles.
     h_att_form = min(1.70, home_form["avg_gf"] / BASE_GOALS)
     a_att_form = min(1.70, away_form["avg_gf"] / BASE_GOALS)
     h_att_elo  = (home_elo / 1550.0)
     a_att_elo  = (away_elo / 1550.0)
     h_att = (h_att_form ** 0.55) * (h_att_elo ** 0.45)
     a_att = (a_att_form ** 0.55) * (a_att_elo ** 0.45)
-    # Raíz cuadrada para suavizar el efecto de defensas muy sólidas
     h_def = (1.0 / max(0.60, home_form["avg_ga"] / BASE_GOALS)) ** 0.55
     a_def = (1.0 / max(0.60, away_form["avg_ga"] / BASE_GOALS)) ** 0.55
+
+    # ── 3b. Fuerza histórica normalizada — Dixon-Coles (repo Football_matches) ─
+    # Combina HAS×ADS para el local y AAS×HDS para el visitante.
+    # En partido neutral usamos GAS/GDS (fuerza global, sin distinción local/visita).
+    if use_strength:
+        if neutral:
+            h_dc_att = h_str["GAS"]
+            h_dc_def = 1.0 / max(0.50, a_str["GDS"])
+            a_dc_att = a_str["GAS"]
+            a_dc_def = 1.0 / max(0.50, h_str["GDS"])
+        else:
+            h_dc_att = h_str["HAS"]
+            h_dc_def = 1.0 / max(0.50, a_str["ADS"])
+            a_dc_att = a_str["AAS"]
+            a_dc_def = 1.0 / max(0.50, h_str["HDS"])
+        # Factor SOT (shots-on-target mejorar calibración ofensiva, +~2% repo)
+        h_sot_f = h_str["sot_factor"]
+        a_sot_f = a_str["sot_factor"]
+        # Suavizar para no dominar demasiado (cap ±12%)
+        h_dc_att = max(0.75, min(1.40, h_dc_att))
+        a_dc_att = max(0.75, min(1.40, a_dc_att))
+        h_dc_def = max(0.80, min(1.25, h_dc_def))
+        a_dc_def = max(0.80, min(1.25, a_dc_def))
+    else:
+        h_dc_att = a_dc_att = h_dc_def = a_dc_def = 1.0
+        h_sot_f = a_sot_f = 1.0
 
     xg_ref   = 1.4 * 11
     h_xg_f   = max(0.88, min(1.15, home_club["xg"] / xg_ref)) if home_club["xg"] > 0 else 1.0
@@ -310,18 +468,22 @@ def predict_match(
     venue_a = 1.0 if neutral else (1.0 - HOME_ADV_LAMBDA * 0.7)
 
     # ── 9. Combinar con pesos ─────────────────────────────────────────────
-    # Lambda combinado como promedio ponderado de los factores
     w = WEIGHTS
-    ELO_LAMBDA_EXP = 0.90      # ancla Elo reforzada (antes 0.60)
+    ELO_LAMBDA_EXP = 0.90
+    # Los factores DC se aplican con exponente 0.25 para que su impacto
+    # sea modesto (~±8% al lambda) sin distorsionar la escala base.
+    DC_EXP = 0.25
     lh_raw = (
         BASE_GOALS
-        * h_att * a_def                              # ataque vs defensa rival
+        * h_att * a_def                              # ataque vs defensa (forma)
+        * (h_dc_att * a_dc_def) ** DC_EXP           # HAS × ADS (Dixon-Coles)
         * (elo_lambda_h / BASE_GOALS) ** ELO_LAMBDA_EXP
-        * h_xg_f   ** (w["xg"] * 2)
-        * h_form_f ** (w["form"] * 2)
-        * h_xi_f   ** (w["xi_rating"] * 2)
-        * h_sp_f   ** (w["set_pieces"] * 2)
+        * h_xg_f    ** (w["xg"] * 2)
+        * h_form_f  ** (w["form"] * 2)
+        * h_xi_f    ** (w["xi_rating"] * 2)
+        * h_sp_f    ** (w["set_pieces"] * 2)
         * h_press_f ** (w["possession"] * 2)
+        * h_sot_f ** 0.5                             # shots-on-target (suavizado)
         * h2h_hf
         * venue_h
         * (1 - home_absence)
@@ -329,12 +491,14 @@ def predict_match(
     la_raw = (
         BASE_GOALS
         * a_att * h_def
+        * (a_dc_att * h_dc_def) ** DC_EXP
         * (elo_lambda_a / BASE_GOALS) ** ELO_LAMBDA_EXP
-        * a_xg_f   ** (w["xg"] * 2)
-        * a_form_f ** (w["form"] * 2)
-        * a_xi_f   ** (w["xi_rating"] * 2)
-        * a_sp_f   ** (w["set_pieces"] * 2)
+        * a_xg_f    ** (w["xg"] * 2)
+        * a_form_f  ** (w["form"] * 2)
+        * a_xi_f    ** (w["xi_rating"] * 2)
+        * a_sp_f    ** (w["set_pieces"] * 2)
         * a_press_f ** (w["possession"] * 2)
+        * a_sot_f ** 0.5
         * h2h_af
         * venue_a
         * (1 - away_absence)
@@ -430,6 +594,13 @@ def predict_match(
             "xg_away":        away_club["xg"],
             "sp_idx_home":    home_club["set_piece_idx"],
             "sp_idx_away":    away_club["set_piece_idx"],
+            # Dixon-Coles (nuevo)
+            "HAS": h_str["HAS"] if use_strength else None,
+            "AAS": a_str["AAS"] if use_strength else None,
+            "HDS": h_str["HDS"] if use_strength else None,
+            "ADS": a_str["ADS"] if use_strength else None,
+            "sot_h": h_str["sot_factor"] if use_strength else None,
+            "sot_a": a_str["sot_factor"] if use_strength else None,
         },
         # Forma reciente
         "form_home":       home_form["last5"],
