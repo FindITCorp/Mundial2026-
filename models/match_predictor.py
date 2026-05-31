@@ -519,7 +519,67 @@ def predict_match(
             elif i == j: pd += p
             else:        pa += p
     total = sum(probs.values())
+    ph /= total; pd /= total; pa /= total
+
+    # ── 10b. Rebalanceo de empates/sorpresas — W-5 Framework ─────────────
+    # Poisson tiende a subestimar empates en partidos muy parejos.
+    # Cuando múltiples señales apuntan a equilibrio, boosteamos p_draw
+    # y redistribuimos de p_home / p_away proporcionalmente.
+    draw_boost = 0.0
+
+    # Señal 1: Elo muy parejo (< 80 puntos de diferencia)
+    elo_gap = abs(elo_diff)
+    if elo_gap < 40:
+        draw_boost += 0.045
+    elif elo_gap < 80:
+        draw_boost += 0.025
+    elif elo_gap < 130:
+        draw_boost += 0.010
+
+    # Señal 2: Forma reciente casi idéntica
+    form_gap = abs(home_form["form_score"] - away_form["form_score"])
+    if form_gap < 0.07:
+        draw_boost += 0.025
+    elif form_gap < 0.14:
+        draw_boost += 0.010
+
+    # Señal 3: H2H con historial de empates
+    if h2h["gp"] >= 4:
+        draw_rate = h2h["d"] / h2h["gp"]
+        if draw_rate >= 0.40:
+            draw_boost += 0.025
+        elif draw_rate >= 0.25:
+            draw_boost += 0.012
+
+    # Señal 4: Lambdas muy similares (partido equilibrado proyectado)
+    lambda_ratio = min(lh, la) / max(lh, la) if max(lh, la) > 0 else 1.0
+    if lambda_ratio > 0.90:
+        draw_boost += 0.020
+    elif lambda_ratio > 0.80:
+        draw_boost += 0.008
+
+    # Señal 5: Partido de fase eliminatoria (ambos equipos tienden a ser más
+    # cautelosos — aplica solo si se llama con neutral=True en WC)
+    if neutral and elo_gap < 100:
+        draw_boost += 0.008
+
+    # Cap: máximo boost de +8pp para evitar sobredistorsión
+    draw_boost = min(draw_boost, 0.080)
+
+    # Redistribuir proporcionalmente de p_home y p_away
+    if draw_boost > 0.001:
+        steal_h = draw_boost * (ph / (ph + pa)) if (ph + pa) > 0 else draw_boost / 2
+        steal_a = draw_boost * (pa / (ph + pa)) if (ph + pa) > 0 else draw_boost / 2
+        ph = max(0.05, ph - steal_h)
+        pa = max(0.05, pa - steal_a)
+        pd = min(0.55, pd + draw_boost)
+        # Renormalizar
+        _t = ph + pd + pa
+        ph /= _t; pd /= _t; pa /= _t
+
     top_scores = sorted(probs.items(), key=lambda x: x[1], reverse=True)[:8]
+    # Re-normalizar probs dict para que top_scores use escala consistente
+    prob_total_raw = sum(probs.values())
 
     # ── 11. Posesión proyectada ───────────────────────────────────────────
     h_poss_raw = home_club["possession"] + (home_xi - away_xi) * 10 \
@@ -540,15 +600,19 @@ def predict_match(
     a_sp_goals = round(la * 0.27, 2)
 
     # ── 14. Confianza del modelo ──────────────────────────────────────────
-    # Mayor confianza si: Elo muy diferente, forma clara, H2H claro
     elo_conf   = min(1.0, abs(elo_diff) / 300)
     form_conf  = abs(home_form["form_score"] - away_form["form_score"])
     h2h_conf   = (max(h2h["hw"], h2h["aw"]) / h2h["gp"]) if h2h["gp"] >= 4 else 0.0
     confidence = round((elo_conf * 0.4 + form_conf * 0.35 + h2h_conf * 0.25), 3)
 
-    # Predicción final
+    # Predicción final — ganador según max probabilidad rebalanceada
+    if ph >= pd and ph >= pa:
+        winner = home_name
+    elif pa >= ph and pa >= pd:
+        winner = away_name
+    else:
+        winner = "DRAW"
     pred = top_scores[0][0]
-    winner = home_name if pred[0] > pred[1] else (away_name if pred[1] > pred[0] else "DRAW")
 
     return {
         # Identidad
@@ -558,10 +622,11 @@ def predict_match(
         "predicted_score": f"{pred[0]}-{pred[1]}",
         "winner":           winner,
         "confidence":       confidence,
-        # Probabilidades
-        "prob_home_win":   round(ph / total * 100, 1),
-        "prob_draw":       round(pd / total * 100, 1),
-        "prob_away_win":   round(pa / total * 100, 1),
+        # Probabilidades (rebalanceadas por W-5 draw boost)
+        "prob_home_win":   round(ph * 100, 1),
+        "prob_draw":       round(pd * 100, 1),
+        "prob_away_win":   round(pa * 100, 1),
+        "draw_boost":      round(draw_boost * 100, 1),   # cuánto se boosteó el empate
         # Goles esperados
         "lambda_home":     round(lh, 3),
         "lambda_away":     round(la, 3),
@@ -581,7 +646,7 @@ def predict_match(
         "pressing_home":   round(home_tac["pressing_intensity"], 2),
         "pressing_away":   round(away_tac["pressing_intensity"], 2),
         # Top marcadores
-        "top_scores":      [(f"{s[0]}-{s[1]}", round(p / total * 100, 1))
+        "top_scores":      [(f"{s[0]}-{s[1]}", round(p / prob_total_raw * 100, 1))
                             for s, p in top_scores[:6]],
         # Breakdown por factor
         "_factors": {
@@ -641,7 +706,11 @@ def format_prediction(r: dict) -> str:
         f"  Córners    {r['home'][:10]}: {r['corners_home']}    {r['away'][:10]}: {r['corners_away']}",
         f"  Goles BP   {r['home'][:10]}: {r['set_piece_goals_home']}    {r['away'][:10]}: {r['set_piece_goals_away']}",
         f"{'─'*64}",
-        f"  📈 1X2: {r['home'][:10]} {r['prob_home_win']}%  |  Empate {r['prob_draw']}%  |  {r['away'][:10]} {r['prob_away_win']}%",
+        "  📈 1X2: {} {}%  |  Empate {}%{}  |  {} {}%".format(
+            r['home'][:10], r['prob_home_win'],
+            r['prob_draw'],
+            f" (+{r['draw_boost']}% boost)" if r.get('draw_boost', 0) > 0 else "",
+            r['away'][:10], r['prob_away_win']),
         f"  🎯 TOP MARCADORES:",
     ]
     for score, prob in r["top_scores"]:
