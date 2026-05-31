@@ -74,7 +74,7 @@ class TournamentSimulator:
         conn.close()
 
     # ── Motor de λ rápido (coherente con match_predictor) ────────────────────
-    def _lambdas(self, h: int, a: int, neutral: bool = True) -> tuple[float, float]:
+    def _lambdas_base(self, h: int, a: int, neutral: bool = True) -> tuple[float, float]:
         sh, sa = self.strength[h], self.strength[a]
         elo_diff = sh["elo"] - sa["elo"]
         adj = 0 if neutral else 50
@@ -112,25 +112,90 @@ class TournamentSimulator:
             if p <= L:
                 return k - 1
 
+    def _sim_penalty_shootout(self, h: int, a: int) -> int:
+        """
+        Cadena de Markov para penales — basado en:
+        'A Markovian model for football penalty shootout' (Taylor & Francis, 2026)
+
+        Parámetros calibrados con datos históricos de Mundiales/Euros:
+          p_base   = 0.725  tasa de conversión base (72.5%)
+          momentum = -0.179 impacto psicológico si rival convierte el penal anterior
+
+        Formato: 5 rondas alternadas (h,a,h,a,...), luego muerte súbita.
+        El Elo del equipo da un pequeño edge (±2pp) para capturar calidad.
+        """
+        P_BASE    = 0.725
+        MOMENTUM  = -0.179   # penalización si rival convirtió su último penal
+
+        # Edge por Elo: ±2pp máximo (penales son casi lotería)
+        elo_h = self.strength[h]["elo"]
+        elo_a = self.strength[a]["elo"]
+        elo_edge = min(0.02, max(-0.02, (elo_h - elo_a) / 2000))
+
+        p_h = max(0.55, min(0.85, P_BASE + elo_edge))
+        p_a = max(0.55, min(0.85, P_BASE - elo_edge))
+
+        scored_h, scored_a = [], []
+        prev_scored_h = prev_scored_a = False
+
+        # 5 rondas obligatorias
+        for rnd in range(5):
+            # Home dispara
+            p_h_adj = p_h + (MOMENTUM if prev_scored_a else 0)
+            p_h_adj = max(0.50, min(0.90, p_h_adj))
+            sh = self.rng.random() < p_h_adj
+            scored_h.append(sh)
+            prev_scored_h = sh
+
+            # Away dispara
+            p_a_adj = p_a + (MOMENTUM if prev_scored_h else 0)
+            p_a_adj = max(0.50, min(0.90, p_a_adj))
+            sa = self.rng.random() < p_a_adj
+            scored_a.append(sa)
+            prev_scored_a = sa
+
+            # Verificar si ya es matemáticamente imposible empatar antes de 5
+            if rnd < 4:
+                remaining = 4 - rnd
+                gh_now = sum(scored_h); ga_now = sum(scored_a)
+                if gh_now - ga_now > remaining or ga_now - gh_now > remaining:
+                    break   # resultado decidido anticipadamente
+
+        gh = sum(scored_h); ga = sum(scored_a)
+        if gh == ga:
+            # Muerte súbita
+            for _ in range(20):   # cap anti-loop
+                p_h_adj = max(0.50, p_h + (MOMENTUM if prev_scored_a else 0))
+                sh = self.rng.random() < p_h_adj
+                prev_scored_h = sh
+                p_a_adj = max(0.50, p_a + (MOMENTUM if prev_scored_h else 0))
+                sa = self.rng.random() < p_a_adj
+                prev_scored_a = sa
+                gh += sh; ga += sa
+                if sh != sa:
+                    break
+                if not sh and not sa:
+                    break   # ambos fallan en muerte súbita → break
+
+        return h if gh >= ga else a
+
     def _sim_match(self, h: int, a: int, neutral: bool = True,
-                   knockout: bool = False) -> tuple[int, int, int]:
+                   knockout: bool = False,
+                   fatigue_h: float = 0.0, fatigue_a: float = 0.0) -> tuple[int, int, int]:
         """Devuelve (goles_h, goles_a, ganador_id). En knockout nunca hay empate."""
-        lh, la = self._lambdas(h, a, neutral)
+        lh, la = self._lambdas(h, a, neutral, fatigue_h, fatigue_a)
         gh, ga = self._poisson(lh), self._poisson(la)
         if not knockout:
             winner = h if gh > ga else (a if ga > gh else 0)
             return gh, ga, winner
         if gh == ga:
-            # Prórroga: mini-Poisson (30') ≈ 1/3 de λ
+            # Prórroga: mini-Poisson (30 min ≈ λ/3)
             eh, ea = self._poisson(lh / 3), self._poisson(la / 3)
             gh += eh; ga += ea
             if gh == ga:
-                # Penaltis: probabilidad ligada al Elo (mejor equipo algo favorito)
-                e_h = 1.0 / (1.0 + 10 ** (-(self.strength[h]["elo"]
-                                            - self.strength[a]["elo"]) / 800))
-                if self.rng.random() < e_h:
-                    return gh, ga, h
-                return gh, ga, a
+                # Penales — modelo Markov (reemplaza simple random Elo)
+                winner = self._sim_penalty_shootout(h, a)
+                return gh, ga, winner
         return gh, ga, (h if gh > ga else a)
 
     # ── Fase de grupos ────────────────────────────────────────────────────────
@@ -156,10 +221,27 @@ class TournamentSimulator:
                    reverse=True)
         return table
 
+    def _lambdas(self, h: int, a: int, neutral: bool = True,
+                fatigue_h: float = 0.0, fatigue_a: float = 0.0):
+        """Calcula lambdas con penalización opcional por fatiga acumulada."""
+        lh, la = self._lambdas_base(h, a, neutral)
+        # Fatiga: cada punto reduce λ hasta 6% máx (calibrado de Liverpool/PMC 2024)
+        lh *= max(0.94, 1.0 - fatigue_h)
+        la *= max(0.94, 1.0 - fatigue_a)
+        return lh, la
+
     # ── Torneo completo (un sorteo) ───────────────────────────────────────────
     def _sim_tournament(self) -> dict[int, str]:
         """Devuelve {team_id: ronda_máxima_alcanzada}."""
         reached = {tid: "group" for ids in self.groups.values() for tid in ids}
+        # Fatiga acumulada por equipo: crece con partidos de alta intensidad
+        fatigue: dict[int, float] = {tid: 0.0
+                                     for ids in self.groups.values() for tid in ids}
+        # Umbral de rival "intenso" (partido que genera fatiga adicional)
+        HARD_RIVAL_ELO = 1620
+        FATIGUE_HARD   = 0.012   # +1.2% penalización en λ por partido duro
+        FATIGUE_NORMAL = 0.006   # +0.6% por partido normal
+        FATIGUE_DECAY  = 0.004   # recuperación por cada ronda sin partido duro
 
         firsts, seconds, thirds = [], [], []
         for g in GROUPS:
@@ -193,15 +275,36 @@ class TournamentSimulator:
         for i in range(16):
             round_teams.append((seeds[i], seeds[31 - i]))
 
+        # ── Acumular fatiga de fase de grupos ────────────────────────────────
+        # Un partido vs rival duro (Elo > 1620) genera más fatiga que vs débil.
+        for g in GROUPS:
+            group_ids = self.groups[g]
+            for i in range(len(group_ids)):
+                for j in range(i + 1, len(group_ids)):
+                    h_id, a_id = group_ids[i], group_ids[j]
+                    opp_h_elo = self.strength[a_id]["elo"]
+                    opp_a_elo = self.strength[h_id]["elo"]
+                    fatigue[h_id] += FATIGUE_HARD if opp_h_elo > HARD_RIVAL_ELO else FATIGUE_NORMAL
+                    fatigue[a_id] += FATIGUE_HARD if opp_a_elo > HARD_RIVAL_ELO else FATIGUE_NORMAL
+
         # ── Eliminatorias ─────────────────────────────────────────────────────
         stage_names = ["round_of_16", "quarter_final", "semi_final", "final", "champion"]
         pairs = round_teams
         for stage in stage_names:
             winners = []
             for h, a in pairs:
-                _, _, w = self._sim_match(h, a, neutral=True, knockout=True)
+                fh = fatigue.get(h, 0.0)
+                fa = fatigue.get(a, 0.0)
+                _, _, w = self._sim_match(h, a, neutral=True, knockout=True,
+                                         fatigue_h=fh, fatigue_a=fa)
                 winners.append(w)
                 loser = a if w == h else h
+                # Actualizar fatiga para la siguiente ronda
+                for tid in (h, a):
+                    opp = a if tid == h else h
+                    inc = FATIGUE_HARD if self.strength[opp]["elo"] > HARD_RIVAL_ELO else FATIGUE_NORMAL
+                    fatigue[tid] = fatigue.get(tid, 0.0) + inc - FATIGUE_DECAY
+                    fatigue[tid] = max(0.0, fatigue[tid])
                 if stage != "champion":
                     reached[w] = stage      # el ganador alcanza la SIGUIENTE ronda
             if stage == "final":
