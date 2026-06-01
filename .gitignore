@@ -8,3 +8,5 @@ models/*.pkl
 *.egg-info/
 .DS_Store
 venv/
+data/cache/
+data/logs/
