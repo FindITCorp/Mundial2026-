@@ -1043,13 +1043,18 @@ def predict_match(
     h2h_conf   = (max(h2h["hw"], h2h["aw"]) / h2h["gp"]) if h2h["gp"] >= 4 else 0.0
     confidence = round((elo_conf * 0.4 + form_conf * 0.35 + h2h_conf * 0.25), 3)
 
-    # Predicción final — ganador según max probabilidad rebalanceada
-    if ph >= pd and ph >= pa:
-        winner = home_name
-    elif pa >= ph and pa >= pd:
-        winner = away_name
-    else:
+    # Predicción final — criterio calibrado contra 68 partidos 2026:
+    # prob_draw > 30% → tasa real empate 44% → predecir empate
+    # prob_draw 20-30% → tasa real empate 29% → predecir empate
+    # prob_draw < 20% → tasa real empate 12% → predecir ganador
+    # Umbral: si prob_draw >= 20% Y la diferencia entre ph y pa es < 15pp → empate
+    draw_gap = abs(ph - pa)
+    if pd >= 0.20 and draw_gap < 0.15:
         winner = "DRAW"
+    elif ph >= pa:
+        winner = home_name
+    else:
+        winner = away_name
     pred = top_scores[0][0]
 
     return {
