@@ -158,15 +158,25 @@ def main():
             team_group[tid] = grp
 
     sorted_champs = sorted(champion_counts.items(), key=lambda x: -x[1])
-    for rank, (tid, cnt) in enumerate(sorted_champs[:20], 1):
+
+    # Show ALL 48 teams — including those with 0 wins
+    all_teams_in_groups = {tid for tids in groups.values() for tid in tids}
+    for tid in all_teams_in_groups:
+        if tid not in champion_counts:
+            champion_counts[tid] = 0
+    sorted_champs = sorted(champion_counts.items(), key=lambda x: -x[1])
+
+    for rank, (tid, cnt) in enumerate(sorted_champs, 1):
         pct = cnt / N_SIMS * 100
         grp = team_group.get(tid, "?")
-        print(f"{rank:<5} {tid_name[tid]:<22} {pct:>5.1f}%  Group {grp}")
+        bar = "█" * int(pct / 0.5) + ("▌" if (pct % 0.5) >= 0.25 else "")
+        print(f"{rank:<4} {tid_name[tid]:<22} {pct:>5.1f}%  Grupo {grp}  {bar}")
 
-    # Summary stats
     top5_pct = sum(cnt for _, cnt in sorted_champs[:5]) / N_SIMS * 100
-    print(f"\nTop 5 combined: {top5_pct:.1f}%  |  Rest of field: {100 - top5_pct:.1f}%")
-    print(f"Teams with >1% win chance: {sum(1 for _, c in champion_counts.items() if c/N_SIMS >= 0.01)}")
+    teams_with_wins = sum(1 for _, c in champion_counts.items() if c > 0)
+    print(f"\nTop 5 combinado : {top5_pct:.1f}%")
+    print(f"Resto del campo : {100 - top5_pct:.1f}%")
+    print(f"Selecciones con al menos 1 título simulado: {teams_with_wins}/48")
 
 
 if __name__ == "__main__":

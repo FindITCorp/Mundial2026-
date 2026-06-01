@@ -964,52 +964,118 @@ def predict_match(
 
 
 def format_prediction(r: dict) -> str:
-    """Pretty-print de una predicción."""
-    sep = "═" * 64
+    """
+    Reporte completo de predicción — todos los mercados proyectados.
+    Cubre: resultado, marcador exacto, goles esperados, xG, posesión,
+    tiros, corners, balón parado, contexto táctico, forma y H2H.
+    """
+    W = 68
+    sep  = "═" * W
+    thin = "─" * W
+    f    = r["_factors"]
+    h2h  = r["h2h"]
+    hn   = r["home"]
+    an   = r["away"]
+
+    # ── métricas derivadas ──────────────────────────────────────────────────
+    lh, la   = r["lambda_home"], r["lambda_away"]
+    # Tiros totales proyectados (xG / conversion rate ~11%)
+    shots_h  = round(lh / 0.11)
+    shots_a  = round(la / 0.11)
+    # Tiros a puerta (≈45% de tiros totales en elite)
+    sot_h    = round(shots_h * 0.45)
+    sot_a    = round(shots_a * 0.45)
+    # Over/under lines
+    ou25     = 0.0; ou35 = 0.0; btts = 0.0
+    import math
+    def _pois(l, k): return (l**k * math.exp(-l)) / math.factorial(k)
+    for i in range(10):
+        for j in range(10):
+            p = _pois(lh, i) * _pois(la, j)
+            tot = i + j
+            if tot > 2.5: ou25 += p
+            if tot > 3.5: ou35 += p
+            if i >= 1 and j >= 1: btts += p
+    # Fouls proyectados (inverso de pressing — más press = más falta)
+    fouls_h  = round(10 + (1 - r["pressing_home"]) * 6)
+    fouls_a  = round(10 + (1 - r["pressing_away"]) * 6)
+    # Tarjetas amarillas proxy
+    yc_h     = round(fouls_h * 0.22)
+    yc_a     = round(fouls_a * 0.22)
+    # Tiro libre / penalti xG desde set pieces
+    sp_xg_h  = r["set_piece_goals_home"]
+    sp_xg_a  = r["set_piece_goals_away"]
+    # Matchup táctico — descripción
+    tac_h    = r.get("tac_matchup_home", 1.0)
+    tac_a    = r.get("tac_matchup_away", 1.0)
+    def tac_label(v):
+        if v >= 1.10: return "VENTAJA TÁCTICA  ▲"
+        if v >= 1.04: return "Leve ventaja     ▲"
+        if v <= 0.90: return "DESVENTAJA TÁCT  ▼"
+        if v <= 0.96: return "Leve desventaja  ▼"
+        return "Neutro           –"
+
     lines = [
         f"\n{sep}",
-        f"  {r['home'].upper()} vs {r['away'].upper()}",
-        f"  Formaciones: {r['formation_home']} vs {r['formation_away']}",
-        f"{'─'*64}",
-        f"  📊 Forma  {r['home'][:12]:12}  {'  '.join(r['form_home'][:5])}",
-        f"            {r['away'][:12]:12}  {'  '.join(r['form_away'][:5])}",
+        f"  {hn.upper():<28}  vs  {an.upper()}",
+        f"  {r['formation_home']:<28}       {r['formation_away']}",
+        thin,
+        # Forma reciente
+        f"  FORMA (últimos 5)   {hn[:14]:14}  {'  '.join(r['form_home'][:5])}",
+        f"                      {an[:14]:14}  {'  '.join(r['form_away'][:5])}",
     ]
-    h2h = r["h2h"]
     if h2h["gp"]:
-        lines.append(f"  🔁 H2H {r['home'][:10]} {h2h['hw']}V / Draw {h2h['d']} / {r['away'][:10]} {h2h['aw']}V")
+        lines.append(
+            f"  H2H (desde 2019)    {hn[:10]} {h2h['hw']}G  /  Empate {h2h['d']}  /  {an[:10]} {h2h['aw']}G  ({h2h['gp']} partidos)"
+        )
     lines += [
-        f"{'─'*64}",
-        f"  ⚡ ELO          {r['home'][:14]:14} {r['elo_home']:>7.0f}    {r['away'][:14]:14} {r['elo_away']:>7.0f}",
-        f"  ⚽ MÉTRICAS            {r['home'][:12]:>14}    {r['away'][:12]:>14}",
-        f"  XI Rating              {'%.3f'%r['_factors']['xi_home']:>14}    {'%.3f'%r['_factors']['xi_away']:>14}",
-        f"  xG acum. XI            {'%.2f'%r['_factors']['xg_home']:>14}    {'%.2f'%r['_factors']['xg_away']:>14}",
-        f"  Set Piece idx          {'%.2f'%r['_factors']['sp_idx_home']:>14}    {'%.2f'%r['_factors']['sp_idx_away']:>14}",
-        f"  Pressing               {'%.2f'%r['pressing_home']:>14}    {'%.2f'%r['pressing_away']:>14}",
-        f"  λ goles esperados      {'%.3f'%r['lambda_home']:>14}    {'%.3f'%r['lambda_away']:>14}",
-        f"{'─'*64}",
-        f"  🏃 DOMINIO",
+        thin,
+        f"  {'INDICADOR':<28} {'LOCAL':>10}  {'VISITANTE':>10}",
+        thin,
+        f"  {'ELO FIFA':<28} {r['elo_home']:>10.0f}  {r['elo_away']:>10.0f}",
+        f"  {'XI Rating (0–1)':<28} {f['xi_home']:>10.3f}  {f['xi_away']:>10.3f}",
+        f"  {'xG acum. plantilla':<28} {f['xg_home']:>10.2f}  {f['xg_away']:>10.2f}",
+        f"  {'Set piece index':<28} {f['sp_idx_home']:>10.2f}  {f['sp_idx_away']:>10.2f}",
+        f"  {'Pressing intensity':<28} {r['pressing_home']:>10.2f}  {r['pressing_away']:>10.2f}",
+        f"  {'Matchup táctico':<28} {tac_h:>10.3f}  {tac_a:>10.3f}",
+        thin,
+        f"  PROYECCIONES DEL PARTIDO",
+        thin,
+        f"  {'λ goles esperados':<28} {lh:>10.3f}  {la:>10.3f}",
+        f"  {'Tiros totales':<28} {shots_h:>10}  {shots_a:>10}",
+        f"  {'Tiros a puerta':<28} {sot_h:>10}  {sot_a:>10}",
+        f"  {'Córners':<28} {r['corners_home']:>10}  {r['corners_away']:>10}",
+        f"  {'xG balón parado':<28} {sp_xg_h:>10.2f}  {sp_xg_a:>10.2f}",
+        f"  {'Faltas proyectadas':<28} {fouls_h:>10}  {fouls_a:>10}",
+        f"  {'Tarjetas amarillas':<28} {yc_h:>10}  {yc_a:>10}",
     ]
+    # Posesión barra visual
     bar = int(r["possession_home"] / 2)
-    lines.append(f"  Posesión  {'█'*bar}{'░'*(50-bar)}  {r['possession_home']}% vs {r['possession_away']}%")
     lines += [
-        f"  Córners    {r['home'][:10]}: {r['corners_home']}    {r['away'][:10]}: {r['corners_away']}",
-        f"  Goles BP   {r['home'][:10]}: {r['set_piece_goals_home']}    {r['away'][:10]}: {r['set_piece_goals_away']}",
-        f"{'─'*64}",
-        "  📈 1X2: {} {}%  |  Empate {}%{}  |  {} {}%".format(
-            r['home'][:10], r['prob_home_win'],
-            r['prob_draw'],
-            f" (+{r['draw_boost']}% boost)" if r.get('draw_boost', 0) > 0 else "",
-            r['away'][:10], r['prob_away_win']),
-        f"  🎯 TOP MARCADORES:",
+        thin,
+        f"  POSESIÓN  {r['possession_home']}%  {'█'*bar}{'░'*(50-bar)}  {r['possession_away']}%",
+        thin,
+        f"  MERCADOS",
+        f"  1X2           {hn[:12]} {r['prob_home_win']:>5.1f}%  |  Empate {r['prob_draw']:>5.1f}%  |  {an[:12]} {r['prob_away_win']:>5.1f}%",
+        f"  Over 2.5      {ou25*100:>5.1f}%        Over 3.5     {ou35*100:>5.1f}%",
+        f"  Ambos marcan  {btts*100:>5.1f}%",
+        thin,
+        f"  MARCADORES MÁS PROBABLES",
     ]
     for score, prob in r["top_scores"]:
-        tag = " ◄ PREDICCIÓN" if score == r["predicted_score"] else ""
-        lines.append(f"     {r['home'][:8]} {score} {r['away'][:8]}   {prob}%{tag}")
+        tag = " ◄" if score == r["predicted_score"] else "  "
+        lines.append(f"    {hn[:10]:10} {score:5} {an[:10]:10}   {prob:>4.1f}%{tag}")
     lines += [
-        f"{'═'*64}",
-        f"  ✅ {r['home']} {r['predicted_score']} {r['away']}",
-        f"  🏆 {r['winner']}   (confianza modelo: {r['confidence']:.2f})",
-        f"{sep}",
+        thin,
+        f"  CONTEXTO TÁCTICO",
+        f"  {hn[:16]:16}  {tac_label(tac_h)}  ({tac_h:.3f})",
+        f"  {an[:16]:16}  {tac_label(tac_a)}  ({tac_a:.3f})",
+        thin,
+        f"  RESULTADO PREDICHO:  {hn} {r['predicted_score']} {an}",
+        f"  GANADOR:             {r['winner']}",
+        f"  CONFIANZA MODELO:    {r['confidence']:.2f} / 1.00",
+        f"  Draw boost aplicado: +{r.get('draw_boost', 0):.1f}%",
+        sep,
     ]
     return "\n".join(lines)
 
