@@ -57,7 +57,7 @@ MINNOWS = {
 }
 
 HOME_ADV_LAMBDA = 0.08   # +8% goles para el local
-BASE_GOALS = 1.30         # referencia goles/partido neutral
+BASE_GOALS = 1.22         # referencia goles/partido neutral — calibrado 2026-06-02 (Over2.5 real=53% vs pred=60%)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
