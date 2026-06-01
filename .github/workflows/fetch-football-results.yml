@@ -1,0 +1,178 @@
+name: Fetch Daily Football Results
+
+on:
+  # Corre automáticamente a las 02:00 UTC (cuando la mayoría de partidos ya terminaron)
+  schedule:
+    - cron: '0 2 * * *'
+
+  # También permite ejecución manual con fecha opcional
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Fecha a procesar (YYYY-MM-DD). Vacío = ayer.'
+        required: false
+        default: ''
+      days_back:
+        description: 'Cuántos días hacia atrás procesar'
+        required: false
+        default: '1'
+
+jobs:
+  fetch-results:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: claude/sleepy-bohr-PDVSt
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Determine target date(s)
+        id: dates
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            echo "target=${{ github.event.inputs.date }}" >> $GITHUB_OUTPUT
+          else
+            echo "target=$(date -u -d 'yesterday' '+%Y-%m-%d')" >> $GITHUB_OUTPUT
+          fi
+          echo "days=${{ github.event.inputs.days_back || '1' }}" >> $GITHUB_OUTPUT
+
+      - name: Fetch results from football-data.org
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: |
+          python - << 'PYEOF'
+          import os, json, requests
+          from datetime import date, timedelta
+          from pathlib import Path
+
+          API_KEY   = os.environ.get("FOOTBALL_DATA_API_KEY", "")
+          HEADERS   = {"X-Auth-Token": API_KEY}
+          BASE_URL  = "https://api.football-data.org/v4"
+          OUT_DIR   = Path("mundial2026/data/daily_results")
+          OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+          target_str = "${{ steps.dates.outputs.target }}"
+          days_back  = int("${{ steps.dates.outputs.days }}")
+
+          target = date.fromisoformat(target_str) if target_str else date.today() - timedelta(days=1)
+          dates  = [target - timedelta(days=i) for i in range(days_back)]
+
+          for d in dates:
+              date_str = d.isoformat()
+              out_file = OUT_DIR / f"{date_str}.json"
+
+              if out_file.exists():
+                  print(f"  ⏭  {date_str} ya existe — omitido")
+                  continue
+
+              print(f"\n📅 Descargando {date_str}...")
+              url = f"{BASE_URL}/matches"
+              params = {"dateFrom": date_str, "dateTo": date_str}
+
+              try:
+                  resp = requests.get(url, headers=HEADERS, params=params, timeout=20)
+                  if resp.status_code == 403:
+                      print(f"  ❌ 403 — verifica FOOTBALL_DATA_API_KEY en secrets")
+                      print(f"     Detalle: {resp.text[:200]}")
+                      continue
+                  resp.raise_for_status()
+                  data = resp.json()
+              except Exception as e:
+                  print(f"  ❌ Error: {e}")
+                  continue
+
+              matches = []
+              for m in data.get("matches", []):
+                  if m.get("status") != "FINISHED":
+                      continue
+                  full = m.get("score", {}).get("fullTime", {})
+                  hg = full.get("home")
+                  ag = full.get("away")
+                  if hg is None or ag is None:
+                      continue
+
+                  # Filtrar: solo competencias internacionales de selecciones
+                  comp_name = m.get("competition", {}).get("name", "")
+                  comp_code = m.get("competition", {}).get("code", "")
+                  area_code = m.get("area", {}).get("code", "")
+
+                  # football-data.org codes para internacionales:
+                  # WC=World Cup, EC=Euros, CL(int)=Nations League
+                  # area INT = internacional
+                  is_intl = (
+                      area_code in ("INT", "WRL", "EUR", "SAM", "CAM", "AFR", "ASI", "OCA") or
+                      any(kw in comp_name.lower() for kw in
+                          ("world cup", "nations", "euro", "copa", "gold cup",
+                           "qualifier", "afcon", "asian cup", "friendly", "international"))
+                  )
+                  if not is_intl:
+                      continue
+
+                  matches.append({
+                      "home":        m["homeTeam"]["name"],
+                      "away":        m["awayTeam"]["name"],
+                      "home_goals":  int(hg),
+                      "away_goals":  int(ag),
+                      "competition": comp_name,
+                      "date":        date_str,
+                  })
+
+              if matches:
+                  out_file.write_text(json.dumps({"date": date_str, "matches": matches}, indent=2))
+                  print(f"  ✅ {len(matches)} partidos guardados → {out_file.name}")
+              else:
+                  # Guardar archivo vacío para no reintentar
+                  out_file.write_text(json.dumps({"date": date_str, "matches": [], "note": "no_intl_matches"}, indent=2))
+                  print(f"  📭 0 partidos internacionales — {date_str}")
+
+          PYEOF
+
+      - name: Apply results to DB and update Elo
+        run: |
+          python - << 'PYEOF'
+          import sys, json, sqlite3
+          from pathlib import Path
+          from datetime import date
+
+          sys.path.insert(0, "mundial2026")
+          from scripts.fetch_daily_results import (
+              load_aliases, resolve_team, register_match
+          )
+
+          DB_PATH   = Path("mundial2026/data/mundial2026.db")
+          RESULTS_DIR = Path("mundial2026/data/daily_results")
+
+          conn = sqlite3.connect(str(DB_PATH))
+          aliases = load_aliases()
+
+          total_new = 0
+          for json_file in sorted(RESULTS_DIR.glob("*.json")):
+              data = json.loads(json_file.read_text())
+              for m in data.get("matches", []):
+                  ok = register_match(conn, aliases, m, dry_run=False)
+                  if ok:
+                      total_new += 1
+
+          print(f"\n✨ {total_new} partido(s) nuevo(s) registrado(s) en DB")
+          conn.close()
+          PYEOF
+
+      - name: Commit and push updated DB + results
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add mundial2026/data/daily_results/
+          git add mundial2026/data/mundial2026.db
+          git diff --staged --quiet && echo "Nothing to commit" || \
+            git commit -m "chore: daily results update $(date -u '+%Y-%m-%d')" && \
+            git push origin claude/sleepy-bohr-PDVSt
