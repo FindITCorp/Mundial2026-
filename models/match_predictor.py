@@ -136,8 +136,8 @@ def _get_attack_defense_strength(conn, team_id: int, db_key: str) -> dict:
       ADS (Away Defensive Strength)  = avg_ga_away / global_avg_away_ga
 
     Valores > 1 → mejor que la media;  < 1 → peor que la media.
-    Incluye regularización bayesiana para equipos con pocos datos.
-    Usa solo partidos competitivos (WCQ, torneos continentales, etc.).
+    Incluye regularización bayesiana y SOS weighting por Elo del rival.
+    La forma reciente ya está capturada en _get_form (recency-weighted).
     """
     rows = conn.execute("""
         SELECT tm.goals_for, tm.goals_against, tm.venue, tm.competition,
@@ -153,14 +153,11 @@ def _get_attack_defense_strength(conn, team_id: int, db_key: str) -> dict:
     if len(comp) < MIN_COMP_MATCHES:
         comp = list(rows[:20])
 
-    # Ponderación por calidad del rival: goles vs rivales fuertes valen más,
-    # goles vs minnows valen menos. Evita que France 7-0 Azerbaijan infle AAS.
     def _sos_weight(opp_elo):
         elo = opp_elo if opp_elo else SOS_DEFAULT_ELO
         return min(1.5, max(0.4, (elo / SOS_PIVOT) ** 1.0))
 
     def _weighted_goals(rows_list):
-        """Devuelve lista de goles ponderados por calidad del rival."""
         result = []
         for r in rows_list:
             w = _sos_weight(r["opp_elo"])
@@ -468,7 +465,9 @@ def _get_club_metrics(conn, team_id: int) -> dict:
 
     avg = lambda lst, d: sum(lst) / len(lst) if lst else d
     pa   = avg(m["pa"], 75.0)
-    xg   = sum(m["xg"]) if m["xg"] else 0.0
+    club_xg = sum(m["xg"]) if m["xg"] else 0.0
+
+    xg = club_xg   # will be blended with form avg_gf in predict_match
     xa   = sum(m["xa"]) if m["xa"] else 0.0
     sot  = sum(m["sot"]) if m["sot"] else 3.0
     tkl  = avg(m["tkl"], 30.0)
@@ -504,10 +503,12 @@ def _get_tactics(conn, team_id: int) -> dict:
 
 
 def _get_h2h(conn, tid1: int, tid2: int, n: int = 8) -> dict:
+    # Solo últimos 6 años: el squad cambia completamente. H2H de 2015 no es útil para 2026.
     rows = conn.execute("""
         SELECT goals_for gf, goals_against ga, result
         FROM team_matches
-        WHERE team_id=? AND opponent_id=? ORDER BY date DESC LIMIT ?
+        WHERE team_id=? AND opponent_id=? AND date >= '2019-01-01'
+        ORDER BY date DESC LIMIT ?
     """, (tid1, tid2, n)).fetchall()
     if not rows:
         return {"hw": 0, "aw": 0, "d": 0, "gp": 0}
@@ -572,39 +573,56 @@ def predict_match(
     a_att_elo  = (away_elo / 1550.0)
     h_att = (h_att_form ** 0.55) * (h_att_elo ** 0.45)
     a_att = (a_att_form ** 0.55) * (a_att_elo ** 0.45)
-    h_def = (1.0 / max(0.55, home_form["avg_ga"] / BASE_GOALS)) ** 0.70
-    a_def = (1.0 / max(0.55, away_form["avg_ga"] / BASE_GOALS)) ** 0.70
+    # h_def = susceptibilidad defensiva del local. Alto → fácil de anotar contra él.
+    # Equipos que conceden poco (avg_ga bajo) tienen h_def bajo → reducen goles del rival. ✓
+    h_def = max(0.45, min(1.60, home_form["avg_ga"] / BASE_GOALS)) ** 0.70
+    a_def = max(0.45, min(1.60, away_form["avg_ga"] / BASE_GOALS)) ** 0.70
 
-    # ── 3b. Fuerza histórica normalizada — Dixon-Coles (repo Football_matches) ─
-    # Combina HAS×ADS para el local y AAS×HDS para el visitante.
-    # En partido neutral usamos GAS/GDS (fuerza global, sin distinción local/visita).
+    # ── 3b. Fuerza histórica normalizada — Dixon-Coles ───────────────────────
+    # GAS/GDS son susceptibilidades normalizadas (< 1.0 = mejor que media).
+    # lh (goles local) = GAS_H × GDS_A (cuánto concede el RIVAL al atacante)
+    # la (goles visitante) = GAS_A × GDS_H
+    # IMPORTANTE: se usan directamente, NO invertidos con 1/GDS.
     if use_strength:
         if neutral:
-            h_dc_att = h_str["GAS"]
-            h_dc_def = 1.0 / max(0.50, a_str["GDS"])
-            a_dc_att = a_str["GAS"]
-            a_dc_def = 1.0 / max(0.50, h_str["GDS"])
+            h_dc_att = h_str["GAS"]          # ataque local
+            a_dc_def = a_str["GDS"]          # susceptibilidad defensiva del RIVAL (afecta lh)
+            a_dc_att = a_str["GAS"]          # ataque visitante
+            h_dc_def = h_str["GDS"]          # susceptibilidad defensiva del LOCAL (afecta la)
         else:
             h_dc_att = h_str["HAS"]
-            h_dc_def = 1.0 / max(0.50, a_str["ADS"])
+            a_dc_def = a_str["ADS"]          # away defensive susceptibility (afecta lh)
             a_dc_att = a_str["AAS"]
-            a_dc_def = 1.0 / max(0.50, h_str["HDS"])
-        # Factor SOT (shots-on-target mejorar calibración ofensiva, +~2% repo)
+            h_dc_def = h_str["HDS"]          # home defensive susceptibility (afecta la)
         h_sot_f = h_str["sot_factor"]
         a_sot_f = a_str["sot_factor"]
-        # Suavizar para no dominar demasiado (cap ±12%)
+        # Cap: ataque máx ±40%, defensa susceptibilidad máx ±35%
         h_dc_att = max(0.75, min(1.40, h_dc_att))
         a_dc_att = max(0.75, min(1.40, a_dc_att))
-        h_dc_def = max(0.80, min(1.25, h_dc_def))
-        a_dc_def = max(0.80, min(1.25, a_dc_def))
+        h_dc_def = max(0.65, min(1.35, h_dc_def))
+        a_dc_def = max(0.65, min(1.35, a_dc_def))
     else:
         h_dc_att = a_dc_att = h_dc_def = a_dc_def = 1.0
         h_sot_f = a_sot_f = 1.0
 
-    # Referencia: mediana de xG normalizado (post league-discount) entre equipos WC2026
-    xg_ref   = 12.0   # mediana real ≈ 12 (era 15.4 antes de normalización)
-    h_xg_f   = max(0.88, min(1.15, home_club["xg"] / xg_ref)) if home_club["xg"] > 0 else 1.0
-    a_xg_f   = max(0.88, min(1.15, away_club["xg"] / xg_ref)) if away_club["xg"] > 0 else 1.0
+    # ── xG factor: blend 40% club individual + 60% national team form avg_gf ──
+    # Usa home_form["avg_gf"] que ya filtra minnows y partidos irrelevantes.
+    # Esto captura el estilo del equipo (España sistema vs Argentina contragolpe)
+    # sin distorsionar por ligas débiles (MLS Messi) ni posición (Pedri 0.089 xG/g).
+    SEASON_REF_XG = 22.0
+    def _blend_xg(club_xg, form_avg_gf):
+        team_xg = form_avg_gf * 0.85 * SEASON_REF_XG   # goles → escala xG
+        return 0.40 * club_xg + 0.60 * team_xg
+
+    h_xg_blend = _blend_xg(home_club["xg"], home_form["avg_gf"])
+    a_xg_blend = _blend_xg(away_club["xg"], away_form["avg_gf"])
+
+    # Mediana WC-qualified teams = 22.9. Cap ±15%: diferencia elite de promedio,
+    # no intenta separar Argentina de España (eso lo hacen Elo + HAS/AAS).
+    # Fix clave: España pasa de 0.88 (penalizado) a 1.15 (elite) gracias al blend.
+    xg_ref   = 23.0
+    h_xg_f   = max(0.86, min(1.15, h_xg_blend / xg_ref)) if h_xg_blend > 0 else 1.0
+    a_xg_f   = max(0.86, min(1.15, a_xg_blend / xg_ref)) if a_xg_blend > 0 else 1.0
 
     h_form_f = 0.80 + 0.40 * home_form["form_score"]
     a_form_f = 0.80 + 0.40 * away_form["form_score"]
