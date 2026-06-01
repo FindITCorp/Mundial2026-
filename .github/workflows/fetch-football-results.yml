@@ -17,6 +17,9 @@ on:
         required: false
         default: '1'
 
+permissions:
+  contents: write
+
 jobs:
   fetch-results:
     runs-on: ubuntu-latest
@@ -171,8 +174,15 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config commit.gpgsign false
+          # Stage files created/modified by the Python steps above
           git add mundial2026/data/daily_results/
           git add mundial2026/data/mundial2026.db
-          git diff --staged --quiet && echo "Nothing to commit" || \
-            git commit -m "chore: daily results update $(date -u '+%Y-%m-%d')" && \
-            git push origin claude/sleepy-bohr-PDVSt
+          # Only commit and push if there are staged changes
+          if git diff --staged --quiet; then
+            echo "✅ No new data to commit"
+          else
+            git commit -m "chore: daily results $(date -u '+%Y-%m-%d')"
+            git push origin HEAD:claude/sleepy-bohr-PDVSt --force-with-lease
+            echo "✅ Pushed updated results"
+          fi
