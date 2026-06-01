@@ -28,7 +28,7 @@ WEIGHTS = {
     "elo":        0.30,
     "xg":         0.25,
     "form":       0.15,
-    "xi_rating":  0.12,
+    "xi_rating":  0.18,
     "set_pieces": 0.10,
     "possession": 0.08,
 }
@@ -241,17 +241,41 @@ def _get_form(conn, team_id: int, n: int = 10) -> dict:
 
     wins  = sum(1 for r in filtered if r["result"] == "W")
     draws = sum(1 for r in filtered if r["result"] == "D")
-    # Ponderación temporal (recientes pesan más)
-    w_pts = sum(
-        (1.5 if r["result"] == "W" else 0.5 if r["result"] == "D" else 0)
-        * (1 + i * 0.07)
-        for i, r in enumerate(reversed(filtered))
-    )
-    max_pts = sum(1.5 * (1 + i * 0.07) for i in range(len(filtered)))
+
+    # Ponderación temporal × calidad del rival (SOS-adjusted form_score)
+    # Ganar vs rival fuerte vale más; perder vs rival fuerte penaliza menos
+    w_pts = 0.0
+    max_pts = 0.0
+    for i, r in enumerate(reversed(filtered)):
+        opp_elo = r["opp_elo"] if r["opp_elo"] is not None else SOS_DEFAULT_ELO
+        recency = 1 + i * 0.07
+        opp_factor = (opp_elo / SOS_PIVOT) ** 0.75   # más sensible a calidad rival
+        if r["result"] == "W":
+            pts = 1.5 * opp_factor          # ganar vs fuerte vale más
+        elif r["result"] == "D":
+            pts = 0.5 * opp_factor          # empate vs fuerte también vale más
+        else:
+            # Perder vs rival mucho más fuerte: crédito proporcional a la brecha
+            pts = max(0.0, 0.40 * (opp_elo - SOS_PIVOT) / 300)
+        w_pts   += pts * recency
+        max_pts += 1.5 * recency            # máximo sigue siendo ganar todo
+    # Racha ganadora: boost si los últimos N partidos son todos victorias
+    recent = filtered[:5]
+    win_streak = 0
+    for r in recent:
+        if r["result"] == "W":
+            win_streak += 1
+        else:
+            break
+    streak_bonus = min(0.12, win_streak * 0.025)   # +2.5% por cada victoria consecutiva, máx +12%
+    base_score = w_pts / max_pts if max_pts else 0.40
+    form_score = min(1.0, base_score + streak_bonus)
+
     return {
         "avg_gf":     avg_gf,
         "avg_ga":     avg_ga,
-        "form_score": w_pts / max_pts if max_pts else 0.40,
+        "form_score": form_score,
+        "win_streak": win_streak,
         "last5":      [f'{r["result"]}({r["gf"]}-{r["ga"]})' for r in filtered[:5]],
         "gp": len(filtered), "wins": wins, "draws": draws,
         "losses": len(filtered) - wins - draws,
@@ -259,22 +283,109 @@ def _get_form(conn, team_id: int, n: int = 10) -> dict:
 
 
 def _get_xi_rating(conn, team_id: int) -> float:
-    """Rating promedio del XI titular (0–1)."""
+    """
+    Puntuación compuesta del XI titular (0–1) — métricas posicionalmente neutras.
+
+    Pesos:
+      rating(30%) + xG(20%) + key_passes(15%) + progressive_carries(15%)
+      + pressures(10%) + caps(10%)
+
+    key_passes y progressive_carries capturan la calidad de mediocampistas
+    y defensores que xG solo no refleja (Modrić, Gvardiol, Amrabat, etc.)
+    Datos reales: StatsBomb WC 2022 (64 partidos, 682 jugadores).
+    """
     rows = conn.execute("""
-        SELECT pr.rating
+        SELECT p.caps,
+               pr.rating,
+               pcs.xg,
+               pcs.shots_on_target,
+               pcs.key_passes,
+               pcs.progressive_carries,
+               pcs.pressures,
+               pcs.matches,
+               pcs.sb_matches
         FROM projected_lineups pl
+        JOIN players p ON p.id = pl.player_id
         LEFT JOIN player_ratings pr ON pr.player_id = pl.player_id AND pr.context = 'nat'
+        LEFT JOIN player_club_stats pcs ON pcs.player_id = pl.player_id AND pcs.season = '2024/25'
         WHERE pl.team_id = ? AND pl.is_starter = 1
     """, (team_id,)).fetchall()
-    ratings = [r["rating"] for r in rows if r["rating"]]
-    if not ratings:
-        caps = conn.execute("""
-            SELECT AVG(p.caps) FROM projected_lineups pl
-            JOIN players p ON p.id = pl.player_id
-            WHERE pl.team_id = ? AND pl.is_starter = 1
-        """, (team_id,)).fetchone()[0] or 30
-        return min(0.65, caps / 120 * 0.65)
-    return sum(ratings) / len(ratings) / 10.0
+
+    if not rows:
+        return 0.40
+
+    # Maximos observados en WC2022 por partido
+    RATING_MAX       = 8.0
+    XG_PER_GAME_MAX  = 1.20   # Messi ~7.6xG / 7 games
+    KP_PER_GAME_MAX  = 3.0    # Griezmann ~2.9kp/game
+    PC_PER_GAME_MAX  = 11.0   # Rodrigo ~10.4pc/game
+    PRESS_PER_GAME_MAX = 20.0 # Kovacic ~19.4/game
+    CAPS_MAX         = 150.0
+
+    scores = []
+    for r in rows:
+        # Use WC2022 match count for WC-derived metrics, club count for xG
+        wc_m    = max(1, r["sb_matches"] or 0)
+        club_m  = max(1, r["matches"] or 1)
+        has_wc  = (r["sb_matches"] or 0) > 0
+        has_xg  = r["xg"] is not None and r["xg"] > 0
+
+        rating_n = min(1.0, r["rating"] / RATING_MAX) if r["rating"] else None
+        xg_n     = min(1.0, (r["xg"] or 0.0) / club_m / XG_PER_GAME_MAX)
+        caps_n   = min(1.0, (r["caps"] or 0) / CAPS_MAX)
+
+        if has_wc:
+            kp_n    = min(1.0, (r["key_passes"] or 0) / wc_m / KP_PER_GAME_MAX)
+            pc_n    = min(1.0, (r["progressive_carries"] or 0) / wc_m / PC_PER_GAME_MAX)
+            press_n = min(1.0, (r["pressures"] or 0) / wc_m / PRESS_PER_GAME_MAX)
+        else:
+            kp_n = pc_n = press_n = 0.0
+
+        has_perf = has_wc or has_xg
+
+        if has_wc and rating_n is not None:
+            # Full data: WC2022 events + club xG + rating
+            score = (0.28 * rating_n
+                     + 0.18 * xg_n
+                     + 0.18 * kp_n
+                     + 0.18 * pc_n
+                     + 0.08 * press_n
+                     + 0.10 * caps_n)
+        elif has_wc:
+            # WC2022 events only (no separate rating)
+            score = (0.22 * xg_n + 0.22 * kp_n + 0.22 * pc_n
+                     + 0.12 * press_n + 0.22 * caps_n)
+        elif has_xg and rating_n is not None:
+            # Club xG + rating, no WC data (e.g. Italy 2022)
+            score = 0.40 * rating_n + 0.40 * xg_n + 0.20 * caps_n
+        elif has_xg:
+            # Club xG only
+            score = 0.65 * xg_n + 0.35 * caps_n
+        elif rating_n is not None:
+            # Rating only — neutral baseline to avoid inflating weak teams
+            score = 0.40 * rating_n + 0.30 * caps_n + 0.30 * 0.22
+        else:
+            score = 0.40 * caps_n + 0.35 * 0.22
+
+        scores.append(min(1.0, score))
+
+    return sum(scores) / len(scores) if scores else 0.40
+
+
+def _get_star_factor(conn, team_id: int) -> float:
+    """Factor multiplicador por presencia de jugadores élite en el XI (rating >= 8.5/10)."""
+    rows = conn.execute("""
+        SELECT pr.rating FROM projected_lineups pl
+        LEFT JOIN player_ratings pr ON pr.player_id = pl.player_id AND pr.context = 'nat'
+        WHERE pl.team_id = ? AND pl.is_starter = 1 AND pr.rating IS NOT NULL
+    """, (team_id,)).fetchall()
+    if not rows:
+        return 1.0
+    stars = sum(1 for r in rows if r["rating"] >= 8.5)
+    elite = sum(1 for r in rows if r["rating"] >= 9.0)
+    # Cada estrella suma 1.5%, cada élite suma 2.5% extra
+    bonus = stars * 0.015 + elite * 0.025
+    return min(1.12, 1.0 + bonus)
 
 
 def _get_club_metrics(conn, team_id: int) -> dict:
@@ -378,10 +489,10 @@ def predict_match(
     home_xi   = _get_xi_rating(conn, home_id)
     away_xi   = _get_xi_rating(conn, away_id)
     home_club = _get_club_metrics(conn, home_id)
-    away_club = _get_club_metrics(conn, away_id)
-    home_tac  = _get_tactics(conn, home_id)
-    away_tac  = _get_tactics(conn, away_id)
-    h2h       = _get_h2h(conn, home_id, away_id)
+    away_club   = _get_club_metrics(conn, away_id)
+    home_tac    = _get_tactics(conn, home_id)
+    away_tac    = _get_tactics(conn, away_id)
+    h2h         = _get_h2h(conn, home_id, away_id)
     # Nuevas métricas Dixon-Coles (repo Football_matches)
     if use_strength:
         h_str = _get_attack_defense_strength(conn, home_id, db_key)
@@ -395,8 +506,8 @@ def predict_match(
     elo_diff  = home_elo - away_elo
     elo_adj   = 0 if neutral else 50
     e_home    = 1.0 / (1.0 + 10 ** (-(elo_diff + elo_adj) / 400))
-    elo_lambda_h = BASE_GOALS * (0.7 + e_home * 0.6)     # 0.7–1.3 escala
-    elo_lambda_a = BASE_GOALS * (0.7 + (1 - e_home) * 0.6)
+    elo_lambda_h = BASE_GOALS * (0.60 + e_home * 0.80)    # 0.60–1.40 escala ampliada
+    elo_lambda_a = BASE_GOALS * (0.60 + (1 - e_home) * 0.80)
 
     # ── 3. Factor xG / forma (25% + 15%) ─────────────────────────────────
     h_att_form = min(1.70, home_form["avg_gf"] / BASE_GOALS)
@@ -405,8 +516,8 @@ def predict_match(
     a_att_elo  = (away_elo / 1550.0)
     h_att = (h_att_form ** 0.55) * (h_att_elo ** 0.45)
     a_att = (a_att_form ** 0.55) * (a_att_elo ** 0.45)
-    h_def = (1.0 / max(0.60, home_form["avg_ga"] / BASE_GOALS)) ** 0.55
-    a_def = (1.0 / max(0.60, away_form["avg_ga"] / BASE_GOALS)) ** 0.55
+    h_def = (1.0 / max(0.55, home_form["avg_ga"] / BASE_GOALS)) ** 0.70
+    a_def = (1.0 / max(0.55, away_form["avg_ga"] / BASE_GOALS)) ** 0.70
 
     # ── 3b. Fuerza histórica normalizada — Dixon-Coles (repo Football_matches) ─
     # Combina HAS×ADS para el local y AAS×HDS para el visitante.
@@ -442,9 +553,12 @@ def predict_match(
     a_form_f = 0.80 + 0.40 * away_form["form_score"]
 
     # ── 4. Rating XI (12%) ────────────────────────────────────────────────
-    xi_diff   = away_xi - home_xi
-    h_xi_f    = max(0.65, 1.0 - xi_diff * 0.35)
-    a_xi_f    = max(0.65, 1.0 + xi_diff * 0.35)
+    # Factor XI: normalizado contra la media real de todos los equipos WC (0.265)
+    # Equipos sobre la media reciben bonus, bajo la media reciben penalización
+    # Cap 0.75–1.40 para evitar distorsiones por cobertura incompleta de datos
+    XI_PIVOT   = 0.304  # media real del score XI entre equipos WC (recalibrado con StatsBomb WC2022)
+    h_xi_f     = min(1.40, max(0.75, home_xi / XI_PIVOT))
+    a_xi_f     = min(1.40, max(0.75, away_xi / XI_PIVOT))
 
     # ── 5. Set pieces (10%) ───────────────────────────────────────────────
     avg_sp    = (home_club["set_piece_idx"] + away_club["set_piece_idx"]) / 2 or 3.5
@@ -469,10 +583,8 @@ def predict_match(
 
     # ── 9. Combinar con pesos ─────────────────────────────────────────────
     w = WEIGHTS
-    ELO_LAMBDA_EXP = 0.90
-    # Los factores DC se aplican con exponente 0.25 para que su impacto
-    # sea modesto (~±8% al lambda) sin distorsionar la escala base.
-    DC_EXP = 0.25
+    ELO_LAMBDA_EXP = 1.10
+    DC_EXP = 0.40
     lh_raw = (
         BASE_GOALS
         * h_att * a_def                              # ataque vs defensa (forma)
@@ -504,9 +616,8 @@ def predict_match(
         * (1 - away_absence)
     )
 
-    # Cap realista (máximo ~2.9 goles esperados en partido entre selecciones)
-    lh = min(max(lh_raw, 0.30), 2.90)
-    la = min(max(la_raw, 0.30), 2.90)
+    lh = min(max(lh_raw, 0.20), 3.50)
+    la = min(max(la_raw, 0.20), 3.50)
 
     # ── 10. Distribución Poisson ──────────────────────────────────────────
     probs = {}
@@ -523,48 +634,46 @@ def predict_match(
 
     # ── 10b. Rebalanceo de empates/sorpresas — W-5 Framework ─────────────
     # Poisson tiende a subestimar empates en partidos muy parejos.
-    # Cuando múltiples señales apuntan a equilibrio, boosteamos p_draw
-    # y redistribuimos de p_home / p_away proporcionalmente.
+    # Calibrado 31-mayo-2026: reducido ~40% tras 0/6 empates reales vs muchos predichos.
     draw_boost = 0.0
 
-    # Señal 1: Elo muy parejo (< 80 puntos de diferencia)
+    # Señal 1: Elo muy parejo
     elo_gap = abs(elo_diff)
-    if elo_gap < 40:
-        draw_boost += 0.045
-    elif elo_gap < 80:
+    if elo_gap < 30:
         draw_boost += 0.025
-    elif elo_gap < 130:
-        draw_boost += 0.010
+    elif elo_gap < 60:
+        draw_boost += 0.014
+    elif elo_gap < 100:
+        draw_boost += 0.006
 
     # Señal 2: Forma reciente casi idéntica
     form_gap = abs(home_form["form_score"] - away_form["form_score"])
-    if form_gap < 0.07:
-        draw_boost += 0.025
-    elif form_gap < 0.14:
-        draw_boost += 0.010
+    if form_gap < 0.05:
+        draw_boost += 0.014
+    elif form_gap < 0.10:
+        draw_boost += 0.006
 
     # Señal 3: H2H con historial de empates
     if h2h["gp"] >= 4:
         draw_rate = h2h["d"] / h2h["gp"]
         if draw_rate >= 0.40:
-            draw_boost += 0.025
-        elif draw_rate >= 0.25:
-            draw_boost += 0.012
+            draw_boost += 0.014
+        elif draw_rate >= 0.30:
+            draw_boost += 0.007
 
     # Señal 4: Lambdas muy similares (partido equilibrado proyectado)
     lambda_ratio = min(lh, la) / max(lh, la) if max(lh, la) > 0 else 1.0
-    if lambda_ratio > 0.90:
-        draw_boost += 0.020
-    elif lambda_ratio > 0.80:
-        draw_boost += 0.008
+    if lambda_ratio > 0.92:
+        draw_boost += 0.012
+    elif lambda_ratio > 0.85:
+        draw_boost += 0.005
 
-    # Señal 5: Partido de fase eliminatoria (ambos equipos tienden a ser más
-    # cautelosos — aplica solo si se llama con neutral=True en WC)
-    if neutral and elo_gap < 100:
-        draw_boost += 0.008
+    # Señal 5: Neutral + Elo muy parejo
+    if neutral and elo_gap < 60:
+        draw_boost += 0.005
 
-    # Cap: máximo boost de +8pp para evitar sobredistorsión
-    draw_boost = min(draw_boost, 0.080)
+    # Cap: máximo boost de +5pp
+    draw_boost = min(draw_boost, 0.050)
 
     # Redistribuir proporcionalmente de p_home y p_away
     if draw_boost > 0.001:
