@@ -511,6 +511,88 @@ def _get_tactics(conn, team_id: int) -> dict:
             "defensive_line": "mid", "build_up_style": "mixed"}
 
 
+def _tactical_matchup(att: dict, def_: dict) -> float:
+    """
+    Retorna un multiplicador para el lambda del equipo ATACANTE según cómo
+    su estilo interactúa con el estilo DEFENSIVO del rival.
+
+    Modela 5 interacciones reales del fútbol:
+      1. Bloque bajo vs posesión         → penaliza al equipo de posesión
+      2. Línea alta vs juego directo     → favorece al equipo con profundidad
+      3. Pressing alto vs build-up corto → el press atrapa al equipo que sale jugando
+      4. Juego directo anula el press    → direct bypasses pressing trap
+      5. Velocidad de transición        → equipos rápidos en transición explotan espacios
+
+    Rango: 0.80 – 1.20 (cap ±20% para no sobrepasar Elo/forma)
+    """
+    att_press = att.get("pressing_intensity", 0.60)
+    att_line  = att.get("defensive_line", "mid")
+    att_build = att.get("build_up_style", "mixed")
+    att_trans = att.get("transition_speed", "mid")
+    att_aerial = float(att.get("aerial_threat", 0.50) or 0.50)
+
+    def_press  = def_.get("pressing_intensity", 0.60)
+    def_line   = def_.get("defensive_line", "mid")
+    def_build  = def_.get("build_up_style", "mixed")
+    def_block  = def_.get("block_depth", def_line)   # fallback a defensive_line
+    def_aerial = float(def_.get("aerial_threat", 0.50) or 0.50)
+
+    m = 1.0
+
+    # ── 1. Bloque bajo (def) vs posesión (att) ──────────────────────────────
+    # Equipos que defienden profundo anulan el juego asociativo:
+    # Marruecos vs España, Costa Rica vs cualquier top, Uruguay vs Brasil.
+    if def_block == "low":
+        m *= 0.91                          # baseline: cualquier equipo vs bloque bajo
+        if att_build == "short":
+            m *= 0.95                      # posesión sufre más: pases laterales sin penetrar
+        if att_build == "direct":
+            m *= 1.07                      # pelotazos superan el bloque
+
+    # ── 2. Línea alta (def) vs velocidad de transición / juego directo (att) ──
+    # Línea alta = espacio detrás. Equipos con transición rápida la explotan.
+    # Alemania línea alta vs Francia Mbappé / Brasil Vinicius.
+    if def_line == "high":
+        if att_trans == "high":
+            m *= 1.11                      # contraataque letal contra línea alta
+        elif att_trans == "mid":
+            m *= 1.05
+        if att_build == "direct":
+            m *= 1.07                      # pelotazo sobre la línea alta
+
+    # ── 3. Pressing alto (def) atrapa build-up corto (att) ─────────────────
+    # Press intenso roba balón en zona peligrosa cuando el rival sale jugando.
+    # España press 0.85 vs equipos que intentan salir corto.
+    if def_press >= 0.72 and att_build == "short":
+        m *= 0.91                          # el press les corta la salida
+    elif def_press >= 0.72 and att_build == "direct":
+        m *= 1.03                          # juego largo pasa por encima del press
+
+    # ── 4. Press propio del atacante roba balón si rival sale corto (def) ──
+    # Cuando YO presiono alto y el RIVAL intenta salir jugando: gano balón alto.
+    if att_press >= 0.72 and def_build == "short":
+        m *= 1.08                          # presión propia genera oportunidades
+    elif att_press >= 0.72 and def_build == "direct":
+        m *= 0.97                          # el rival sortea mi press con pelotazos
+
+    # ── 5. Amenaza aérea del atacante vs bloque defensivo ──────────────────
+    # Equipos físicos/aéreos son más peligrosos contra bloques bajos (corners,
+    # free kicks). Marruecos, Norway, Uruguay explotan set pieces de esta forma.
+    if att_aerial >= 0.65 and def_block == "low":
+        m *= 1.06                          # más corners + free kicks en bloque bajo
+    if att_aerial >= 0.65 and def_block == "high":
+        m *= 0.97                          # rival ocupa bien el área, menos espacio aéreo
+
+    # ── 6. Velocidad de transición del atacante vs defensa desorganizada ────
+    # Equipos de contraataque son más letales cuando el rival ataca y deja espacio.
+    # Proxy: rival pressing > 0.68 = sube mucho = deja espacio atrás.
+    if att_trans == "high" and def_press >= 0.68:
+        m *= 1.05                          # rival sube mucho → contraataque
+
+    # ── Cap ─────────────────────────────────────────────────────────────────
+    return max(0.80, min(1.20, m))
+
+
 def _get_h2h(conn, tid1: int, tid2: int, n: int = 8) -> dict:
     # Solo últimos 6 años: el squad cambia completamente. H2H de 2015 no es útil para 2026.
     rows = conn.execute("""
@@ -649,10 +731,17 @@ def predict_match(
     h_sp_f    = 1.0 + (home_club["set_piece_idx"] - avg_sp) / avg_sp * 0.10
     a_sp_f    = 1.0 + (away_club["set_piece_idx"] - avg_sp) / avg_sp * 0.10
 
-    # ── 6. Posesión / pressing matchup (8%) ───────────────────────────────
+    # ── 6. Interacción táctica completa ───────────────────────────────────
+    # _tactical_matchup(atacante, defensor) → multiplicador del lambda atacante.
+    # Modela: bloque bajo vs posesión, línea alta vs transición,
+    # pressing trap, amenaza aérea, velocidad de contraataque.
+    h_tac_f = _tactical_matchup(home_tac, away_tac)   # cómo ataca local vs defensa rival
+    a_tac_f = _tactical_matchup(away_tac, home_tac)   # cómo ataca visitante vs defensa local
+
+    # Pressing diferencial — captura ventaja de intensidad (conservado, peso reducido)
     press_diff = home_tac["pressing_intensity"] - away_tac["pressing_intensity"]
-    h_press_f  = 1.0 + press_diff * 0.08
-    a_press_f  = 1.0 - press_diff * 0.08
+    h_press_f  = 1.0 + press_diff * 0.04
+    a_press_f  = 1.0 - press_diff * 0.04
 
     # ── 7. H2H ────────────────────────────────────────────────────────────
     h2h_hf = 1.0; h2h_af = 1.0
@@ -679,7 +768,8 @@ def predict_match(
         * h_xi_f    ** (w["xi_rating"] * 2)
         * h_sp_f    ** (w["set_pieces"] * 2)
         * h_press_f ** (w["possession"] * 2)
-        * h_sot_f ** 0.5                             # shots-on-target (suavizado)
+        * h_sot_f ** 0.5
+        * h_tac_f                                    # interacción táctica completa
         * h2h_hf
         * venue_h
         * (1 - home_absence)
@@ -695,6 +785,7 @@ def predict_match(
         * a_sp_f    ** (w["set_pieces"] * 2)
         * a_press_f ** (w["possession"] * 2)
         * a_sot_f ** 0.5
+        * a_tac_f                                    # interacción táctica completa
         * h2h_af
         * venue_a
         * (1 - away_absence)
@@ -838,6 +929,8 @@ def predict_match(
         "formation_away":  away_tac["formation"],
         "pressing_home":   round(home_tac["pressing_intensity"], 2),
         "pressing_away":   round(away_tac["pressing_intensity"], 2),
+        "tac_matchup_home": round(h_tac_f, 3),   # ventaja/desventaja táctica del local
+        "tac_matchup_away": round(a_tac_f, 3),   # ventaja/desventaja táctica del visitante
         # Top marcadores
         "top_scores":      [(f"{s[0]}-{s[1]}", round(p / prob_total_raw * 100, 1))
                             for s, p in top_scores[:6]],
@@ -859,6 +952,9 @@ def predict_match(
             "ADS": a_str["ADS"] if use_strength else None,
             "sot_h": h_str["sot_factor"] if use_strength else None,
             "sot_a": a_str["sot_factor"] if use_strength else None,
+            # Interacción táctica — cuánto afecta el estilo de juego al lambda
+            "tac_h": round(h_tac_f, 3),
+            "tac_a": round(a_tac_f, 3),
         },
         # Forma reciente
         "form_home":       home_form["last5"],
