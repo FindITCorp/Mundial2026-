@@ -10,3 +10,4 @@ models/*.pkl
 venv/
 data/cache/
 data/logs/
+node_modules/
