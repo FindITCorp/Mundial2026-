@@ -406,6 +406,148 @@ def _get_xi_rating(conn, team_id: int) -> float:
     return xi
 
 
+def _get_defensive_xi(conn, team_id: int) -> dict:
+    """
+    Calidad defensiva real del XI basada en métricas StatsBomb por jugador.
+    Devuelve índices normalizados de solidez defensiva y presión colectiva.
+
+    Métricas usadas (todas por partido para neutralizar diferencias de muestra):
+      - pressures/game  → intensidad de presión colectiva
+      - blocks/game     → bloqueos de tiro/pase
+      - clearances/game → despejes en zona propia
+      - tackles_won/game→ duelos ganados
+    """
+    rows = conn.execute("""
+        SELECT pcs.pressures, pcs.blocks, pcs.clearances,
+               pcs.tackles_won, pcs.interceptions, pcs.sb_matches,
+               pl.formation_slot
+        FROM projected_lineups pl
+        JOIN players p ON p.id = pl.player_id
+        LEFT JOIN player_club_stats pcs ON pcs.player_id = pl.player_id
+            AND pcs.season = '2024/25'
+        WHERE pl.team_id = ? AND pl.is_starter = 1
+    """, (team_id,)).fetchall()
+
+    # Máximos de referencia WC2022 por partido
+    PRESS_MAX  = 20.0   # Kovacic ~19/game
+    BLOCK_MAX  =  2.5   # defender élite
+    CLR_MAX    =  6.0   # CB top
+    TKL_MAX    =  2.0   # midfielder top
+    INTER_MAX  =  2.5
+
+    press_scores, def_scores = [], []
+    players_with_data = 0
+    for r in rows:
+        sb = r["sb_matches"] or 0
+        if sb <= 0:
+            continue   # skip players with no StatsBomb tournament data
+        players_with_data += 1
+        m = sb
+        press = min(1.0, (r["pressures"] or 0) / m / PRESS_MAX)
+        blk   = min(1.0, (r["blocks"]    or 0) / m / BLOCK_MAX)
+        clr   = min(1.0, (r["clearances"] or 0) / m / CLR_MAX)
+        tkl   = min(1.0, (r["tackles_won"] or 0) / m / TKL_MAX)
+        inter = min(1.0, (r["interceptions"] or 0) / m / INTER_MAX)
+        press_scores.append(press)
+        def_scores.append(0.35 * blk + 0.30 * clr + 0.20 * tkl + 0.15 * inter)
+
+    # If fewer than 3 starters have tournament data, don't apply defensive factor
+    # (insufficient sample → use neutral 1.0 to avoid phantom reductions)
+    has_data = players_with_data >= 3
+    avg_press = sum(press_scores) / len(press_scores) if press_scores else 0.40
+    avg_def   = sum(def_scores)   / len(def_scores)   if def_scores   else 0.30
+
+    if has_data:
+        press_f = max(0.88, min(1.12, 0.90 + avg_press * 0.40))
+        def_f   = max(0.88, min(1.12, 0.90 + avg_def   * 0.60))
+        combined = press_f * 0.45 + def_f * 0.55
+    else:
+        press_f = def_f = combined = 1.0   # neutral — no tournament data to evaluate
+
+    return {
+        "press_score": round(avg_press, 3),
+        "def_score":   round(avg_def,   3),
+        "press_f":     round(press_f,   3),
+        "def_f":       round(def_f,     3),
+        "combined":    round(combined,  3),   # multiplicador directo sobre lambda rival
+        "has_data":    has_data,
+    }
+
+
+def _get_creative_xi(conn, team_id: int) -> dict:
+    """
+    Capacidad creativa real del XI — qué tan bien genera oportunidades.
+    Basada en key_passes + progressive_carries por partido (StatsBomb).
+
+    Diferencia a _get_xi_rating: se enfoca exclusivamente en la
+    capacidad de crear oportunidades, no en la calidad general del jugador.
+    Permite comparar el ataque de A contra la defensa de B (ver _xi_matchup).
+    """
+    rows = conn.execute("""
+        SELECT pcs.key_passes, pcs.progressive_carries, pcs.xg,
+               pcs.shots_on_target, pcs.sb_matches, pcs.matches
+        FROM projected_lineups pl
+        JOIN players p ON p.id = pl.player_id
+        LEFT JOIN player_club_stats pcs ON pcs.player_id = pl.player_id
+            AND pcs.season = '2024/25'
+        WHERE pl.team_id = ? AND pl.is_starter = 1
+    """, (team_id,)).fetchall()
+
+    KP_MAX = 3.0    # Griezmann ~2.9 kp/game
+    PC_MAX = 11.0   # Rodrigo ~10.4 pc/game
+    XG_MAX =  1.20  # Messi  ~1.1 xg/game
+
+    kp_scores, pc_scores, xg_scores = [], [], []
+    players_with_sb = 0
+    for r in rows:
+        m_sb  = r["sb_matches"] or 0
+        m_club = max(1, r["matches"] or 1)
+        if m_sb > 0:
+            players_with_sb += 1
+            kp_scores.append(min(1.0, (r["key_passes"] or 0) / m_sb / KP_MAX))
+            pc_scores.append(min(1.0, (r["progressive_carries"] or 0) / m_sb / PC_MAX))
+        if r["xg"] and r["xg"] > 0:
+            xg_scores.append(min(1.0, r["xg"] / m_club / XG_MAX))
+
+    has_data = players_with_sb >= 3
+    avg_kp  = sum(kp_scores) / len(kp_scores) if kp_scores else 0.20
+    avg_pc  = sum(pc_scores) / len(pc_scores) if pc_scores else 0.25
+    avg_xg  = sum(xg_scores) / len(xg_scores) if xg_scores else 0.15
+
+    # Índice creativo compuesto (0–1)
+    creative_idx = 0.40 * avg_kp + 0.35 * avg_pc + 0.25 * avg_xg
+    # Factor multiplicador: only boost/penalize if we have real tournament data
+    if has_data:
+        creative_f = max(0.92, min(1.10, 0.92 + creative_idx * 0.50))
+    else:
+        creative_f = 1.0   # neutral — no tournament data
+
+    return {
+        "kp_score":     round(avg_kp,       3),
+        "pc_score":     round(avg_pc,       3),
+        "xg_score":     round(avg_xg,       3),
+        "creative_idx": round(creative_idx, 3),
+        "creative_f":   round(creative_f,   3),  # boost al lambda propio
+        "has_data":     has_data,
+    }
+
+
+def _xi_matchup(att_creative: dict, def_defensive: dict) -> float:
+    """
+    Compara el índice creativo del atacante vs el índice defensivo del defensor.
+    Solo activo cuando ambos equipos tienen datos de torneo StatsBomb (>=3 jugadores).
+    Devuelve 1.0 (neutral) cuando falta datos para evitar reducciones fantasma.
+
+    Rango activo: 0.92–1.08
+    """
+    if not att_creative.get("has_data") or not def_defensive.get("has_data"):
+        return 1.0   # no datos suficientes → neutral
+
+    att_idx = att_creative["creative_idx"]
+    raw = att_idx - (def_defensive["def_score"] * 0.6 + def_defensive["press_score"] * 0.4)
+    return max(0.92, min(1.08, 1.0 + raw * 0.08))
+
+
 def _get_star_factor(conn, team_id: int) -> float:
     """Factor multiplicador por presencia de jugadores élite en el XI (rating >= 8.5/10)."""
     rows = conn.execute("""
@@ -641,6 +783,14 @@ def predict_match(
     home_tac    = _get_tactics(conn, home_id)
     away_tac    = _get_tactics(conn, away_id)
     h2h         = _get_h2h(conn, home_id, away_id)
+    # Rendimiento real del XI — métricas defensivas y creativas StatsBomb
+    h_def_xi  = _get_defensive_xi(conn, home_id)
+    a_def_xi  = _get_defensive_xi(conn, away_id)
+    h_cre_xi  = _get_creative_xi(conn, home_id)
+    a_cre_xi  = _get_creative_xi(conn, away_id)
+    # Matchup creativo vs defensivo: ataque A vs defensa B y viceversa
+    h_xi_matchup = _xi_matchup(h_cre_xi, a_def_xi)   # cuánto crea local vs defensa rival
+    a_xi_matchup = _xi_matchup(a_cre_xi, h_def_xi)   # cuánto crea visitante vs defensa local
     # Nuevas métricas Dixon-Coles (repo Football_matches)
     if use_strength:
         h_str = _get_attack_defense_strength(conn, home_id, db_key)
@@ -769,7 +919,9 @@ def predict_match(
         * h_sp_f    ** (w["set_pieces"] * 2)
         * h_press_f ** (w["possession"] * 2)
         * h_sot_f ** 0.5
-        * h_tac_f                                    # interacción táctica completa
+        * h_tac_f                                    # interacción táctica (estilo)
+        * h_xi_matchup                               # creación real local vs defensa rival (1.0 si sin datos)
+        * (1.0 / max(0.88, a_def_xi["combined"]) if a_def_xi["has_data"] else 1.0)
         * h2h_hf
         * venue_h
         * (1 - home_absence)
@@ -785,7 +937,9 @@ def predict_match(
         * a_sp_f    ** (w["set_pieces"] * 2)
         * a_press_f ** (w["possession"] * 2)
         * a_sot_f ** 0.5
-        * a_tac_f                                    # interacción táctica completa
+        * a_tac_f                                    # interacción táctica (estilo)
+        * a_xi_matchup                               # creación real visitante vs defensa local (1.0 si sin datos)
+        * (1.0 / max(0.88, h_def_xi["combined"]) if h_def_xi["has_data"] else 1.0)
         * h2h_af
         * venue_a
         * (1 - away_absence)
@@ -952,9 +1106,16 @@ def predict_match(
             "ADS": a_str["ADS"] if use_strength else None,
             "sot_h": h_str["sot_factor"] if use_strength else None,
             "sot_a": a_str["sot_factor"] if use_strength else None,
-            # Interacción táctica — cuánto afecta el estilo de juego al lambda
+            # Interacción táctica — estilo de juego
             "tac_h": round(h_tac_f, 3),
             "tac_a": round(a_tac_f, 3),
+            # Rendimiento real del XI — StatsBomb
+            "def_xi_home":      h_def_xi,
+            "def_xi_away":      a_def_xi,
+            "cre_xi_home":      h_cre_xi,
+            "cre_xi_away":      a_cre_xi,
+            "xi_matchup_home":  round(h_xi_matchup, 3),
+            "xi_matchup_away":  round(a_xi_matchup, 3),
         },
         # Forma reciente
         "form_home":       home_form["last5"],
