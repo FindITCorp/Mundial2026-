@@ -140,22 +140,50 @@ def _get_attack_defense_strength(conn, team_id: int, db_key: str) -> dict:
     Usa solo partidos competitivos (WCQ, torneos continentales, etc.).
     """
     rows = conn.execute("""
-        SELECT goals_for, goals_against, venue, competition
-        FROM team_matches
-        WHERE team_id=? AND goals_for IS NOT NULL AND opponent_id IS NOT NULL
-        ORDER BY date DESC LIMIT 60
+        SELECT tm.goals_for, tm.goals_against, tm.venue, tm.competition,
+               te.elo AS opp_elo
+        FROM team_matches tm
+        LEFT JOIN teams opp ON opp.id = tm.opponent_id
+        LEFT JOIN team_elo te ON te.team_id = tm.opponent_id
+        WHERE tm.team_id=? AND tm.goals_for IS NOT NULL AND tm.opponent_id IS NOT NULL
+        ORDER BY tm.date DESC LIMIT 60
     """, (team_id,)).fetchall()
 
     comp = [r for r in rows if _is_competitive(r["competition"])]
     if len(comp) < MIN_COMP_MATCHES:
         comp = list(rows[:20])
 
-    home_gf = [r["goals_for"]  for r in comp if r["venue"] == "home"]
-    home_ga = [r["goals_against"] for r in comp if r["venue"] == "home"]
-    away_gf = [r["goals_for"]  for r in comp if r["venue"] == "away"]
-    away_ga = [r["goals_against"] for r in comp if r["venue"] == "away"]
-    neut_gf = [r["goals_for"]  for r in comp if r["venue"] not in ("home","away")]
-    neut_ga = [r["goals_against"] for r in comp if r["venue"] not in ("home","away")]
+    # Ponderación por calidad del rival: goles vs rivales fuertes valen más,
+    # goles vs minnows valen menos. Evita que France 7-0 Azerbaijan infle AAS.
+    def _sos_weight(opp_elo):
+        elo = opp_elo if opp_elo else SOS_DEFAULT_ELO
+        return min(1.5, max(0.4, (elo / SOS_PIVOT) ** 1.0))
+
+    def _weighted_goals(rows_list):
+        """Devuelve lista de goles ponderados por calidad del rival."""
+        result = []
+        for r in rows_list:
+            w = _sos_weight(r["opp_elo"])
+            result.append(r["goals_for"] * w)
+        return result
+
+    def _weighted_ga(rows_list):
+        result = []
+        for r in rows_list:
+            w = _sos_weight(r["opp_elo"])
+            result.append(r["goals_against"] * w)
+        return result
+
+    home_matches = [r for r in comp if r["venue"] == "home"]
+    away_matches  = [r for r in comp if r["venue"] == "away"]
+    neut_matches  = [r for r in comp if r["venue"] not in ("home","away")]
+
+    home_gf = _weighted_goals(home_matches)
+    home_ga = _weighted_ga(home_matches)
+    away_gf = _weighted_goals(away_matches)
+    away_ga = _weighted_ga(away_matches)
+    neut_gf = _weighted_goals(neut_matches)
+    neut_ga = _weighted_ga(neut_matches)
 
     g = _cached_global_avg(conn, db_key)
 
@@ -389,10 +417,16 @@ def _get_star_factor(conn, team_id: int) -> float:
 
 
 def _get_club_metrics(conn, team_id: int) -> dict:
-    """Métricas del XI desde player_club_stats 2024/25."""
+    """Métricas del XI desde player_club_stats 2024/25.
+
+    xG se normaliza por partidos jugados (per-game) antes de sumar para evitar
+    que jugadores en ligas con más partidos (A-League, MLS) inflen el total.
+    Cap por jugador: 0.55 xG/game (striker élite ~0.5/game en top liga).
+    """
     rows = conn.execute("""
         SELECT pcs.pass_accuracy, pcs.shots_on_target, pcs.xg, pcs.xa,
-               pcs.tackles, pcs.interceptions, pcs.dribbles_completed
+               pcs.tackles, pcs.interceptions, pcs.dribbles_completed,
+               pcs.matches, pcs.league
         FROM projected_lineups pl
         JOIN players p ON p.id = pl.player_id
         LEFT JOIN player_club_stats pcs ON pcs.player_id = pl.player_id
@@ -400,11 +434,33 @@ def _get_club_metrics(conn, team_id: int) -> dict:
         WHERE pl.team_id = ? AND pl.is_starter = 1
     """, (team_id,)).fetchall()
 
+    # Referencia: 22 partidos (temporada estándar corta / selecciones)
+    SEASON_REF = 22.0
+    XG_PER_GAME_CAP = 0.55   # cap individual: evita A-League/MLS inflating
+
+    # Descuento por calidad de liga — evita que EST/A-League/MLS inflen xG
+    LEAGUE_DISCOUNT = {
+        "Premier League": 1.00, "La Liga": 1.00, "Bundesliga": 1.00,
+        "Serie A": 1.00, "Ligue 1": 1.00,
+        "Eredivisie": 0.87, "Primeira Liga": 0.87, "Championship": 0.80,
+        "Scottish Prem": 0.78, "Süper Lig": 0.72, "Czech First League": 0.72,
+        "Allsvenskan": 0.70, "Ekstraklasa": 0.70,
+        "MLS": 0.68, "Saudi Pro League": 0.68, "Qatar Stars": 0.62,
+        "Premier Soccer League": 0.60, "Uzbek League": 0.60,
+        "Pro League": 0.78, "WC2022": 0.95,
+        "EST": 0.50,      # stats estimadas/generadas — baja confianza
+        "Unknown": 0.55,
+    }
+
     m = {k: [] for k in ["pa", "sot", "xg", "xa", "tkl", "inter", "drib"]}
     for r in rows:
+        league_q = LEAGUE_DISCOUNT.get(r["league"] or "Unknown", 0.65)
         if r["pass_accuracy"]:  m["pa"].append(r["pass_accuracy"])
         if r["shots_on_target"]: m["sot"].append(r["shots_on_target"])
-        if r["xg"] is not None: m["xg"].append(r["xg"])
+        if r["xg"] is not None:
+            matches = max(1, r["matches"] or 1)
+            xg_per_game = min(XG_PER_GAME_CAP, r["xg"] / matches)
+            m["xg"].append(xg_per_game * SEASON_REF * league_q)
         if r["xa"] is not None: m["xa"].append(r["xa"])
         if r["tackles"]:        m["tkl"].append(r["tackles"])
         if r["interceptions"]:  m["inter"].append(r["interceptions"])
@@ -545,7 +601,8 @@ def predict_match(
         h_dc_att = a_dc_att = h_dc_def = a_dc_def = 1.0
         h_sot_f = a_sot_f = 1.0
 
-    xg_ref   = 1.4 * 11
+    # Referencia: mediana de xG normalizado (post league-discount) entre equipos WC2026
+    xg_ref   = 12.0   # mediana real ≈ 12 (era 15.4 antes de normalización)
     h_xg_f   = max(0.88, min(1.15, home_club["xg"] / xg_ref)) if home_club["xg"] > 0 else 1.0
     a_xg_f   = max(0.88, min(1.15, away_club["xg"] / xg_ref)) if away_club["xg"] > 0 else 1.0
 
