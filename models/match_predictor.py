@@ -394,7 +394,16 @@ def _get_xi_rating(conn, team_id: int) -> float:
 
         scores.append(min(1.0, score))
 
-    return sum(scores) / len(scores) if scores else 0.40
+    xi = sum(scores) / len(scores) if scores else 0.40
+
+    # If no starter has tournament event data (sb_matches=0 for all),
+    # cap xi — club stats alone (e.g. Haaland's 18xG) don't reflect
+    # how a team performs in international tournaments.
+    any_tournament = any((r["sb_matches"] or 0) > 0 for r in rows)
+    if not any_tournament:
+        xi = min(xi, 0.360)
+
+    return xi
 
 
 def _get_star_factor(conn, team_id: int) -> float:
