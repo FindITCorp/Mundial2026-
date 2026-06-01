@@ -613,7 +613,7 @@ def predict_match(
     # Factor XI: normalizado contra la media real de todos los equipos WC (0.265)
     # Equipos sobre la media reciben bonus, bajo la media reciben penalización
     # Cap 0.75–1.40 para evitar distorsiones por cobertura incompleta de datos
-    XI_PIVOT   = 0.304  # media real del score XI entre equipos WC (recalibrado con StatsBomb WC2022)
+    XI_PIVOT   = 0.312  # media real del score XI entre equipos WC (WC2022 + Euro2024 + CA2024 + WC2018)
     h_xi_f     = min(1.40, max(0.75, home_xi / XI_PIVOT))
     a_xi_f     = min(1.40, max(0.75, away_xi / XI_PIVOT))
 
