@@ -1097,6 +1097,32 @@ def predict_match(
         winner = away_name
     pred = top_scores[0][0]
 
+    # ── Goleada band: cuando la diferencia Elo es extrema (>350) ─────────────
+    # En vez de reportar un solo marcador, se reporta la banda de goleada más probable
+    elo_diff_abs = abs(elo_diff)
+    goleada_band = None
+    dominant = home_name if lh > la else away_name
+    dominant_lambda = max(lh, la)
+    weak_lambda = min(lh, la)
+    if elo_diff_abs > 350 and dominant_lambda > 2.5:
+        # Acumular probabilidad de marcadores con ≥3 goles del dominante y ≤1 del débil
+        goleada_probs = {}
+        for (h, a), p in probs.items():
+            dom_g = h if lh > la else a
+            weak_g = a if lh > la else h
+            if dom_g >= 3 and weak_g <= 1:
+                s = f"{h}-{a}" if lh > la else f"{h}-{a}"
+                goleada_probs[(h, a)] = p
+        if goleada_probs:
+            goleada_total = sum(goleada_probs.values()) / prob_total_raw * 100
+            goleada_top = sorted(goleada_probs.items(), key=lambda x: -x[1])[:3]
+            goleada_band = {
+                "dominant": dominant,
+                "prob_pct": round(goleada_total, 1),
+                "top_scores": [(f"{h}-{a}", round(p/prob_total_raw*100, 1))
+                               for (h, a), p in goleada_top],
+            }
+
     return {
         # Identidad
         "home": home_name,
@@ -1105,6 +1131,7 @@ def predict_match(
         "predicted_score": f"{pred[0]}-{pred[1]}",
         "winner":           winner,
         "confidence":       confidence,
+        "goleada_band":     goleada_band,   # None si elo_diff <= 350; dict si goleada probable
         # Probabilidades (rebalanceadas por W-5 draw boost)
         "prob_home_win":   round(ph * 100, 1),
         "prob_draw":       round(pd * 100, 1),
@@ -1286,9 +1313,84 @@ def format_prediction(r: dict) -> str:
         f"  GANADOR:             {r['winner']}",
         f"  CONFIANZA MODELO:    {r['confidence']:.2f} / 1.00",
         f"  Draw boost aplicado: +{r.get('draw_boost', 0):.1f}%",
-        sep,
     ]
+    # Goleada band — cuando la diferencia Elo es extrema
+    gb = r.get("goleada_band")
+    if gb:
+        top_gb = "  |  ".join(f"{s} ({p:.0f}%)" for s, p in gb["top_scores"])
+        lines += [
+            thin,
+            f"  ⚠  GOLEADA PROBABLE — Elo diff > 350",
+            f"  {gb['dominant']} domina: {gb['prob_pct']:.0f}% de terminar 3-0 o más",
+            f"  Marcadores banda: {top_gb}",
+        ]
+    lines += [sep]
     return "\n".join(lines)
+
+
+def predict_by_name(
+    home: str,
+    away: str,
+    neutral: bool = True,
+    home_absence: float = 0.0,
+    away_absence: float = 0.0,
+    db_path: str | Path = DB_PATH,
+) -> dict:
+    """
+    Wrapper de predict_match() que acepta nombres en lugar de IDs.
+    - Resuelve aliases (ej: 'United States' → 'USA')
+    - Si un equipo no está en la DB, lo registra automáticamente via repair_coverage
+    - Nunca improvisa fórmulas manuales — siempre usa el motor completo
+    """
+    import json
+    db_path = Path(db_path)
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+
+    # Cargar aliases
+    aliases_path = db_path.parent / "team_name_aliases.json"
+    aliases = {}
+    if aliases_path.exists():
+        raw = json.loads(aliases_path.read_text())
+        aliases = {k: v for k, v in raw.items() if not k.startswith("_")}
+
+    def resolve(name: str) -> int | None:
+        canon = aliases.get(name, name)
+        row = conn.execute("SELECT id FROM teams WHERE name=?", (canon,)).fetchone()
+        return row["id"] if row else None
+
+    home_id = resolve(home)
+    away_id = resolve(away)
+    conn.close()
+
+    # Si algún equipo no tiene ID → ejecutar repair automático
+    if home_id is None or away_id is None:
+        missing = [t for t, i in [(home, home_id), (away, away_id)] if i is None]
+        log.warning("Equipos no encontrados: %s — ejecutando repair_coverage", missing)
+        import subprocess
+        subprocess.run(
+            ["python3", str(db_path.parent.parent / "scripts" / "repair_coverage.py"), "--repair"],
+            capture_output=True
+        )
+        # Reintentar resolución
+        conn2 = sqlite3.connect(str(db_path))
+        conn2.row_factory = sqlite3.Row
+        if home_id is None:
+            r = conn2.execute("SELECT id FROM teams WHERE name=?", (aliases.get(home, home),)).fetchone()
+            home_id = r["id"] if r else None
+        if away_id is None:
+            r = conn2.execute("SELECT id FROM teams WHERE name=?", (aliases.get(away, away),)).fetchone()
+            away_id = r["id"] if r else None
+        conn2.close()
+
+    if home_id is None or away_id is None:
+        raise ValueError(
+            f"No se pudo resolver: {[t for t, i in [(home, home_id), (away, away_id)] if i is None]}"
+        )
+
+    return predict_match(home_id, away_id, neutral=neutral,
+                         home_absence=home_absence, away_absence=away_absence,
+                         db_path=db_path)
 
 
 if __name__ == "__main__":

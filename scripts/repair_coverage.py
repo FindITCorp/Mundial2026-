@@ -221,17 +221,100 @@ def check_predictable(conn, names):
               f"part={matches or 0:<4} {status}")
 
 
+def verify_wc(conn):
+    """
+    Verifica integridad de los 48 equipos del Mundial 2026.
+    - Exactamente 48 equipos con wc_group
+    - 12 grupos de exactamente 4
+    - Todos coinciden con el archivo estático oficial
+    - Todos tienen Elo y son predecibles
+    Retorna True si todo está OK, False si hay errores.
+    """
+    import json
+    from collections import Counter
+    static_path = BASE_DIR / "data" / "static" / "teams_wc2026.json"
+    if not static_path.exists():
+        print("  ❌ No se encontró data/static/teams_wc2026.json")
+        return False
+
+    official = json.loads(static_path.read_text())["teams"]
+    official_map = {t["name"]: t for t in official}
+
+    wc_teams = conn.execute(
+        "SELECT name, wc_group FROM teams WHERE wc_group IS NOT NULL ORDER BY wc_group, name"
+    ).fetchall()
+
+    errores = []
+    db_names = set(r[0] for r in wc_teams)
+    official_names = set(official_map.keys())
+
+    intrusos = sorted(db_names - official_names)
+    faltantes = sorted(official_names - db_names)
+    if intrusos:
+        errores.append(f"Intrusos (no clasificaron): {intrusos}")
+    if faltantes:
+        errores.append(f"Faltantes (deben estar): {faltantes}")
+
+    grupos = Counter(r[1] for r in wc_teams)
+    for g, n in grupos.items():
+        if n != 4:
+            equipos = [r[0] for r in wc_teams if r[1] == g]
+            errores.append(f"Grupo {g} tiene {n} equipos (debe tener 4): {equipos}")
+
+    sin_elo = []
+    sin_timing = []
+    for name in official_names:
+        tid = conn.execute("SELECT id FROM teams WHERE name=?", (name,)).fetchone()
+        if not tid:
+            continue
+        elo = conn.execute("SELECT elo FROM team_elo WHERE team_id=?", (tid[0],)).fetchone()
+        if not elo:
+            sin_elo.append(name)
+        timing = conn.execute("SELECT 1 FROM team_goal_timing WHERE team_name=?", (name,)).fetchone()
+        if not timing:
+            sin_timing.append(name)
+
+    print("=" * 60)
+    print("  VERIFICACIÓN 48 EQUIPOS MUNDIAL 2026")
+    print("=" * 60)
+    print(f"  Total con wc_group: {len(wc_teams)} (debe ser 48)")
+    print(f"  Grupos: {len(grupos)} (debe ser 12)")
+
+    for grupo in sorted(grupos.keys()):
+        equipos = [r[0] for r in wc_teams if r[1] == grupo]
+        estado = "✅" if len(equipos) == 4 else "❌"
+        print(f"  {estado} Grupo {grupo}: {equipos}")
+
+    if sin_elo:
+        errores.append(f"Sin Elo: {sin_elo}")
+    if sin_timing:
+        print(f"  ⚠  Sin timing (no crítico): {sin_timing}")
+
+    print()
+    if errores:
+        print("  ❌ ERRORES ENCONTRADOS:")
+        for e in errores:
+            print(f"    • {e}")
+        return False
+    else:
+        print("  ✅ Los 48 equipos están correctos y son predecibles")
+        return True
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--audit", action="store_true", help="Sólo diagnóstico")
+    p.add_argument("--audit", action="store_true", help="Sólo diagnóstico de cobertura")
     p.add_argument("--repair", action="store_true", help="Registrar + enlazar + rebuild Elo")
     p.add_argument("--dry-run", action="store_true", help="Simular reparación sin escribir")
     p.add_argument("--check", nargs="+", help="Verificar predictibilidad de equipos")
+    p.add_argument("--verify-wc", action="store_true", help="Verificar integridad 48 equipos WC2026")
     args = p.parse_args()
 
     conn = sqlite3.connect(str(DB_PATH))
 
-    if args.check:
+    if args.verify_wc:
+        verify_wc(conn)
+    elif args.check:
         check_predictable(conn, args.check)
     elif args.repair:
         repair(conn, dry_run=args.dry_run)
