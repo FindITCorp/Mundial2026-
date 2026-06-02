@@ -351,7 +351,7 @@ def _get_xi_rating(conn, team_id: int) -> float:
     Datos reales: StatsBomb WC 2022 (64 partidos, 682 jugadores).
     """
     rows = conn.execute("""
-        SELECT p.caps,
+        SELECT p.caps, p.position, p.club_league,
                pr.rating,
                pcs.xg,
                pcs.shots_on_target,
@@ -378,16 +378,30 @@ def _get_xi_rating(conn, team_id: int) -> float:
     PRESS_PER_GAME_MAX = 20.0 # Kovacic ~19.4/game
     CAPS_MAX         = 150.0
 
+    # Importar LEAGUE_QUALITY para ajuste por liga
+    try:
+        from models.player_rating import LEAGUE_QUALITY
+    except ImportError:
+        LEAGUE_QUALITY = {}
+
     scores = []
     for r in rows:
-        # Use WC2022 match count for WC-derived metrics, club count for xG
         wc_m    = max(1, r["sb_matches"] or 0)
         club_m  = max(1, r["matches"] or 1)
         has_wc  = (r["sb_matches"] or 0) > 0
         has_xg  = r["xg"] is not None and r["xg"] > 0
 
+        # Factor de liga — no es lo mismo 10 goles en la Botola que en la PL
+        league_raw = (r["club_league"] or "").lower().strip()
+        lq = 1.0
+        for key, val in LEAGUE_QUALITY.items():
+            if key in league_raw:
+                lq = val
+                break
+
         rating_n = min(1.0, r["rating"] / RATING_MAX) if r["rating"] else None
-        xg_n     = min(1.0, (r["xg"] or 0.0) / club_m / XG_PER_GAME_MAX)
+        # xG ajustado por calidad de liga — 0.5 xG/p en PL vale más que en liga panameña
+        xg_n     = min(1.0, (r["xg"] or 0.0) * lq / club_m / XG_PER_GAME_MAX)
         caps_n   = min(1.0, (r["caps"] or 0) / CAPS_MAX)
 
         if has_wc:
@@ -1201,7 +1215,35 @@ def predict_match(
     }
 
 
-def format_prediction(r: dict) -> str:
+def _get_xi_starters(team_name: str, db_path: Path) -> list[dict]:
+    """Returns projected starters with name, position and best available rating."""
+    try:
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("""
+            SELECT p.name, p.position,
+                   COALESCE(
+                       (SELECT rating FROM player_ratings WHERE player_id=p.id AND context='nat'),
+                       (SELECT rating FROM player_ratings WHERE player_id=p.id AND context='club')
+                   ) AS rating
+            FROM projected_lineups pl
+            JOIN players p ON p.id = pl.player_id
+            JOIN teams t ON t.id = pl.team_id
+            WHERE t.name = ? AND pl.is_starter = 1
+            ORDER BY CASE p.position
+                WHEN 'GK' THEN 1 WHEN 'DEF' THEN 2 WHEN 'CB' THEN 2 WHEN 'LB' THEN 2
+                WHEN 'RB' THEN 2 WHEN 'FB' THEN 2 WHEN 'DM' THEN 3 WHEN 'MID' THEN 3
+                WHEN 'CM' THEN 3 WHEN 'AM' THEN 4 WHEN 'FWD' THEN 5 WHEN 'ST' THEN 5
+                WHEN 'CF' THEN 5 WHEN 'LW' THEN 5 WHEN 'RW' THEN 5 ELSE 3 END,
+                COALESCE(rating, 0) DESC
+        """, (team_name,)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+def format_prediction(r: dict, db_path: Path | str = DB_PATH) -> str:
     """
     Reporte completo de predicción — todos los mercados proyectados.
     Cubre: resultado, marcador exacto, goles esperados, xG, posesión,
@@ -1214,6 +1256,7 @@ def format_prediction(r: dict) -> str:
     h2h  = r["h2h"]
     hn   = r["home"]
     an   = r["away"]
+    db_path = Path(db_path)
 
     # ── métricas derivadas ──────────────────────────────────────────────────
     lh, la   = r["lambda_home"], r["lambda_away"]
@@ -1324,6 +1367,47 @@ def format_prediction(r: dict) -> str:
             f"  {gb['dominant']} domina: {gb['prob_pct']:.0f}% de terminar 3-0 o más",
             f"  Marcadores banda: {top_gb}",
         ]
+    # Absence / injuries block
+    absence = r.get("absence_summary", "")
+    if absence:
+        lines += [thin, "  BAJAS / TARJETAS", thin]
+        for line in absence.splitlines():
+            lines.append(f"  {line}")
+
+    # Timing / fatigue block
+    tf_h = r.get("timing_home_fatigue_def", 1.0)
+    tf_a = r.get("timing_away_fatigue_def", 1.0)
+    lc_h = r.get("timing_home_late_collapse", False)
+    lc_a = r.get("timing_away_late_collapse", False)
+    if tf_h != 1.0 or tf_a != 1.0 or lc_h or lc_a:
+        lines += [thin, "  PATRÓN TEMPORAL (goles por franja)"]
+        if tf_h > 1.05:
+            lines.append(f"  ⚠ {hn[:20]} tiende a recibir goles en 2ª parte (fatiga ×{tf_h:.2f})")
+        if lc_h:
+            lines.append(f"  ⚠ {hn[:20]} colapsa en los últimos 15'")
+        if tf_a > 1.05:
+            lines.append(f"  ⚠ {an[:20]} tiende a recibir goles en 2ª parte (fatiga ×{tf_a:.2f})")
+        if lc_a:
+            lines.append(f"  ⚠ {an[:20]} colapsa en los últimos 15'")
+
+    # Projected XI
+    h_xi = _get_xi_starters(hn, db_path)
+    a_xi = _get_xi_starters(an, db_path)
+    if h_xi or a_xi:
+        def fmt_player(p):
+            pos  = (p["position"] or "?")[:3]
+            name = p["name"][:20]
+            rat  = f"{p['rating']:.1f}" if p.get("rating") else "  – "
+            return f"{pos:<3} {name:<21} {rat:>4}"
+
+        lines += [thin, f"  XI PROBABLES"]
+        lines.append(f"  {'LOCAL':<32}  {'VISITANTE'}")
+        lines.append(f"  {'─'*32}  {'─'*32}")
+        for i in range(max(len(h_xi), len(a_xi))):
+            lp = fmt_player(h_xi[i]) if i < len(h_xi) else " " * 29
+            rp = fmt_player(a_xi[i]) if i < len(a_xi) else ""
+            lines.append(f"  {lp}  {rp}")
+
     lines += [sep]
     return "\n".join(lines)
 
@@ -1334,8 +1418,18 @@ def predict_by_name(
     neutral: bool = True,
     home_absence: float = 0.0,
     away_absence: float = 0.0,
+    home_events: list | None = None,
+    away_events: list | None = None,
     db_path: str | Path = DB_PATH,
 ) -> dict:
+    """
+    home_events / away_events: lista de ausencias/expulsiones que afectan el partido.
+    Formato: [{"player": "Messi", "reason": "injury"}]
+             [{"player": "De Paul", "reason": "red_card", "minute": 67}]
+             [{"player": "Busquets", "reason": "suspension"}]
+    Si se pasan eventos, sobreescribe home_absence/away_absence calculándolos
+    automáticamente desde posición y rating de cada jugador ausente.
+    """
     """
     Wrapper de predict_match() que acepta nombres en lugar de IDs.
     - Resuelve aliases (ej: 'United States' → 'USA')
@@ -1388,9 +1482,28 @@ def predict_by_name(
             f"No se pudo resolver: {[t for t, i in [(home, home_id), (away, away_id)] if i is None]}"
         )
 
-    return predict_match(home_id, away_id, neutral=neutral,
-                         home_absence=home_absence, away_absence=away_absence,
-                         db_path=db_path)
+    # Calcular ausencias automáticamente desde eventos si se proporcionaron
+    absence_summary = ""
+    if home_events or away_events:
+        try:
+            from models.absence_calculator import absence_from_events
+            h_abs, a_abs, absence_summary = absence_from_events(
+                home_id, away_id,
+                home_events=home_events,
+                away_events=away_events,
+                db_path=Path(db_path),
+            )
+            home_absence = h_abs
+            away_absence = a_abs
+        except Exception as e:
+            log.warning("absence_calculator error: %s", e)
+
+    result = predict_match(home_id, away_id, neutral=neutral,
+                           home_absence=home_absence, away_absence=away_absence,
+                           db_path=db_path)
+    if absence_summary:
+        result["absence_summary"] = absence_summary
+    return result
 
 
 if __name__ == "__main__":

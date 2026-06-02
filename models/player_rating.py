@@ -575,20 +575,21 @@ class PlayerRatingEngine:
             conn.close()
             return None
 
-        # Per-match averages
-        matches = max(1, stats_row["matches"])
+        # Per-match averages — proteger contra None en columnas opcionales
+        matches = max(1, stats_row["matches"] or 1)
+        def _s(v): return v or 0  # None → 0
         avg = ClubMatchStats(
-            goals=stats_row["goals"] / matches,
-            assists=stats_row["assists"] / matches,
-            shots_on_target=stats_row["shots_on_target"] / matches,
-            shots_total=max(1, stats_row["shots_on_target"] / 0.4) if stats_row["shots_on_target"] else 0,
-            pass_accuracy=stats_row["pass_accuracy"],
-            dribbles_completed=stats_row["dribbles_completed"] / matches,
-            tackles=stats_row["tackles"] / matches,
-            interceptions=stats_row["interceptions"] / matches,
-            yellow_cards=stats_row["yellow_cards"] / matches,
-            red_cards=stats_row["red_cards"] / matches,
-            minutes=int(stats_row["minutes"] / matches),
+            goals=_s(stats_row["goals"]) / matches,
+            assists=_s(stats_row["assists"]) / matches,
+            shots_on_target=_s(stats_row["shots_on_target"]) / matches,
+            shots_total=max(1, _s(stats_row["shots_on_target"]) / 0.4) if stats_row["shots_on_target"] else 0,
+            pass_accuracy=_s(stats_row["pass_accuracy"]),
+            dribbles_completed=_s(stats_row["dribbles_completed"]) / matches,
+            tackles=_s(stats_row["tackles"]) / matches,
+            interceptions=_s(stats_row["interceptions"]) / matches,
+            yellow_cards=_s(stats_row["yellow_cards"]) / matches,
+            red_cards=_s(stats_row["red_cards"]) / matches,
+            minutes=int(_s(stats_row["minutes"]) / matches),
         )
 
         rc = compute_player_rating(avg, player["position"], context="club")
@@ -681,18 +682,19 @@ class PlayerRatingEngine:
                 ORDER BY season DESC LIMIT 1
             """, (player_id,)).fetchone()
             if stats_row:
-                matches = max(1, stats_row["matches"])
+                def _s(v): return v or 0
+                matches = max(1, stats_row["matches"] or 1)
                 avg = ClubMatchStats(
-                    goals=stats_row["goals"] / matches,
-                    assists=stats_row["assists"] / matches,
-                    shots_on_target=stats_row["shots_on_target"] / matches,
-                    pass_accuracy=stats_row["pass_accuracy"],
-                    dribbles_completed=stats_row["dribbles_completed"] / matches,
-                    tackles=stats_row["tackles"] / matches,
-                    interceptions=stats_row["interceptions"] / matches,
-                    yellow_cards=stats_row["yellow_cards"] / matches,
-                    red_cards=stats_row["red_cards"] / matches,
-                    minutes=int(stats_row["minutes"] / matches),
+                    goals=_s(stats_row["goals"]) / matches,
+                    assists=_s(stats_row["assists"]) / matches,
+                    shots_on_target=_s(stats_row["shots_on_target"]) / matches,
+                    pass_accuracy=_s(stats_row["pass_accuracy"]),
+                    dribbles_completed=_s(stats_row["dribbles_completed"]) / matches,
+                    tackles=_s(stats_row["tackles"]) / matches,
+                    interceptions=_s(stats_row["interceptions"]) / matches,
+                    yellow_cards=_s(stats_row["yellow_cards"]) / matches,
+                    red_cards=_s(stats_row["red_cards"]) / matches,
+                    minutes=int(_s(stats_row["minutes"]) / matches),
                 )
                 rc = compute_player_rating(avg, player["position"], "club")
                 club_ratings = [rc.final_rating]
