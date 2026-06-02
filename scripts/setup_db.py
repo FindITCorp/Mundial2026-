@@ -1190,10 +1190,31 @@ def migrate_db(conn: sqlite3.Connection):
     cur = conn.cursor()
 
     migrations = [
-        ("wc_history",   "api_fixture_id", "INTEGER"),
-        ("match_players", "match_date",     "TEXT"),
-        ("match_players", "competition",    "TEXT"),
-        ("match_players", "season",         "INTEGER"),
+        ("wc_history",        "api_fixture_id",    "INTEGER"),
+        ("match_players",     "match_date",        "TEXT"),
+        ("match_players",     "competition",       "TEXT"),
+        ("match_players",     "season",            "INTEGER"),
+        # player_club_stats extended columns
+        ("player_club_stats", "key_passes",        "INTEGER DEFAULT 0"),
+        ("player_club_stats", "clean_sheets",      "INTEGER DEFAULT 0"),
+        ("player_club_stats", "saves",             "INTEGER DEFAULT 0"),
+        ("player_club_stats", "progressive_carries","INTEGER DEFAULT 0"),
+        ("player_club_stats", "pressures",         "INTEGER DEFAULT 0"),
+        ("player_club_stats", "sb_matches",        "INTEGER DEFAULT 0"),
+        ("player_club_stats", "tackles_won",       "INTEGER DEFAULT 0"),
+        ("player_club_stats", "np_xg",             "REAL DEFAULT 0"),
+        ("player_club_stats", "xa_per_90",         "REAL DEFAULT 0"),
+        ("player_club_stats", "pressures_pct",     "REAL DEFAULT 0"),
+        ("player_club_stats", "club_league",       "TEXT"),
+        ("player_club_stats", "blocks",            "INTEGER DEFAULT 0"),
+        ("player_club_stats", "clearances",        "INTEGER DEFAULT 0"),
+        ("player_club_stats", "aerials_won",       "INTEGER DEFAULT 0"),
+        ("player_club_stats", "dribbles_past",     "INTEGER DEFAULT 0"),
+        ("player_club_stats", "ball_recoveries",   "INTEGER DEFAULT 0"),
+        ("player_club_stats", "goals_conceded",    "INTEGER DEFAULT 0"),
+        ("player_club_stats", "goals_per_90",      "REAL DEFAULT 0"),
+        ("player_club_stats", "assists_per_90",    "REAL DEFAULT 0"),
+        ("player_club_stats", "xa",                "REAL DEFAULT 0"),
     ]
 
     applied = 0
