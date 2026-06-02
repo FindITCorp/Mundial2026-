@@ -59,6 +59,37 @@ MINNOWS = {
 HOME_ADV_LAMBDA = 0.08   # +8% goles para el local
 BASE_GOALS = 1.22         # referencia goles/partido neutral — calibrado 2026-06-02 (Over2.5 real=53% vs pred=60%)
 
+# ── Goal Timing factors ───────────────────────────────────────────────────────
+# fatigue_conceded > 1.3 → equipo vulnerable en 2ª mitad → rival marca más
+# Escala: fatigue_conceded 1.0 → factor 1.0; 2.0 → factor 1.08 (max ±10%)
+_TIMING_MAX_BOOST = 0.10   # boost máximo al λ rival cuando equipo colapsa tarde
+
+
+def _get_timing_factor(team_name: str, conn: sqlite3.Connection) -> dict:
+    """Retorna fatigue_conceded y fatigue_scored del equipo desde team_goal_timing."""
+    row = conn.execute(
+        "SELECT fatigue_conceded, fatigue_scored, late_collapse FROM team_goal_timing WHERE team_name=?",
+        (team_name,)
+    ).fetchone()
+    if row:
+        return {"fatigue_conceded": row[0], "fatigue_scored": row[1], "late_collapse": bool(row[2])}
+    # Sin datos: neutral
+    return {"fatigue_conceded": 1.0, "fatigue_scored": 1.0, "late_collapse": False}
+
+
+def _timing_lambda_boost(defender_timing: dict) -> float:
+    """
+    Cuánto aumenta λ del atacante por la vulnerabilidad tardía del defensor.
+    fatigue_conceded=1.0 → 1.0 (neutro)
+    fatigue_conceded=2.0 → 1.08 (+8%)
+    Sólo aplica si fatigue_conceded > 1.0 (no penaliza equipos sólidos extra).
+    """
+    fc = defender_timing["fatigue_conceded"]
+    if fc <= 1.0:
+        return 1.0
+    boost = min(_TIMING_MAX_BOOST, (fc - 1.0) * 0.08)
+    return 1.0 + boost
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -798,6 +829,10 @@ def predict_match(
 
     home_name = conn.execute("SELECT name FROM teams WHERE id=?", (home_id,)).fetchone()["name"]
     away_name = conn.execute("SELECT name FROM teams WHERE id=?", (away_id,)).fetchone()["name"]
+
+    # Timing profiles (fatiga defensiva/ofensiva por franja de 15 minutos)
+    h_timing = _get_timing_factor(home_name, conn)
+    a_timing = _get_timing_factor(away_name, conn)
     conn.close()
 
     # ── 2. Factor Elo (30%) ───────────────────────────────────────────────
@@ -945,8 +980,13 @@ def predict_match(
         * (1 - away_absence)
     )
 
-    lh = min(max(lh_raw, 0.20), 3.50)
-    la = min(max(la_raw, 0.20), 3.50)
+    # ── 9b. Ajuste por timing defensivo (fatiga en 2ª mitad) ─────────────────
+    # Si el equipo defensor colapsa tarde, el atacante marca un poco más de lo
+    # que indican forma + Elo solos → convierte "2-0 probable" en "2-1 probable"
+    h_timing_boost = _timing_lambda_boost(a_timing)   # local ataca vs defensa visitante
+    a_timing_boost = _timing_lambda_boost(h_timing)   # visitante ataca vs defensa local
+    lh = min(max(lh_raw * h_timing_boost, 0.20), 3.50)
+    la = min(max(la_raw * a_timing_boost, 0.20), 3.50)
 
     # ── 10. Distribución Poisson ──────────────────────────────────────────
     probs = {}
@@ -1073,6 +1113,11 @@ def predict_match(
         # Goles esperados
         "lambda_home":     round(lh, 3),
         "lambda_away":     round(la, 3),
+        # Timing / fatiga por franjas
+        "timing_home_fatigue_def":  round(h_timing["fatigue_conceded"], 2),
+        "timing_away_fatigue_def":  round(a_timing["fatigue_conceded"], 2),
+        "timing_home_late_collapse": h_timing["late_collapse"],
+        "timing_away_late_collapse": a_timing["late_collapse"],
         # Métricas de dominio
         "possession_home": h_poss,
         "possession_away": a_poss,
