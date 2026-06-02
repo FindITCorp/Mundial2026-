@@ -1,19 +1,25 @@
 """
 models/elo.py — Sistema Elo dinámico para selecciones nacionales.
 
+Mejoras implementadas (jun 2026):
+  1. Decay temporal: partidos viejos pesan menos (K * decay)
+     < 2 años → 100%  |  2-4 → 75%  |  4-6 → 50%  |  > 6 → 25%
+  2. Ancla FIFA: al final del rebuild, se mezcla 70% Elo histórico + 30% FIFA
+     para evitar que equipos con muchos amistosos fáciles se disparen
+  3. K-factor diferenciado por competición y corregido (no hay duplicados)
+
 Uso:
     from models.elo import EloSystem
     elo = EloSystem(db_path)
-    elo.build_from_history()          # pobla desde team_matches
+    elo.build_from_history()
     rating = elo.get_rating(team_id)
-    prob_home = elo.win_prob(home_id, away_id)
 """
 
 import sqlite3
 import logging
 import math
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
 
 log = logging.getLogger("elo")
 
@@ -21,25 +27,25 @@ DB_PATH = Path(__file__).parent.parent / "data" / "mundial2026.db"
 
 # K-factor por tipo de competición
 K_MAP = {
-    "friendly":            10,
-    "wc qualifier":        25,
-    "wcq":                 25,
     "world cup":           60,
-    "wc":                  60,
-    "copa america":        45,
-    "euro":                45,
-    "nations league":      35,
-    "confederation cup":   35,
-    "gold cup":            35,
-    "afcon":               35,
-    "african":             30,
-    "asian":               30,
+    "copa america":        50,
+    "euro":                50,
+    "nations league":      40,
+    "confederation cup":   40,
+    "gold cup":            40,
+    "afcon":               40,
+    "african cup":         40,
+    "asian cup":           40,
+    "wc qualifier":        30,
+    "wcq":                 30,
     "qualifier":           25,
     "friendly":            10,
+    "fifa series":         12,
 }
 
-BASE_ELO   = 1500
-HOME_ADV   = 50    # puntos extra por jugar en casa (neutral = 0)
+BASE_ELO  = 1500
+HOME_ADV  = 50       # puntos extra por jugar en casa (neutral = 0)
+FIFA_ANCHOR_W = 0.30 # peso del ancla FIFA al final del rebuild
 
 
 def _k_factor(competition: str) -> int:
@@ -50,6 +56,37 @@ def _k_factor(competition: str) -> int:
         if key in comp:
             return k
     return 20
+
+
+def _temporal_decay(match_date: str) -> float:
+    """
+    Factor de decay por antigüedad del partido.
+    Un partido de hace 5 años vale la mitad que uno reciente.
+    """
+    try:
+        d = date.fromisoformat(str(match_date)[:10])
+    except Exception:
+        return 0.5
+    years_old = (date(2026, 6, 1) - d).days / 365.25
+    if years_old < 2:
+        return 1.00
+    if years_old < 4:
+        return 0.75
+    if years_old < 6:
+        return 0.50
+    return 0.25
+
+
+def _fifa_rank_to_elo(fifa_rank: int) -> float:
+    """
+    Convierte ranking FIFA a Elo de referencia.
+    Calibrado abril 2026:
+      #1  → 1900   #10 → 1700   #50 → 1560   #100 → 1500   #200 → 1440
+    Fórmula: 1900 - 200 * log10(rank)
+    """
+    if not fifa_rank or fifa_rank <= 0 or fifa_rank >= 999:
+        return None
+    return round(1900 - 200 * math.log10(max(1, fifa_rank)), 1)
 
 
 def _expected(elo_own: float, elo_opp: float) -> float:
@@ -63,21 +100,18 @@ def _goal_multiplier(gf: int, ga: int) -> float:
         return 1.0
     if diff == 2:
         return 1.5
-    return 1.75 + (diff - 3) * 0.04   # crece suavemente
+    return 1.75 + (diff - 3) * 0.04
 
 
 class EloSystem:
     def __init__(self, db_path: str | Path = DB_PATH):
         self.db_path = Path(db_path)
-        self._ratings: dict[int, float] = {}   # team_id → elo
+        self._ratings: dict[int, float] = {}
 
-    # ── Inicializar ratings ────────────────────────────────────────────────
     def _load_or_init(self, conn) -> None:
-        """Carga ratings guardados o inicia todos en BASE_ELO."""
         rows = conn.execute(
             "SELECT team_id, elo FROM team_elo ORDER BY team_id"
         ).fetchall() if self._table_exists(conn) else []
-
         if rows:
             self._ratings = {r[0]: r[1] for r in rows}
         else:
@@ -89,13 +123,11 @@ class EloSystem:
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='team_elo'"
         ).fetchone()[0] > 0
 
-    # ── Construir desde historial ──────────────────────────────────────────
     def build_from_history(self) -> None:
-        """Recalcula Elo completo desde team_matches ordenado por fecha."""
+        """Recalcula Elo completo desde team_matches con decay temporal y ancla FIFA."""
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
 
-        # Crear/limpiar tabla
         conn.execute("""
             CREATE TABLE IF NOT EXISTS team_elo (
                 team_id    INTEGER PRIMARY KEY REFERENCES teams(id),
@@ -106,11 +138,9 @@ class EloSystem:
             )
         """)
 
-        # Iniciar todos los equipos en BASE_ELO
         teams = [r[0] for r in conn.execute("SELECT id FROM teams").fetchall()]
         self._ratings = {t: float(BASE_ELO) for t in teams}
 
-        # Partidos ordenados cronológicamente con opponent_id conocido
         matches = conn.execute("""
             SELECT team_id, opponent_id, goals_for, goals_against,
                    result, competition, venue, date
@@ -120,7 +150,7 @@ class EloSystem:
             ORDER BY date ASC, id ASC
         """).fetchall()
 
-        processed = set()  # evitar doble conteo (A vs B y B vs A)
+        processed = set()
         match_count = {t: 0 for t in teams}
 
         for m in matches:
@@ -137,19 +167,20 @@ class EloSystem:
 
             gf = m["goals_for"]; ga = m["goals_against"]
             venue = m["venue"] or "neutral"
-            k  = _k_factor(m["competition"] or "")
-            gm = _goal_multiplier(gf, ga)
 
-            # Ventaja de localía
+            # K con decay temporal — partidos viejos pesan menos
+            k_base = _k_factor(m["competition"] or "")
+            decay  = _temporal_decay(m["date"])
+            k      = k_base * decay
+            gm     = _goal_multiplier(gf, ga)
+
             h_adj = HOME_ADV if venue == "home" else (-HOME_ADV if venue == "away" else 0)
-
             elo_h = self._ratings[h_id] + h_adj
             elo_a = self._ratings[a_id]
 
             e_h = _expected(elo_h, elo_a)
             e_a = 1.0 - e_h
 
-            # Resultado real (desde perspectiva del team_id = local)
             if m["result"] == "W":
                 r_h, r_a = 1.0, 0.0
             elif m["result"] == "D":
@@ -165,6 +196,38 @@ class EloSystem:
             match_count[h_id] = match_count.get(h_id, 0) + 1
             match_count[a_id] = match_count.get(a_id, 0) + 1
 
+        # ── Ancla FIFA: mezclar historial + referencia FIFA ───────────────────
+        # Para equipos CON ranking FIFA válido: 65% historial + 35% FIFA
+        # Para equipos SIN ranking (999/null): anclar a la mediana (1500)
+        # Esto evita que equipos con muchos amistosos fáciles se disparen
+        # y que equipos recién registrados sin ranking queden inflados
+        fifa_data = {
+            r["id"]: (r["fifa_ranking"], r["fifa_rank"])
+            for r in conn.execute("SELECT id, fifa_ranking, fifa_rank FROM teams").fetchall()
+        }
+        anchored = 0
+        for tid in list(self._ratings.keys()):
+            rank_primary, rank_secondary = fifa_data.get(tid, (999, 0))
+            # Usar el mejor ranking disponible
+            rank = None
+            for r in [rank_primary, rank_secondary]:
+                if r and 0 < r < 999:
+                    rank = r
+                    break
+            hist_elo = self._ratings[tid]
+            if rank is not None:
+                fifa_elo = _fifa_rank_to_elo(rank)
+                # 65% historial, 35% FIFA
+                self._ratings[tid] = round(0.65 * hist_elo + 0.35 * fifa_elo, 2)
+                anchored += 1
+            else:
+                # Sin ranking: regresión suave hacia BASE_ELO para no inflar equipos desconocidos
+                # Equipos muy por encima de 1600 sin ranking = sospechosos → tirar hacia 1550
+                if hist_elo > 1600:
+                    self._ratings[tid] = round(0.70 * hist_elo + 0.30 * 1500, 2)
+                elif hist_elo < 1350:
+                    self._ratings[tid] = round(0.80 * hist_elo + 0.20 * 1450, 2)
+
         # Persistir
         now = datetime.utcnow().isoformat()
         conn.execute("DELETE FROM team_elo")
@@ -175,10 +238,11 @@ class EloSystem:
             """, (tid, elo, elo, match_count.get(tid, 0), now))
         conn.commit()
         conn.close()
-        log.info("Elo recalculado para %d equipos desde %d pares de partidos",
-                 len(self._ratings), len(processed))
+        log.info(
+            "Elo recalculado: %d equipos, %d pares procesados, %d anclados a FIFA",
+            len(self._ratings), len(processed), anchored
+        )
 
-    # ── API pública ────────────────────────────────────────────────────────
     def get_rating(self, team_id: int) -> float:
         if not self._ratings:
             conn = sqlite3.connect(str(self.db_path))
@@ -187,16 +251,11 @@ class EloSystem:
         return self._ratings.get(team_id, BASE_ELO)
 
     def win_prob(self, home_id: int, away_id: int, neutral: bool = False) -> tuple[float, float, float]:
-        """Retorna (p_home_win, p_draw, p_away_win) basado en Elo."""
         adj = 0 if neutral else HOME_ADV
         e_h = _expected(self.get_rating(home_id) + adj, self.get_rating(away_id))
-        # Distribución draw según diferencia de Elo (más pareja → más empates)
         diff = abs(self.get_rating(home_id) - self.get_rating(away_id))
         draw_base = max(0.18, 0.28 - diff * 0.0003)
-        p_h   = e_h   * (1 - draw_base)
-        p_a   = (1 - e_h) * (1 - draw_base)
-        p_d   = draw_base
-        return round(p_h, 4), round(p_d, 4), round(p_a, 4)
+        return round(e_h * (1 - draw_base), 4), round(draw_base, 4), round((1-e_h) * (1-draw_base), 4)
 
     def top_n(self, n: int = 20) -> list[tuple[str, float]]:
         conn = sqlite3.connect(str(self.db_path))
@@ -215,8 +274,8 @@ if __name__ == "__main__":
     elo = EloSystem()
     print("Construyendo Elo desde historial...")
     elo.build_from_history()
-    print("\nTop 20 selecciones por Elo:")
-    print(f"  {'#':>3}  {'Equipo':<22} {'Elo':>7}  {'Partidos':>8}")
-    print("  " + "-"*45)
-    for i, (name, rating, m) in enumerate(elo.top_n(20), 1):
+    print("\nTop 25 selecciones por Elo:")
+    print(f"  {'#':>3}  {'Equipo':<22} {'Elo':>7}  {'FIFA':>5}  {'Partidos':>8}")
+    print("  " + "-"*50)
+    for i, (name, rating, m) in enumerate(elo.top_n(25), 1):
         print(f"  {i:>3}  {name:<22} {rating:>7.1f}  {m:>8}")
