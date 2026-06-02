@@ -202,6 +202,39 @@ print(texto)
 
 ---
 
+## ⚠️ PRINCIPIO DE COBERTURA (NO DEJAR EQUIPOS AFUERA)
+
+**Regla de oro:** TODA predicción debe pasar por `predict_match()` con equipos
+registrados en `teams` + `team_elo`. **NUNCA** improvisar fórmulas Poisson manuales
+para equipos "que no están en la DB" — eso se salta Elo, Dixon-Coles, timing y XI.
+
+### Cómo se garantiza:
+```bash
+# Auditar cobertura (qué equipos con historial NO están registrados)
+python3 scripts/repair_coverage.py --audit
+
+# Reparar: registra equipos faltantes, enlaza opponent_id, reconstruye Elo
+python3 scripts/repair_coverage.py --repair
+
+# Verificar que un fixture sea 100% predecible ANTES de predecir
+python3 scripts/repair_coverage.py --check "Wales" "Ghana"
+```
+
+### Qué resolvió (2 jun 2026):
+- Antes: solo 79 equipos en `teams`; 177 con historial sin registrar → improvisación
+- `team_matches` tenía 44% de partidos SIN `opponent_id` → excluidos del Elo
+- Después: **198 equipos con Elo**, **97% de partidos enlazados**
+- Alias en `data/team_name_aliases.json` evitan duplicados (United States→USA,
+  Czech Republic→Czechia, Ireland→Republic of Ireland, etc.)
+- Equipos extintos/sancionados (Yugoslavia, Czechoslovakia, Russia…) NO se registran
+
+### Checklist antes de cualquier predicción nueva:
+1. `--check` los dos equipos → ambos deben decir ✅ PREDECIBLE
+2. Si alguno dice ❌ INCOMPLETO → correr `--repair`
+3. Predecir SIEMPRE con `predict_match(home_id, away_id)` — jamás a mano
+
+---
+
 ## SIMULADOR (FUNCIONANDO)
 
 ```python
