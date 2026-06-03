@@ -192,6 +192,12 @@ jobs:
           conn.close()
           EOF
 
+      - name: Map WC fixture IDs (api_fixture_id en wc_matches)
+        env:
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+          APIFOOT: ${{ secrets.APIFOOT }}
+        run: python scripts/map_wc_fixtures.py || echo "Fixture mapping done"
+
       - name: Commit y push de datos actualizados
         run: |
           git config user.name "mundial-bot"
