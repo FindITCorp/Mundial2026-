@@ -91,7 +91,11 @@ jobs:
           conn.close()
           EOF
 
-      - name: Fetch confirmed lineups (pre-match)
+      - name: Fetch confirmed lineups + compute squad_weight
+        run: python pipelines/lineup_auto_fetch.py || echo "Lineup fetch finished"
+
+      - name: _legacy_lineup_fetch_DISABLED
+        if: false
         run: |
           python - <<'EOF'
           import os
