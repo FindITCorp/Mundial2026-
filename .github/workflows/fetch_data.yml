@@ -196,6 +196,7 @@ jobs:
         env:
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
         run: python scripts/map_wc_fixtures.py || echo "Fixture mapping done"
 
       - name: Commit y push de datos actualizados

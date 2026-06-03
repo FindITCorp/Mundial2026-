@@ -137,6 +137,44 @@ def fetch_fixtures(key: str, use_rapidapi: bool = False) -> list:
     return all_fixtures
 
 
+def fetch_fixtures_football_data(key: str) -> list:
+    """Obtiene fixtures del WC2026 desde football-data.org (competition code WC, season 2026)."""
+    import requests
+
+    url = "https://api.football-data.org/v4/competitions/WC/matches"
+    headers = {"X-Auth-Token": key}
+    params  = {"season": WC_SEASON}
+
+    try:
+        r = requests.get(url, headers=headers, params=params, timeout=20)
+        print(f"  football-data.org status: {r.status_code}")
+        if r.status_code != 200:
+            print(f"  Error: {r.text[:100]}")
+            return []
+        data = r.json()
+        matches = data.get("matches", [])
+        print(f"  football-data.org: {len(matches)} partidos encontrados")
+        # Normalizar al mismo formato que API-Football
+        result = []
+        for m in matches:
+            result.append({
+                "fixture": {
+                    "id":   m["id"],
+                    "date": m.get("utcDate", "")[:10],
+                },
+                "teams": {
+                    "home": {"name": m["homeTeam"]["name"], "id": m["homeTeam"]["id"]},
+                    "away": {"name": m["awayTeam"]["name"], "id": m["awayTeam"]["id"]},
+                },
+                "league": {"id": "FD-WC"},
+                "_source": "football-data.org",
+            })
+        return result
+    except Exception as e:
+        print(f"  football-data.org error: {e}")
+        return []
+
+
 def map_fixtures(dry_run: bool = False):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -158,19 +196,28 @@ def map_fixtures(dry_run: bool = False):
     all_teams = conn.execute("SELECT name FROM teams").fetchall()
     our_teams = {_norm(r["name"]): r["name"] for r in all_teams}
 
-    # Obtener API key
-    api_key  = os.environ.get("APISPORTS_KEY", "")
-    rapid_key = os.environ.get("APIFOOT", "")
-    key = api_key or rapid_key
-    use_rapid = bool(rapid_key and not api_key)
+    api_key     = os.environ.get("APISPORTS_KEY", "")
+    rapid_key   = os.environ.get("APIFOOT", "")
+    fd_key      = os.environ.get("FOOTBALL_DATA_KEY", "")
+    use_rapid   = bool(rapid_key and not api_key)
 
-    if not key:
-        print("Sin API key disponible")
+    fixtures = []
+
+    # Fuente 1: football-data.org (más fiable para WC2026 pre-torneo)
+    if fd_key:
+        print("Fetcheando fixtures desde football-data.org...")
+        fixtures = fetch_fixtures_football_data(fd_key)
+
+    # Fuente 2: API-Football como fallback
+    if len(fixtures) < 10 and (api_key or rapid_key):
+        key = api_key or rapid_key
+        print(f"Fetcheando fixtures de API-Football (season {WC_SEASON})...")
+        fixtures += fetch_fixtures(key, use_rapidapi=use_rapid)
+
+    if not fixtures:
+        print("Sin API key disponible o sin fixtures encontrados")
         conn.close()
         return
-
-    print(f"Fetcheando fixtures de API-Football (season {WC_SEASON})...")
-    fixtures = fetch_fixtures(key, use_rapidapi=use_rapid)
 
     if not fixtures:
         print("Sin fixtures obtenidos")
