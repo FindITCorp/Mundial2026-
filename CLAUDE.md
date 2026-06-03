@@ -1,7 +1,7 @@
 # MUNDIAL 2026 — SISTEMA DE PREDICCION AVANZADO
 
 ## ESTADO DEL PROYECTO
-**Ultima actualizacion:** 23 de mayo de 2026
+**Ultima actualizacion:** 04 de junio de 2026
 **Proposito:** Sistema completo de prediccion y analisis del Mundial 2026
 **Stack:** Python 3.11 · SQLite · requests · scipy · StatsBomb open data
 **Estado:** 🟢 DATOS CARGADOS · WORKFLOWS PASANDO · SIMULADOR FUNCIONAL · EXPERT ANALYSIS LISTO
@@ -37,23 +37,41 @@ git -c commit.gpgsign=false commit -m "mensaje"
 
 ---
 
-## ESTADO DE LA BASE DE DATOS (22 mayo 2026)
+## ESTADO DE LA BASE DE DATOS (04 junio 2026)
 
 | Tabla | Registros | Fuente |
 |-------|-----------|--------|
-| teams | 48 | Estatico JSON |
-| players | 2,131 | martj42 CSV + Wikipedia + manual (32-68 por equipo) |
-| team_matches | 11,015 | martj42 CSV (hasta marzo 2026) |
-| player_club_stats | 724 | Solo jugadores originales seeded |
+| teams | 48 WC correctos | Sorteo oficial FIFA verificado 04-jun |
+| players | 2,131+ | martj42 CSV + Wikipedia + manual (32-68 por equipo) |
+| team_matches | 11,015+ | martj42 + amistosos jun 2026 |
+| player_club_stats | 1,000+ | Seeded + manual 27 equipos + Jamaica |
 | player_nat_stats | 1,437 | StatsBomb WC2022 |
-| player_ratings | 2,855 | Computados (club+nat context) |
+| player_ratings | 2,855+ | Computados (club+nat context) |
 | squad_selections | 2,131 | Todos los jugadores |
 | match_players | 3,782 | StatsBomb WC2022 (1992) + WC2018 (1790) |
 | wc_matches | 72 | Calendario WC2026 estatico |
 | wc_history | 192 | Historial WC 2014/2018/2022 |
 | match_lineups | 0 | Se llenara durante el torneo |
 
-**Jugadores por equipo:** min=32, max=68, promedio=44.4
+**Cobertura de datos 48 equipos WC:** 48/48 con club_stats ✅ · 48/48 con xG>0 ✅
+
+### GRUPOS OFICIALES WC 2026 (verificados 04 junio 2026)
+| Grupo | Equipos |
+|-------|---------|
+| A | Czechia · Mexico · South Africa · South Korea |
+| B | Bosnia and Herzegovina · Canada · Qatar · Switzerland |
+| C | Brazil · Haiti · Morocco · Scotland |
+| D | Australia · Paraguay · Turkey · USA |
+| E | Curacao · Ecuador · Germany · Ivory Coast |
+| F | Japan · Netherlands · Sweden · Tunisia |
+| G | Belgium · Egypt · Iran · New Zealand |
+| H | Cape Verde · Saudi Arabia · Spain · Uruguay |
+| I | Costa Rica · France · Norway · Senegal |
+| J | Algeria · Argentina · Austria · Jordan |
+| K | Colombia · Jamaica · Portugal · Uzbekistan |
+| L | Croatia · England · Ghana · Panama |
+
+**EQUIPOS CORREGIDOS (04-jun-2026):** Eliminados de grupos: Italia, Dinamarca, Nigeria, DR Congo, Polonia, Rumania, Serbia, Venezuela, Honduras, Bolivia, Hungría, Eslovenia, Irak, Camerún (no clasificados al WC 2026).
 
 ---
 
