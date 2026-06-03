@@ -114,9 +114,10 @@ def _get_elo(conn, team_id: int) -> float:
 # (no tienen fila en team_elo) — se asume nivel débil-medio.
 SOS_DEFAULT_ELO = 1430.0
 SOS_PIVOT       = 1550.0   # Elo de rival "neutro"
-SOS_EXP         = 2.0      # sensibilidad del peso a la fuerza del rival
+SOS_EXP         = 1.5      # calibrado 04-jun-2026: reducido de 2.0 → más crédito al ritmo
+                            # vs rivales débiles (evidencia: Mexico 4W 2D 0L vs WC sin inflar)
 # Regularización bayesiana: prior que regresa los promedios hacia la media
-PRIOR_N         = 4.0
+PRIOR_N         = 3.0      # reducido 4.0→3.0: confiar más en forma reciente real
 PRIOR_GF        = 1.35
 PRIOR_GA        = 1.20
 
@@ -1021,48 +1022,49 @@ def predict_match(
     total = sum(probs.values())
     ph /= total; pd /= total; pa /= total
 
-    # ── 10b. Rebalanceo de empates/sorpresas — W-5 Framework ─────────────
-    # Poisson tiende a subestimar empates en partidos muy parejos.
-    # Calibrado 31-mayo-2026: reducido ~40% tras 0/6 empates reales vs muchos predichos.
+    # ── 10b. Rebalanceo de empates — calibrado 04-jun-2026 ───────────────
+    # Evidencia: 4/4 empates predichos el 02-jun resultaron ganador claro.
+    # Reducción total ~50% respecto a versión anterior.
+    # Criterio: solo aplicar boost cuando HAY señal fuerte y múltiple.
     draw_boost = 0.0
 
-    # Señal 1: Elo muy parejo
+    # Señal 1: Elo muy parejo (reducido: solo gap < 25 activa boost significativo)
     elo_gap = abs(elo_diff)
-    if elo_gap < 30:
-        draw_boost += 0.025
-    elif elo_gap < 60:
-        draw_boost += 0.014
-    elif elo_gap < 100:
-        draw_boost += 0.006
+    if elo_gap < 25:
+        draw_boost += 0.015
+    elif elo_gap < 50:
+        draw_boost += 0.008
+    elif elo_gap < 80:
+        draw_boost += 0.003
 
-    # Señal 2: Forma reciente casi idéntica
+    # Señal 2: Forma reciente casi idéntica (umbral más estricto)
     form_gap = abs(home_form["form_score"] - away_form["form_score"])
-    if form_gap < 0.05:
-        draw_boost += 0.014
-    elif form_gap < 0.10:
-        draw_boost += 0.006
+    if form_gap < 0.04:
+        draw_boost += 0.008
+    elif form_gap < 0.08:
+        draw_boost += 0.003
 
-    # Señal 3: H2H con historial de empates
-    if h2h["gp"] >= 4:
+    # Señal 3: H2H con historial de empates (solo si dato robusto)
+    if h2h["gp"] >= 5:
         draw_rate = h2h["d"] / h2h["gp"]
-        if draw_rate >= 0.40:
-            draw_boost += 0.014
-        elif draw_rate >= 0.30:
-            draw_boost += 0.007
+        if draw_rate >= 0.45:
+            draw_boost += 0.010
+        elif draw_rate >= 0.35:
+            draw_boost += 0.004
 
-    # Señal 4: Lambdas muy similares (partido equilibrado proyectado)
+    # Señal 4: Lambdas muy similares (solo si ratio > 0.94 — muy equilibrado)
     lambda_ratio = min(lh, la) / max(lh, la) if max(lh, la) > 0 else 1.0
-    if lambda_ratio > 0.92:
-        draw_boost += 0.012
-    elif lambda_ratio > 0.85:
-        draw_boost += 0.005
+    if lambda_ratio > 0.94:
+        draw_boost += 0.008
+    elif lambda_ratio > 0.88:
+        draw_boost += 0.003
 
-    # Señal 5: Neutral + Elo muy parejo
-    if neutral and elo_gap < 60:
-        draw_boost += 0.005
+    # Señal 5: Neutral + Elo muy parejo (solo gap < 40)
+    if neutral and elo_gap < 40:
+        draw_boost += 0.003
 
-    # Cap: máximo boost de +5pp
-    draw_boost = min(draw_boost, 0.050)
+    # Cap: máximo boost de +3.5pp (antes 5pp)
+    draw_boost = min(draw_boost, 0.035)
 
     # Redistribuir proporcionalmente de p_home y p_away
     if draw_boost > 0.001:
@@ -1103,13 +1105,11 @@ def predict_match(
     h2h_conf   = (max(h2h["hw"], h2h["aw"]) / h2h["gp"]) if h2h["gp"] >= 4 else 0.0
     confidence = round((elo_conf * 0.4 + form_conf * 0.35 + h2h_conf * 0.25), 3)
 
-    # Predicción final — criterio calibrado contra 68 partidos 2026:
-    # prob_draw > 30% → tasa real empate 44% → predecir empate
-    # prob_draw 20-30% → tasa real empate 29% → predecir empate
-    # prob_draw < 20% → tasa real empate 12% → predecir ganador
-    # Umbral: si prob_draw >= 20% Y la diferencia entre ph y pa es < 15pp → empate
+    # Predicción final — calibrado 04-jun-2026:
+    # Evidencia: umbral anterior (pd>=20% + gap<15pp) generó 4/4 falsos empates.
+    # Nuevo criterio más estricto: pd debe ser la prob MÁS ALTA y gap < 10pp.
     draw_gap = abs(ph - pa)
-    if pd >= 0.20 and draw_gap < 0.15:
+    if pd > ph and pd > pa and draw_gap < 0.10:
         winner = "DRAW"
     elif ph >= pa:
         winner = home_name
