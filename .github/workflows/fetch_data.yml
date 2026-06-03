@@ -212,7 +212,8 @@ jobs:
           SCOPE="${{ steps.scope.outputs.scope }}"
           FECHA=$(date +'%Y-%m-%d %H:%M UTC')
           git commit -m "data: auto-update [${SCOPE}] ${FECHA}"
-          git pull --rebase origin main || git rebase --abort
-          git push -u origin main
+          BRANCH="${GITHUB_REF_NAME:-main}"
+          git pull --rebase origin "$BRANCH" || git rebase --abort
+          git push -u origin "HEAD:$BRANCH"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

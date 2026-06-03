@@ -230,5 +230,6 @@ jobs:
           git add data/lineups/ 2>/dev/null || true
           git diff --staged --quiet && echo "Sin cambios en DB" && exit 0
           git commit -m "live: match day update $(date +'%Y-%m-%d %H:%M') UTC"
-          git pull --rebase origin main || git rebase --abort
-          git push -u origin main
+          BRANCH="${GITHUB_REF_NAME:-main}"
+          git pull --rebase origin "$BRANCH" || git rebase --abort
+          git push -u origin "HEAD:$BRANCH"
