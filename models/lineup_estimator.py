@@ -236,14 +236,44 @@ def _get_unavailable_player_ids(team_id: int, db_path: Optional[Path] = None) ->
     return {r["player_id"] for r in rows}
 
 
+def _get_usage_stats(team_id: int, last_n: int = 10, db_path: Optional[Path] = None) -> dict:
+    """
+    Retorna {player_id: {starter_rate, avg_minutes, sub_in_rate}} desde player_match_usage.
+    Este es el dato más preciso — aprende de partidos reales registrados.
+    """
+    conn = _conn(db_path)
+    rows = conn.execute("""
+        SELECT player_id,
+               COUNT(*) as apps,
+               SUM(is_starter) as starts,
+               AVG(minutes_played) as avg_mins,
+               SUM(CASE WHEN sub_in_minute IS NOT NULL THEN 1 ELSE 0 END) as sub_ins
+        FROM player_match_usage
+        WHERE team_id=?
+        ORDER BY match_date DESC
+        LIMIT ?
+    """, (team_id, last_n * 5)).fetchall()  # más filas porque agrupa por jugador
+    conn.close()
+    result = {}
+    for r in rows:
+        if r["apps"] > 0:
+            result[r["player_id"]] = {
+                "starter_rate": r["starts"] / r["apps"],
+                "avg_minutes":  r["avg_mins"] or 0,
+                "sub_in_rate":  r["sub_ins"] / r["apps"],
+                "appearances":  r["apps"],
+            }
+    return result
+
+
 def _get_nat_selection_frequency(team_id: int, last_n: int = 10, db_path: Optional[Path] = None) -> dict:
     """
     Return {player_id: frequency_count} based on how many of the last N
     national team matches the player was a starter (was_starter=1 in player_nat_stats).
+    Fallback cuando no hay player_match_usage.
     """
     conn = _conn(db_path)
 
-    # Get last N match IDs for this team
     match_ids = [r["id"] for r in conn.execute("""
         SELECT id FROM team_matches
         WHERE team_id=?
@@ -402,19 +432,34 @@ def estimate_lineup(
         # Use all players if no squad_selections exist
         available = squad
 
-    # Get selection frequency (nat stats)
+    # Fuente 1: player_match_usage (datos reales de partidos registrados — más preciso)
+    usage_map = _get_usage_stats(team_id, db_path=db)
+
+    # Fuente 2: nat_stats frequency (fallback si no hay usage real)
     freq_map = _get_nat_selection_frequency(team_id, last_n=10, db_path=db)
 
     # Get player ratings
     rating_map = _get_player_ratings(team_id, db)
 
-    # Score each player: combined rating + frequency bonus
+    # Score cada jugador:
+    #   rating base + bonus de titularidad real + penalización si suele entrar de cambio
     def player_score(p):
         pid = p["id"]
         rating = rating_map.get(pid, 6.0)
-        freq = freq_map.get(pid, 0)
-        freq_bonus = freq * 0.15  # up to 1.5 for 10/10 selections
-        return rating + freq_bonus
+
+        if pid in usage_map:
+            u = usage_map[pid]
+            # Titular habitual con muchos minutos → sube hasta +1.5
+            starter_bonus = u["starter_rate"] * 1.2
+            # Si juega >75 min promedio → fiable como titular
+            minutes_bonus = min(0.3, (u["avg_minutes"] - 60) / 100) if u["avg_minutes"] > 60 else 0
+            # Penalización si casi siempre entra de cambio (no debe aparecer en XI estimado)
+            sub_penalty = u["sub_in_rate"] * 0.8
+            return rating + starter_bonus + minutes_bonus - sub_penalty
+        else:
+            # Fallback: frecuencia en nat_stats
+            freq = freq_map.get(pid, 0)
+            return rating + freq * 0.15
 
     # Group available players by position
     by_pos = {"GK": [], "DEF": [], "MID": [], "FWD": []}

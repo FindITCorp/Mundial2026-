@@ -91,8 +91,11 @@ jobs:
           conn.close()
           EOF
 
-      - name: Fetch confirmed lineups + compute squad_weight
-        run: python pipelines/lineup_auto_fetch.py || echo "Lineup fetch finished"
+      - name: Estimar XI probable (si no hay confirmado aún)
+        run: python pipelines/pre_match_lineup.py --mode estimate || echo "Estimate step done"
+
+      - name: Confirmar XI oficial via API (1h antes kickoff)
+        run: python pipelines/pre_match_lineup.py --mode confirm || echo "Confirm step done"
 
       - name: _legacy_lineup_fetch_DISABLED
         if: false
@@ -214,6 +217,9 @@ jobs:
           except Exception as e:
               print(f"Rating recompute error (non-fatal): {e}")
           EOF
+
+      - name: Aprender de partidos reales (actualizar estimador)
+        run: python pipelines/pre_match_lineup.py --mode learn || echo "Learn step done"
 
       - name: Commit and push live data updates
         run: |
