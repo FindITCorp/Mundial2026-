@@ -1,5 +1,5 @@
 {
-  "ran_at": "2026-06-04T15:07:47.086293",
+  "ran_at": "2026-06-04T15:11:40.829021",
   "teams": [
     {
       "name": "Argentina",
@@ -103,6 +103,7 @@
   "players_saved": 0,
   "api_errors": [
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 26,
@@ -114,6 +115,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 26,
@@ -125,6 +127,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 25,
@@ -136,6 +139,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 25,
@@ -147,6 +151,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 44,
@@ -158,6 +163,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 44,
@@ -169,6 +175,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 1,
@@ -180,6 +187,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 1,
@@ -191,6 +199,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 21,
@@ -202,6 +211,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 21,
@@ -213,6 +223,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 24,
@@ -224,6 +235,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 24,
@@ -235,6 +247,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 100,
@@ -246,6 +259,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 100,
@@ -257,6 +271,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 244,
@@ -268,6 +283,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 244,
@@ -279,6 +295,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 20,
@@ -290,6 +307,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 20,
@@ -301,6 +319,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 94,
@@ -312,6 +331,7 @@
       }
     },
     {
+      "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
         "team": 94,
