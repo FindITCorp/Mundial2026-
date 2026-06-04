@@ -447,7 +447,8 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
         def _today_fixtures():
             import subprocess
             subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "today_fixtures.py")], check=False)
-        _step("List Today's WC Fixtures (SmartAPI)", _today_fixtures)
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "predict_today.py")], check=False)
+        _step("Predict Today's WC Friendlies (SmartAPI + Poisson)", _today_fixtures)
         return True
 
     # ── Scope: lineups_friendlies (alineaciones pre-torneo de amistosos) ────────
