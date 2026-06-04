@@ -95,6 +95,23 @@ git -c commit.gpgsign=false commit -m "mensaje"
 - `APIFOOT` = `557119c7a1mshdf149ae73f548b9p12dddfjsn039c48b00953` (RapidAPI)
 - `APISPORTS_KEY` = `f4bc4a4935ea7cc82677931a55ed6c5c` (100 req/dia)
 
+### ★ VEREDICTO DE COBERTURA DEL MUNDIAL (diagnose, 04-jun-2026) ★
+Script: `scripts/diagnose_wc_coverage.py` (scope `diagnose`). Resultado verificado:
+- **FUENTE OFICIAL del WC = api-sports.io (APISPORTS_KEY, GRATIS).** Conoce la liga
+  `id=1 "World Cup"` con temporada **2026** registrada. Es la que usan `update_wc.py`
+  (WC2026_AF_LEAGUE_ID=1) y `map_wc_fixtures.py` (WC_LEAGUE_IDS=[1,...], season=2026).
+  Da resultados + alineaciones + estadísticas (datos incrementales). 100 req/día basta
+  para 72 partidos.
+- **RapidAPI "Free API Live Football Data" (APIFOOT) NO cubre el Mundial.** Para el
+  11-jun solo lista ligas menores/clubes (islandesas, USL, brasileñas). Útil solo para
+  algunos amistosos, y con ruido (mezcla juveniles). El gasto en su plan PRO NO era
+  necesario para el torneo.
+- ⚠️ RIESGO A VERIFICAR cerca del torneo: el plan FREE de api-sports históricamente
+  restringe FIXTURES a temporadas 2021-2023. La liga 2026 aparece en /leagues, pero
+  si /fixtures?season=2026 devuelve vacío con datos ya publicados, habría que subir a
+  un plan de pago de **api-sports** (NO RapidAPI). Hoy devuelve 0 porque el calendario
+  del WC aún no está cargado en el feed (timing real).
+
 ---
 
 ## ARQUITECTURA DE ARCHIVOS
