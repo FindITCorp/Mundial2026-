@@ -1,0 +1,341 @@
+{
+  "ran_at": "2026-06-04T15:07:47.086293",
+  "teams": [
+    {
+      "name": "Argentina",
+      "api_id": 26,
+      "fixtures": 0
+    },
+    {
+      "name": "Australia",
+      "api_id": 25,
+      "fixtures": 0
+    },
+    {
+      "name": "Austria",
+      "api_id": 44,
+      "fixtures": 0
+    },
+    {
+      "name": "Belgium",
+      "api_id": 1,
+      "fixtures": 0
+    },
+    {
+      "name": "Bosnia and Herzegovina",
+      "api_id": 21,
+      "fixtures": 0
+    },
+    {
+      "name": "Brazil",
+      "api_id": 24,
+      "fixtures": 0
+    },
+    {
+      "name": "Canada",
+      "api_id": 100,
+      "fixtures": 0
+    },
+    {
+      "name": "Cape Verde",
+      "api_id": 244,
+      "fixtures": 0
+    },
+    {
+      "name": "Colombia",
+      "api_id": 20,
+      "fixtures": 0
+    },
+    {
+      "name": "Costa Rica",
+      "api_id": 94,
+      "fixtures": 0
+    },
+    {
+      "name": "Croatia",
+      "api_id": 10,
+      "fixtures": 0
+    },
+    {
+      "name": "Curacao",
+      "api_id": 619,
+      "fixtures": 0
+    },
+    {
+      "name": "Czechia",
+      "api_id": 29,
+      "fixtures": 0
+    },
+    {
+      "name": "Ecuador",
+      "api_id": 86,
+      "fixtures": 0
+    },
+    {
+      "name": "Egypt",
+      "api_id": 34,
+      "fixtures": 0
+    },
+    {
+      "name": "England",
+      "api_id": 9,
+      "fixtures": 0
+    },
+    {
+      "name": "France",
+      "api_id": 2,
+      "fixtures": 0
+    },
+    {
+      "name": "Germany",
+      "api_id": 5,
+      "fixtures": 0
+    },
+    {
+      "name": "Ghana",
+      "api_id": 22,
+      "fixtures": 0
+    }
+  ],
+  "fixtures_seen": 0,
+  "lineups_with_data": 0,
+  "lineups_empty": 0,
+  "players_saved": 0,
+  "api_errors": [
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 26,
+        "season": 2025,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 26,
+        "season": 2026,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 25,
+        "season": 2025,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 25,
+        "season": 2026,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 44,
+        "season": 2025,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 44,
+        "season": 2026,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 1,
+        "season": 2025,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 1,
+        "season": 2026,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 21,
+        "season": 2025,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 21,
+        "season": 2026,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 24,
+        "season": 2025,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 24,
+        "season": 2026,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 100,
+        "season": 2025,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 100,
+        "season": 2026,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 244,
+        "season": 2025,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 244,
+        "season": 2026,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 20,
+        "season": 2025,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 20,
+        "season": 2026,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 94,
+        "season": 2025,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    },
+    {
+      "endpoint": "fixtures",
+      "params": {
+        "team": 94,
+        "season": 2026,
+        "last": 10
+      },
+      "errors": {
+        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+      }
+    }
+  ],
+  "sample_api_response": {
+    "endpoint": "fixtures",
+    "params": {
+      "team": 26,
+      "season": 2025,
+      "last": 10
+    },
+    "results": 0,
+    "errors": {
+      "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+    },
+    "first_item": null
+  },
+  "pmu_total": 0,
+  "teams_covered": 0
+}
