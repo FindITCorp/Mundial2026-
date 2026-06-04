@@ -17,6 +17,7 @@ on:
   schedule:
     - cron: '0 6 * * 1'       # Lunes 6am UTC: actualización completa (scope=all)
     - cron: '0 7 * * *'       # Diario 7am UTC: forma reciente (scope=form)
+    - cron: '0 8 * * 3'       # Miércoles 8am UTC: alineaciones amistosos pre-torneo
     - cron: '0 0,12 * 6,7 *'  # Jun-Jul (torneo): 2 veces/día 0am y 12pm UTC
   workflow_dispatch:
     inputs:
@@ -34,6 +35,7 @@ on:
           - lineups
           - wc
           - historical
+          - lineups_friendlies
 
 jobs:
   update:
@@ -115,6 +117,13 @@ jobs:
               except Exception:
                   mp_count = 0
 
+              try:
+                  conn3 = sqlite3.connect(db)
+                  pmu_count = conn3.execute("SELECT COUNT(DISTINCT team_id) FROM player_match_usage WHERE is_starter=1").fetchone()[0]
+                  conn3.close()
+              except Exception:
+                  pmu_count = 0
+
               if mp_count < 100:
                   scope = "historical"
                   print(f"Datos históricos escasos ({mp_count}) -> scope=historical")
@@ -124,6 +133,9 @@ jobs:
               elif dow == 0:
                   scope = "all"
                   print("Lunes -> scope=all (actualización completa)")
+              elif dow == 2 and pmu_count < 40:
+                  scope = "lineups_friendlies"
+                  print(f"Miércoles + pocos equipos con usage ({pmu_count}/48) -> scope=lineups_friendlies")
               else:
                   scope = "form"
                   print(f"Día {dow} -> scope=form")

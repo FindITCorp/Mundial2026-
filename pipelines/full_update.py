@@ -29,7 +29,7 @@ DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
 LOGS_DIR = BASE_DIR / "data" / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical")
+VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies")
 
 
 def _setup_logger() -> logging.Logger:
@@ -427,6 +427,15 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
     # ── Scope: historical (WC 2014/2018/2022 + player stats per match) ──────
     if scope == "historical":
         _step("Fetch Historical WC Data", step_fetch_historical)
+        _print_summary(_db_summary())
+        return True
+
+    # ── Scope: lineups_friendlies (alineaciones pre-torneo de amistosos) ────────
+    if scope == "lineups_friendlies":
+        def _fetch_friendly_lineups():
+            from pipelines.fetch_friendly_lineups import run as fl_run
+            fl_run(max_teams=20)  # ~20 equipos por día para no exceder 100 req
+        _step("Fetch Friendly Lineups", _fetch_friendly_lineups)
         _print_summary(_db_summary())
         return True
 
