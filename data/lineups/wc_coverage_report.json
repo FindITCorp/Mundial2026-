@@ -1,14 +1,438 @@
 {
-  "ran_at": "2026-06-04T22:27:08.720790",
+  "ran_at": "2026-06-04T22:29:05.990560",
   "apisports": {
     "plan": "Free",
     "requests": {
       "current": 0,
       "limit_day": 100
     },
-    "leagues_wc2026": [],
+    "leagues_wc": [
+      {
+        "id": 1,
+        "name": "World Cup",
+        "type": "Cup",
+        "seasons": [
+          2010,
+          2014,
+          2018,
+          2022,
+          2026
+        ]
+      },
+      {
+        "id": 8,
+        "name": "World Cup - Women",
+        "type": "Cup",
+        "seasons": [
+          2011,
+          2015,
+          2019,
+          2023
+        ]
+      },
+      {
+        "id": 15,
+        "name": "FIFA Club World Cup",
+        "type": "Cup",
+        "seasons": [
+          2020,
+          2021,
+          2022,
+          2023,
+          2025
+        ]
+      },
+      {
+        "id": 37,
+        "name": "World Cup - Qualification Intercontinental Play-offs",
+        "type": "Cup",
+        "seasons": [
+          2014,
+          2018,
+          2022,
+          2026
+        ]
+      },
+      {
+        "id": 490,
+        "name": "World Cup - U20",
+        "type": "Cup",
+        "seasons": [
+          2017,
+          2019,
+          2023,
+          2025
+        ]
+      },
+      {
+        "id": 31,
+        "name": "World Cup - Qualification CONCACAF",
+        "type": "Cup",
+        "seasons": [
+          2018,
+          2022,
+          2026
+        ]
+      },
+      {
+        "id": 32,
+        "name": "World Cup - Qualification Europe",
+        "type": "Cup",
+        "seasons": [
+          2018,
+          2020,
+          2024
+        ]
+      },
+      {
+        "id": 33,
+        "name": "World Cup - Qualification Oceania",
+        "type": "Cup",
+        "seasons": [
+          2018,
+          2022,
+          2026
+        ]
+      },
+      {
+        "id": 34,
+        "name": "World Cup - Qualification South America",
+        "type": "Cup",
+        "seasons": [
+          2018,
+          2022,
+          2026
+        ]
+      },
+      {
+        "id": 29,
+        "name": "World Cup - Qualification Africa",
+        "type": "Cup",
+        "seasons": [
+          2018,
+          2022,
+          2023
+        ]
+      },
+      {
+        "id": 30,
+        "name": "World Cup - Qualification Asia",
+        "type": "Cup",
+        "seasons": [
+          2018,
+          2022,
+          2026
+        ]
+      },
+      {
+        "id": 587,
+        "name": "World Cup - U17",
+        "type": "Cup",
+        "seasons": [
+          2019,
+          2023,
+          2025,
+          2026
+        ]
+      },
+      {
+        "id": 920,
+        "name": "World Cup - U20 - Women",
+        "type": "Cup",
+        "seasons": [
+          2022,
+          2024
+        ]
+      },
+      {
+        "id": 927,
+        "name": "World Cup - Women - Qualification Concacaf",
+        "type": "Cup",
+        "seasons": [
+          2022,
+          2026
+        ]
+      },
+      {
+        "id": 950,
+        "name": "World Cup - U17 - Women",
+        "type": "Cup",
+        "seasons": [
+          2022,
+          2024,
+          2025,
+          2026
+        ]
+      },
+      {
+        "id": 880,
+        "name": "World Cup - Women - Qualification Europe",
+        "type": "Cup",
+        "seasons": [
+          2023,
+          2027
+        ]
+      },
+      {
+        "id": 1186,
+        "name": "FIFA Club World Cup - Play-In",
+        "type": "Cup",
+        "seasons": [
+          2025
+        ]
+      },
+      {
+        "id": 1213,
+        "name": "Kings World Cup Nations",
+        "type": "Cup",
+        "seasons": [
+          2026
+        ]
+      },
+      {
+        "id": 1,
+        "name": "World Cup",
+        "type": "Cup",
+        "seasons": [
+          2010,
+          2014,
+          2018,
+          2022,
+          2026
+        ]
+      },
+      {
+        "id": 8,
+        "name": "World Cup - Women",
+        "type": "Cup",
+        "seasons": [
+          2023
+        ]
+      },
+      {
+        "id": 29,
+        "name": "World Cup - Qualification Africa",
+        "type": "Cup",
+        "seasons": [
+          2023
+        ]
+      },
+      {
+        "id": 920,
+        "name": "World Cup - U20 - Women",
+        "type": "Cup",
+        "seasons": [
+          2024
+        ]
+      },
+      {
+        "id": 32,
+        "name": "World Cup - Qualification Europe",
+        "type": "Cup",
+        "seasons": [
+          2024
+        ]
+      },
+      {
+        "id": 15,
+        "name": "FIFA Club World Cup",
+        "type": "Cup",
+        "seasons": [
+          2025
+        ]
+      },
+      {
+        "id": 490,
+        "name": "World Cup - U20",
+        "type": "Cup",
+        "seasons": [
+          2025
+        ]
+      },
+      {
+        "id": 1186,
+        "name": "FIFA Club World Cup - Play-In",
+        "type": "Cup",
+        "seasons": [
+          2025
+        ]
+      },
+      {
+        "id": 34,
+        "name": "World Cup - Qualification South America",
+        "type": "Cup",
+        "seasons": [
+          2026
+        ]
+      },
+      {
+        "id": 30,
+        "name": "World Cup - Qualification Asia",
+        "type": "Cup",
+        "seasons": [
+          2026
+        ]
+      },
+      {
+        "id": 31,
+        "name": "World Cup - Qualification CONCACAF",
+        "type": "Cup",
+        "seasons": [
+          2026
+        ]
+      },
+      {
+        "id": 33,
+        "name": "World Cup - Qualification Oceania",
+        "type": "Cup",
+        "seasons": [
+          2026
+        ]
+      },
+      {
+        "id": 927,
+        "name": "World Cup - Women - Qualification Concacaf",
+        "type": "Cup",
+        "seasons": [
+          2026
+        ]
+      },
+      {
+        "id": 1,
+        "name": "World Cup",
+        "type": "Cup",
+        "seasons": [
+          2026
+        ]
+      },
+      {
+        "id": 1213,
+        "name": "Kings World Cup Nations",
+        "type": "Cup",
+        "seasons": [
+          2026
+        ]
+      },
+      {
+        "id": 37,
+        "name": "World Cup - Qualification Intercontinental Play-offs",
+        "type": "Cup",
+        "seasons": [
+          2026
+        ]
+      },
+      {
+        "id": 950,
+        "name": "World Cup - U17 - Women",
+        "type": "Cup",
+        "seasons": [
+          2026
+        ]
+      },
+      {
+        "id": 587,
+        "name": "World Cup - U17",
+        "type": "Cup",
+        "seasons": [
+          2026
+        ]
+      },
+      {
+        "id": 880,
+        "name": "World Cup - Women - Qualification Europe",
+        "type": "Cup",
+        "seasons": [
+          2027
+        ]
+      }
+    ],
     "fixtures": {
       "1": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "8": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "15": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "37": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "490": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "31": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "32": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "33": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "34": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "29": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "30": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "587": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "920": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "927": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "950": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "880": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "1186": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      },
+      "1213": {
         "count": 0,
         "sample": [],
         "first_fixture_id": null
@@ -18,6 +442,57 @@
   "rapidapi": {
     "status_20260611": 200,
     "matches_count": 38,
-    "wc_like_matches": []
+    "match_fields": [
+      "id",
+      "leagueId",
+      "time",
+      "home",
+      "away",
+      "eliminatedTeamId",
+      "statusId",
+      "tournamentStage",
+      "status",
+      "timeTS"
+    ],
+    "all_matches_20260611": [
+      "Haukar vs Kormákur/Hvöt [] id=5225901",
+      "Kari vs Selfoss [] id=5225902",
+      "KFA vs Fjölnir [] id=5225903",
+      "KFG vs Hviti Riddarinn [] id=5225904",
+      "Magni vs Dalvik/Reynir [] id=5225905",
+      "Throttur Vogar vs Vikingur Olafsvik [] id=5225906",
+      "Afturelding vs Stjarnan [] id=5653101",
+      "Nam Dinh vs Cong An Ho Chi Minh City [] id=5270763",
+      "Ninh Binh Club vs Viettel [] id=5270764",
+      "Portugal vs Nigeria [] id=5293170",
+      "Bolivia vs Algeria [] id=5736393",
+      "England vs Costa Rica [] id=5213043",
+      "Austria vs Guatemala [] id=5349853",
+      "Venezuela U20 vs Japan U20 [] id=5429874",
+      "Portugal U20 vs Canada U20 [] id=5429875",
+      "Ulfstind vs Fløya [] id=5144496",
+      "Al-Shabab SC vs Al-Jahra [] id=5483477",
+      "Tampa Bay Rowdies vs Charleston Battery [] id=5109787",
+      "Detroit City FC vs El Paso Locomotive FC [] id=5109784",
+      "Monterey Bay FC vs Sporting JAX [] id=5109785",
+      "Phoenix Rising FC vs Louisville City FC [] id=5109786",
+      "One Knoxville SC vs Chattanooga Red Wolves SC [] id=5201565",
+      "Greenville Triumph SC vs Loudoun United FC [] id=5201618",
+      "Westchester SC vs Fort Wayne [] id=5109414",
+      "Charlotte Independence vs Union Omaha [] id=5109413",
+      "Boise vs Richmond Kickers [] id=5109415",
+      "AV Alta vs Sarasota Paradise [] id=5109412",
+      "Tampere United vs OLS [] id=5163983",
+      "Lindoe FF vs AC Studenterna [] id=5629973",
+      "Västra Frölunda vs Onsala BK [] id=5629953",
+      "Helsingborg vs Landskrona BoIS [] id=5125526",
+      "Malaga vs Las Palmas [] id=5733232",
+      "Vancouver Whitecaps 2 vs North Texas SC [] id=1000007582",
+      "Forge FC vs HFX Wanderers FC [] id=1000008666",
+      "Inter Toronto FC vs Cavalry FC [] id=1000008667",
+      "Ceara vs Avai FC [] id=5190553",
+      "Goias vs Novorizontino [] id=5190554",
+      "Sport Recife vs Athletic Club [] id=5190550"
+    ]
   }
 }
