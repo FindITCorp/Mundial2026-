@@ -121,11 +121,12 @@ def _ensure_player(conn, team_id: int, api_player: dict) -> int | None:
     pos_id = api_player.get("usualPlayingPositionId", 0)
     # Map grosero positionId FotMob → nuestra categoría
     pos = "GK" if api_player.get("positionId") == 11 else None
-    row = conn.execute(
-        "INSERT INTO players (name, team_id, position, club, age) VALUES (?,?,?,?,?)",
+    conn.execute(
+        "INSERT OR IGNORE INTO players (name, team_id, position, club, age) VALUES (?,?,?,?,?)",
         (name, team_id, pos or "MID", api_player.get("primaryTeamName"), api_player.get("age")),
     )
-    return row.lastrowid
+    row = conn.execute("SELECT id FROM players WHERE name=? AND team_id=?", (name, team_id)).fetchone()
+    return row[0] if row else None
 
 
 def _save_lineup(conn, team_id: int, lineup: dict, match_id, match_date: str,
@@ -199,6 +200,14 @@ def _process_match(conn, m: dict, team_index: dict, pcache: dict,
     away_tid = _resolve_team(team_index, away.get("name", ""))
     if not home_tid and not away_tid:
         return {"skipped": True}
+
+    # Dedup: si este evento ya está en player_match_usage, no gastamos cuota
+    if event_id is not None:
+        already = conn.execute(
+            "SELECT 1 FROM player_match_usage WHERE match_id=? LIMIT 1", (event_id,)
+        ).fetchone()
+        if already and not wc_match_id:
+            return {"skipped": True, "cached": True}
 
     match_date = (m.get("status", {}).get("utcTime", "") or "")[:10] or \
                  datetime.utcnow().strftime("%Y-%m-%d")
