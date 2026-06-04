@@ -107,18 +107,20 @@ def _extract_match_id(date_str: str) -> str | None:
 
 
 def detail_calls(event_id: str) -> list:
-    return [
-        ("/football-get-match-detail", {"eventid": event_id}),
-        ("/football-get-match-info", {"eventid": event_id}),
-        ("/football-get-match-lineups", {"eventid": event_id}),
-        ("/football-get-lineups", {"eventid": event_id}),
-        ("/football-get-match-all-stats", {"eventid": event_id}),
-        ("/football-get-match-stats", {"eventid": event_id}),
-        ("/football-get-match-events", {"eventid": event_id}),
-        ("/football-get-match-shotmap", {"eventid": event_id}),
-        ("/football-get-match-player-stats", {"eventid": event_id}),
-        ("/football-get-match-h2h", {"eventid": event_id}),
+    e = {"eventid": event_id}
+    names = [
+        "/football-get-lineup", "/football-match-lineup", "/football-get-formations",
+        "/football-get-match-data", "/football-get-match-statistics",
+        "/football-match-detail-stats", "/football-get-match-momentum",
+        "/football-get-match-highlights", "/football-get-match-news",
+        "/football-get-match-report", "/football-get-match-summary",
+        "/football-get-match-commentary", "/football-get-match-incidents",
+        "/football-get-match-timeline", "/football-get-match-facts",
+        "/football-get-match-content", "/football-get-match-team-form",
+        "/football-get-match-top-stats", "/football-get-match-players",
+        "/football-get-players-by-match", "/football-get-match-shotmap-team",
     ]
+    return [(n, e) for n in names]
 
 
 def run(date_str: str) -> None:
