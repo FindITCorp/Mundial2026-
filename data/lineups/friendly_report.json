@@ -1,5 +1,5 @@
 {
-  "ran_at": "2026-06-04T15:11:40.829021",
+  "ran_at": "2026-06-04T15:14:29.933701",
   "teams": [
     {
       "name": "Argentina",
@@ -103,6 +103,11 @@
   "players_saved": 0,
   "api_errors": [
     {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+    },
+    {
       "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
@@ -115,6 +120,11 @@
       }
     },
     {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+    },
+    {
       "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
@@ -125,6 +135,11 @@
       "errors": {
         "plan": "Free plans do not have access to this season, try from 2022 to 2024."
       }
+    },
+    {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
     },
     {
       "provider": "apisports",
@@ -139,6 +154,11 @@
       }
     },
     {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+    },
+    {
       "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
@@ -151,6 +171,11 @@
       }
     },
     {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+    },
+    {
       "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
@@ -163,6 +188,11 @@
       }
     },
     {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+    },
+    {
       "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
@@ -173,6 +203,11 @@
       "errors": {
         "plan": "Free plans do not have access to this season, try from 2022 to 2024."
       }
+    },
+    {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
     },
     {
       "provider": "apisports",
@@ -187,6 +222,11 @@
       }
     },
     {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+    },
+    {
       "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
@@ -199,6 +239,11 @@
       }
     },
     {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+    },
+    {
       "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
@@ -211,6 +256,11 @@
       }
     },
     {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+    },
+    {
       "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
@@ -221,6 +271,11 @@
       "errors": {
         "plan": "Free plans do not have access to this season, try from 2022 to 2024."
       }
+    },
+    {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
     },
     {
       "provider": "apisports",
@@ -235,6 +290,11 @@
       }
     },
     {
+      "provider": "rapid",
+      "endpoint": "fixtures",
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+    },
+    {
       "provider": "apisports",
       "endpoint": "fixtures",
       "params": {
@@ -247,100 +307,9 @@
       }
     },
     {
-      "provider": "apisports",
+      "provider": "rapid",
       "endpoint": "fixtures",
-      "params": {
-        "team": 100,
-        "season": 2025,
-        "last": 10
-      },
-      "errors": {
-        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-      }
-    },
-    {
-      "provider": "apisports",
-      "endpoint": "fixtures",
-      "params": {
-        "team": 100,
-        "season": 2026,
-        "last": 10
-      },
-      "errors": {
-        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-      }
-    },
-    {
-      "provider": "apisports",
-      "endpoint": "fixtures",
-      "params": {
-        "team": 244,
-        "season": 2025,
-        "last": 10
-      },
-      "errors": {
-        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-      }
-    },
-    {
-      "provider": "apisports",
-      "endpoint": "fixtures",
-      "params": {
-        "team": 244,
-        "season": 2026,
-        "last": 10
-      },
-      "errors": {
-        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-      }
-    },
-    {
-      "provider": "apisports",
-      "endpoint": "fixtures",
-      "params": {
-        "team": 20,
-        "season": 2025,
-        "last": 10
-      },
-      "errors": {
-        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-      }
-    },
-    {
-      "provider": "apisports",
-      "endpoint": "fixtures",
-      "params": {
-        "team": 20,
-        "season": 2026,
-        "last": 10
-      },
-      "errors": {
-        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-      }
-    },
-    {
-      "provider": "apisports",
-      "endpoint": "fixtures",
-      "params": {
-        "team": 94,
-        "season": 2025,
-        "last": 10
-      },
-      "errors": {
-        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-      }
-    },
-    {
-      "provider": "apisports",
-      "endpoint": "fixtures",
-      "params": {
-        "team": 94,
-        "season": 2026,
-        "last": 10
-      },
-      "errors": {
-        "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-      }
+      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
     }
   ],
   "sample_api_response": {
@@ -357,5 +326,9 @@
     "first_item": null
   },
   "pmu_total": 0,
-  "teams_covered": 0
+  "teams_covered": 0,
+  "keys_present": {
+    "APISPORTS_KEY": true,
+    "APIFOOT": true
+  }
 }
