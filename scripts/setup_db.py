@@ -227,6 +227,58 @@ def create_tables(conn: sqlite3.Connection):
     CREATE INDEX IF NOT EXISTS idx_match_players_team ON match_players(team_id)
     """)
 
+    # --- match_stats (team-level per-match stats for model refinement) ---
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS match_stats (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        wc_match_id         INTEGER REFERENCES wc_matches(id),
+        api_fixture_id      INTEGER,
+        team_id             INTEGER REFERENCES teams(id),
+        team_name           TEXT,
+        is_home             INTEGER DEFAULT 1,
+        xg                  REAL,
+        possession          REAL,
+        shots_total         INTEGER,
+        shots_on_target     INTEGER,
+        corners             INTEGER,
+        fouls               INTEGER,
+        offsides            INTEGER,
+        saves               INTEGER,
+        passes_total        INTEGER,
+        pass_accuracy       REAL,
+        yellow_cards        INTEGER,
+        red_cards           INTEGER,
+        goals_scored        INTEGER,
+        goals_conceded      INTEGER,
+        created_at          TEXT DEFAULT (datetime('now')),
+        UNIQUE(api_fixture_id, team_id)
+    )""")
+
+    cur.execute("""
+    CREATE INDEX IF NOT EXISTS idx_match_stats_fixture ON match_stats(api_fixture_id)
+    """)
+
+    # --- player_match_usage (if not already created via pipelines) ---
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS player_match_usage (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_id       INTEGER NOT NULL REFERENCES players(id),
+        team_id         INTEGER REFERENCES teams(id),
+        match_id        INTEGER,
+        match_date      TEXT,
+        competition     TEXT,
+        is_starter      INTEGER DEFAULT 1,
+        minutes_played  INTEGER DEFAULT 0,
+        sub_in_minute   INTEGER,
+        sub_out_minute  INTEGER,
+        sub_for_id      INTEGER,
+        goals           INTEGER DEFAULT 0,
+        assists         INTEGER DEFAULT 0,
+        yellow_cards    INTEGER DEFAULT 0,
+        red_card        INTEGER DEFAULT 0,
+        UNIQUE(player_id, match_date, team_id)
+    )""")
+
     conn.commit()
     print("  Tablas creadas correctamente.")
 
@@ -1215,6 +1267,15 @@ def migrate_db(conn: sqlite3.Connection):
         ("player_club_stats", "goals_per_90",      "REAL DEFAULT 0"),
         ("player_club_stats", "assists_per_90",    "REAL DEFAULT 0"),
         ("player_club_stats", "xa",                "REAL DEFAULT 0"),
+        # wc_matches extended
+        ("wc_matches",        "api_fixture_id",    "INTEGER"),
+        # match_lineups extended
+        ("match_lineups",     "estimated",         "INTEGER DEFAULT 1"),
+        ("match_lineups",     "minutes_played",    "INTEGER DEFAULT 0"),
+        ("match_lineups",     "sub_in_minute",     "INTEGER"),
+        ("match_lineups",     "sub_out_minute",    "INTEGER"),
+        ("match_lineups",     "sub_for_player_id", "INTEGER"),
+        ("match_lineups",     "confirmed_at",      "TEXT"),
     ]
 
     applied = 0

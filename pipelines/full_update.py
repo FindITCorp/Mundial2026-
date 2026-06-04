@@ -421,6 +421,10 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
     # ── Scope: wc (tournament results only) ──────────────────────────────────
     if scope == "wc":
         _step("Update WC Results", step_update_wc_results)
+        def _fetch_match_events():
+            from pipelines.fetch_match_events import run as ev_run
+            ev_run(hours_window=8)
+        _step("Fetch Match Events & Stats", _fetch_match_events)
         _print_summary(_db_summary())
         return True
 

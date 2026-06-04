@@ -169,6 +169,9 @@ jobs:
       - name: Update WC match results
         run: python pipelines/full_update.py --scope wc || echo "WC update step finished"
 
+      - name: Fetch match events, lineups & statistics
+        run: python pipelines/fetch_match_events.py --window 6 || echo "fetch_match_events done"
+
       - name: Recompute player ratings for recently played matches
         run: |
           python - <<'EOF'

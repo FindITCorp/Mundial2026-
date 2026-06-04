@@ -854,30 +854,36 @@ class PlayerRatingEngine:
 
     def rate_team(self, team_id: int) -> int:
         """Rate all players in a team; store results in player_ratings. Returns count."""
+        # Read players then close — avoids nested WAL connection deadlock with rate_from_club_stats
         conn = self._conn()
-        cur  = conn.cursor()
-        players = cur.execute(
-            "SELECT * FROM players WHERE team_id=?", (team_id,)
-        ).fetchall()
-        rated = 0
+        players = list(conn.execute("SELECT * FROM players WHERE team_id=?", (team_id,)).fetchall())
+        conn.close()
+
+        ratings_to_write: list[tuple] = []
         for p in players:
             season_rating = self.rate_from_club_stats(p["id"])
             if season_rating is None:
                 season_rating = self.estimate_rating_from_profile(p)
             if season_rating is None:
                 continue
-            try:
-                cur.execute("""
-                    INSERT OR REPLACE INTO player_ratings
-                        (player_id, match_id, context, rating, components)
-                    VALUES (?,NULL,'nat',?,'{}')
-                """, (p["id"], season_rating))
-                rated += 1
-            except Exception:
-                pass
-        conn.commit()
-        conn.close()
-        return rated
+            ratings_to_write.append((p["id"], season_rating))
+
+        if ratings_to_write:
+            wconn = sqlite3.connect(self.db_path, timeout=30)
+            wconn.execute("PRAGMA busy_timeout=30000")
+            for pid, r in ratings_to_write:
+                try:
+                    wconn.execute("""
+                        INSERT OR REPLACE INTO player_ratings
+                            (player_id, match_id, context, rating, components)
+                        VALUES (?,NULL,'nat',?,'{}')
+                    """, (pid, r))
+                except Exception:
+                    pass
+            wconn.commit()
+            wconn.close()
+
+        return len(ratings_to_write)
 
 
 def rate_squad_from_profiles(team_name: str, db_path: Optional[Path] = None) -> dict:
