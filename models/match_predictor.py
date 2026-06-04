@@ -452,8 +452,9 @@ def _get_xi_rating(conn, team_id: int) -> float:
     # cap xi — club stats alone (e.g. Haaland's 18xG) don't reflect
     # how a team performs in international tournaments.
     any_tournament = any((r["sb_matches"] or 0) > 0 for r in rows)
+    any_club_xg    = any((r["xg"] or 0) > 0 for r in rows)
     if not any_tournament:
-        xi = min(xi, 0.360)
+        xi = min(xi, 0.62 if any_club_xg else 0.360)
 
     return xi
 
@@ -1172,6 +1173,9 @@ def predict_match(
         "corners_away":    a_corners,
         "set_piece_goals_home": h_sp_goals,
         "set_piece_goals_away": a_sp_goals,
+        # XI rating (top-level para compatibilidad con predict_match.py)
+        "xi_home":         round(home_xi, 3),
+        "xi_away":         round(away_xi, 3),
         # Elo
         "elo_home":        round(home_elo, 1),
         "elo_away":        round(away_elo, 1),
