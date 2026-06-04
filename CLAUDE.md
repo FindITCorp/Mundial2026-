@@ -106,11 +106,28 @@ Script: `scripts/diagnose_wc_coverage.py` (scope `diagnose`). Resultado verifica
   11-jun solo lista ligas menores/clubes (islandesas, USL, brasileñas). Útil solo para
   algunos amistosos, y con ruido (mezcla juveniles). El gasto en su plan PRO NO era
   necesario para el torneo.
-- ⚠️ RIESGO A VERIFICAR cerca del torneo: el plan FREE de api-sports históricamente
-  restringe FIXTURES a temporadas 2021-2023. La liga 2026 aparece en /leagues, pero
-  si /fixtures?season=2026 devuelve vacío con datos ya publicados, habría que subir a
-  un plan de pago de **api-sports** (NO RapidAPI). Hoy devuelve 0 porque el calendario
-  del WC aún no está cargado en el feed (timing real).
+- ✅ CONFIRMADO (no es ya solo riesgo): el plan FREE de api-sports **bloquea 2026**.
+  Error literal de la API: *"Free plans do not have access to this season, try from
+  2022 to 2024."* Aplica a fixtures, friendlies (league 10) y al WC. Para datos 2026
+  hace falta plan de PAGO de api-sports.
+
+### ★ VEREDICTO MINUTOS POR JUGADOR / CALIBRACIÓN AMISTOSOS (06-jun-2026) ★
+Objetivo del usuario: calibrar con datos de amistosos (minutos, rendimiento por jugador).
+Prueba con datos en mano (`diagnose`):
+- **RapidAPI "Free API Live Football Data" (APIFOOT, el plan PRO pagado):** NO sirve.
+  TODOS los endpoints de stats por jugador (minutos/goles/tarjetas/eventos/timeline)
+  devuelven **404 — no existen**. El único endpoint útil (alineación titular+banca) es
+  **poco fiable**: falló en 16/16 partidos en una corrida. Solo da titular vs suplente.
+- **api-sports.io:** tiene el endpoint correcto `/fixtures/players` (minutos, rating,
+  goles por jugador) + `/fixtures/events` (subs/tarjetas) + `/fixtures/lineups`. Es la
+  fuente correcta. Pero en FREE da error de temporada para 2026 (ver arriba).
+- **CONCLUSIÓN:** la ÚNICA fuente fiable de minutos por jugador (amistosos) + datos
+  completos del Mundial es **api-sports.io DE PAGO (~$19/mes, plan Pro)**. Una sola
+  suscripción cubre AMBAS necesidades. El gasto en RapidAPI no aporta a este objetivo.
+- BUG corregido en `pipelines/smartapi.py`: la API devuelve HTTP 200 con cuerpo
+  `{"status":"failed"}`; antes se cacheaba como éxito. Ahora se detecta, NO se cachea y
+  se reintenta (4 intentos en lineups). `_save_lineup` ya captura minutos/goles/subs si
+  la fuente los entrega (defensivo, multi-esquema).
 
 ---
 
