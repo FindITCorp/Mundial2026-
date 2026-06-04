@@ -109,16 +109,20 @@ def _extract_match_id(date_str: str) -> str | None:
 def detail_calls(event_id: str) -> list:
     e = {"eventid": event_id}
     names = [
-        "/football-get-lineup", "/football-match-lineup", "/football-get-formations",
-        "/football-get-match-data", "/football-get-match-statistics",
-        "/football-match-detail-stats", "/football-get-match-momentum",
-        "/football-get-match-highlights", "/football-get-match-news",
-        "/football-get-match-report", "/football-get-match-summary",
-        "/football-get-match-commentary", "/football-get-match-incidents",
-        "/football-get-match-timeline", "/football-get-match-facts",
-        "/football-get-match-content", "/football-get-match-team-form",
-        "/football-get-match-top-stats", "/football-get-match-players",
-        "/football-get-players-by-match", "/football-get-match-shotmap-team",
+        # Lineups (confirmado: football-get-hometeam-lineup)
+        "/football-get-hometeam-lineup", "/football-get-awayteam-lineup",
+        # Eventos / incidencias por minuto
+        "/football-get-match-events", "/football-get-all-events",
+        "/football-get-hometeam-events", "/football-get-awayteam-events",
+        "/football-get-match-incidents", "/football-get-match-timeline",
+        # Estadísticas
+        "/football-get-match-all-stats", "/football-get-hometeam-stats",
+        "/football-get-awayteam-stats", "/football-get-match-team-statistics",
+        # Player stats del partido
+        "/football-get-hometeam-player-stats", "/football-get-awayteam-player-stats",
+        "/football-get-match-player-statistics",
+        # H2H
+        "/football-get-head-to-head",
     ]
     return [(n, e) for n in names]
 
@@ -136,11 +140,15 @@ def run(date_str: str) -> None:
         print(f"    → status={res.get('status')} keys={res.get('top_keys') or res.get('error')}")
         report["probes"].append(res)
 
-    # Fase 2: con un eventid real, probar endpoints de detalle/lineups/eventos
-    event_id = _extract_match_id(date_str)
-    report["event_id_used"] = event_id
-    print(f"\n  event_id real: {event_id}")
-    if event_id:
+    # Fase 2: probar endpoints de detalle con eventids reales.
+    # 4621624 = ejemplo de RapidAPI (partido con cobertura alta, tiene lineup).
+    extracted = _extract_match_id(date_str)
+    event_ids = ["4621624"]
+    if extracted:
+        event_ids.append(extracted)
+    report["event_ids_used"] = event_ids
+    for event_id in event_ids:
+        print(f"\n  === detalle con eventid {event_id} ===")
         for path, params in detail_calls(event_id):
             print(f"  Probing {path} {params}")
             res = _probe(path, params)
