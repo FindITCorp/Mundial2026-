@@ -442,6 +442,14 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
         _step("Probe SmartAPI Endpoints", _probe_api)
         return True
 
+    # ── Scope: diagnose (¿qué API cubre el WC2026 con datos completos?) ──────────
+    if scope == "diagnose":
+        def _diagnose():
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "diagnose_wc_coverage.py")], check=False)
+        _step("Diagnose WC2026 API Coverage", _diagnose)
+        return True
+
     # ── Scope: predict_pairs (predecir parejas explícitas para evaluar en vivo) ─
     if scope == "predict_pairs":
         def _predict_pairs():
