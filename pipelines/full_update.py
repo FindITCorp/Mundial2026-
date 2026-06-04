@@ -445,9 +445,9 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
     # ── Scope: lineups_friendlies (alineaciones pre-torneo de amistosos) ────────
     if scope == "lineups_friendlies":
         def _fetch_friendly_lineups():
-            from pipelines.fetch_friendly_lineups import run as fl_run
-            fl_run(max_teams=20)  # ~20 equipos por día para no exceder 100 req
-        _step("Fetch Friendly Lineups", _fetch_friendly_lineups)
+            from pipelines.fetch_smartapi_lineups import run_friendlies
+            run_friendlies(days=10)  # últimos 10 días de amistosos vía Smart API
+        _step("Fetch Friendly Lineups (SmartAPI)", _fetch_friendly_lineups)
         _print_summary(_db_summary())
         return True
 

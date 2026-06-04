@@ -97,6 +97,9 @@ jobs:
       - name: Confirmar XI oficial via API (1h antes kickoff)
         run: python pipelines/pre_match_lineup.py --mode confirm || echo "Confirm step done"
 
+      - name: Alineaciones confirmadas + stats (SmartAPI)
+        run: python pipelines/fetch_smartapi_lineups.py --mode matchday || echo "SmartAPI matchday done"
+
       - name: _legacy_lineup_fetch_DISABLED
         if: false
         run: |
