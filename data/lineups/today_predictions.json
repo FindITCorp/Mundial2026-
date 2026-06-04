@@ -1,0 +1,8 @@
+{
+  "date": "20260604",
+  "generated_at": "2026-06-04T19:16:40.014495",
+  "predictions": [],
+  "errors": [
+    "matches_by_date: matches_by_date() got an unexpected keyword argument 'fresh'"
+  ]
+}
