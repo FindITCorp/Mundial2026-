@@ -1,5 +1,5 @@
 {
-  "ran_at": "2026-06-04T15:14:29.933701",
+  "ran_at": "2026-06-04T15:17:49.794811",
   "teams": [
     {
       "name": "Argentina",
@@ -105,7 +105,8 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 403,
+      "body": "{\"message\":\"You are not subscribed to this API.\"}"
     },
     {
       "provider": "apisports",
@@ -122,7 +123,7 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 429
     },
     {
       "provider": "apisports",
@@ -139,7 +140,8 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 403,
+      "body": "{\"message\":\"You are not subscribed to this API.\"}"
     },
     {
       "provider": "apisports",
@@ -156,7 +158,7 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 429
     },
     {
       "provider": "apisports",
@@ -173,7 +175,8 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 403,
+      "body": "{\"message\":\"You are not subscribed to this API.\"}"
     },
     {
       "provider": "apisports",
@@ -190,7 +193,7 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 429
     },
     {
       "provider": "apisports",
@@ -207,7 +210,8 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 403,
+      "body": "{\"message\":\"You are not subscribed to this API.\"}"
     },
     {
       "provider": "apisports",
@@ -224,7 +228,7 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 429
     },
     {
       "provider": "apisports",
@@ -241,7 +245,8 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 403,
+      "body": "{\"message\":\"You are not subscribed to this API.\"}"
     },
     {
       "provider": "apisports",
@@ -258,7 +263,7 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 429
     },
     {
       "provider": "apisports",
@@ -275,7 +280,8 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 403,
+      "body": "{\"message\":\"You are not subscribed to this API.\"}"
     },
     {
       "provider": "apisports",
@@ -292,7 +298,7 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 429
     },
     {
       "provider": "apisports",
@@ -309,7 +315,8 @@
     {
       "provider": "rapid",
       "endpoint": "fixtures",
-      "exception": "Invalid leading whitespace, reserved character(s), or returncharacter(s) in header value: 'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12d"
+      "status": 403,
+      "body": "{\"message\":\"You are not subscribed to this API.\"}"
     }
   ],
   "sample_api_response": {
