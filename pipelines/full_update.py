@@ -29,7 +29,7 @@ DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
 LOGS_DIR = BASE_DIR / "data" / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "today_fixtures")
+VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "today_fixtures", "predict_pairs")
 
 
 def _setup_logger() -> logging.Logger:
@@ -440,6 +440,14 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
             from pipelines.probe_smartapi import run as probe_run
             probe_run(datetime.utcnow().strftime("%Y%m%d"))
         _step("Probe SmartAPI Endpoints", _probe_api)
+        return True
+
+    # ── Scope: predict_pairs (predecir parejas explícitas para evaluar en vivo) ─
+    if scope == "predict_pairs":
+        def _predict_pairs():
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "predict_pair.py")], check=False)
+        _step("Predict Explicit Pairs (Poisson)", _predict_pairs)
         return True
 
     # ── Scope: today_fixtures (listar amistosos WC de hoy para predecir) ────────

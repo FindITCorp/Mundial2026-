@@ -38,6 +38,7 @@ on:
           - lineups_friendlies
           - probe
           - today_fixtures
+          - predict_pairs
 
 jobs:
   update:
