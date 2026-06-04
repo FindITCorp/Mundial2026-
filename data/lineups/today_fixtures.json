@@ -1,0 +1,106 @@
+{
+  "date": "20260604",
+  "count": 10,
+  "matches": [
+    {
+      "event_id": 5729607,
+      "home": "Panama",
+      "away": "Dominican Republic",
+      "home_wc": true,
+      "away_wc": true,
+      "time": "2026-06-04T00:45:00.000Z",
+      "started": true,
+      "finished": true
+    },
+    {
+      "event_id": 5628901,
+      "home": "South Korea",
+      "away": "El Salvador",
+      "home_wc": true,
+      "away_wc": true,
+      "time": "2026-06-04T01:00:00.000Z",
+      "started": true,
+      "finished": true
+    },
+    {
+      "event_id": 5729608,
+      "home": "Cambodia",
+      "away": "Bhutan",
+      "home_wc": true,
+      "away_wc": false,
+      "time": "2026-06-04T12:00:00.000Z",
+      "started": true,
+      "finished": true
+    },
+    {
+      "event_id": 5729609,
+      "home": "Kenya",
+      "away": "Lesotho",
+      "home_wc": true,
+      "away_wc": true,
+      "time": "2026-06-04T13:00:00.000Z",
+      "started": true,
+      "finished": true
+    },
+    {
+      "event_id": 5729611,
+      "home": "Burundi",
+      "away": "Equatorial Guinea",
+      "home_wc": true,
+      "away_wc": true,
+      "time": "2026-06-04T16:00:00.000Z",
+      "started": false,
+      "finished": false
+    },
+    {
+      "event_id": 5451162,
+      "home": "Northern Ireland",
+      "away": "Guinea",
+      "home_wc": true,
+      "away_wc": true,
+      "time": "2026-06-04T16:00:00.000Z",
+      "started": true,
+      "finished": true
+    },
+    {
+      "event_id": 5418295,
+      "home": "Slovenia",
+      "away": "Cyprus",
+      "home_wc": true,
+      "away_wc": true,
+      "time": "2026-06-04T16:00:00.000Z",
+      "started": true,
+      "finished": true
+    },
+    {
+      "event_id": 5648187,
+      "home": "Andorra",
+      "away": "Liechtenstein",
+      "home_wc": true,
+      "away_wc": true,
+      "time": "2026-06-04T17:00:00.000Z",
+      "started": true,
+      "finished": true
+    },
+    {
+      "event_id": 5418296,
+      "home": "Sweden",
+      "away": "Greece",
+      "home_wc": true,
+      "away_wc": true,
+      "time": "2026-06-04T17:00:00.000Z",
+      "started": true,
+      "finished": true
+    },
+    {
+      "event_id": 4687578,
+      "home": "Lebanon",
+      "away": "Yemen",
+      "home_wc": true,
+      "away_wc": true,
+      "time": "2026-06-04T16:00:00.000Z",
+      "started": true,
+      "finished": true
+    }
+  ]
+}
