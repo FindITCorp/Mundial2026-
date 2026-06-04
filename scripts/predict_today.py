@@ -79,6 +79,12 @@ def main():
         # Solo selecciones ABSOLUTAS: descarta juveniles/reservas/femenil/clubes B.
         if not (_is_senior(home) and _is_senior(away)):
             continue
+        # Solo PREDECIR partidos que aún NO empiezan. Los ya iniciados/terminados
+        # (la API los lista por timezone aunque se jugaron anoche) NO se predicen:
+        # serían "predicciones" de un resultado ya conocido.
+        st = m.get("status", {}) if isinstance(m.get("status"), dict) else {}
+        if st.get("started") or st.get("finished"):
+            continue
         htid = _resolve_team(team_index, home)
         atid = _resolve_team(team_index, away)
         if not (htid or atid):
