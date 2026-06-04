@@ -1,5 +1,5 @@
 {
-  "ran_at": "2026-06-04T16:28:41.156594",
+  "ran_at": "2026-06-04T16:31:50.102639",
   "host": "free-api-live-football-data.p.rapidapi.com",
   "key_present": true,
   "probes": [
@@ -47,9 +47,9 @@
               "ongoing": true,
               "scoreStr": "1 - 0",
               "liveTime": {
-                "short": "26‎’‎",
+                "short": "29‎’‎",
                 "shortKey": "",
-                "long": "25:45",
+                "long": "28:45",
                 "longKey": "",
                 "maxTime": 45,
                 "basePeriod": 45,
@@ -89,9 +89,9 @@
               "ongoing": true,
               "scoreStr": "0 - 1",
               "liveTime": {
-                "short": "26‎’‎",
+                "short": "29‎’‎",
                 "shortKey": "",
-                "long": "25:42",
+                "long": "28:42",
                 "longKey": "",
                 "maxTime": 45,
                 "basePeriod": 45,
@@ -131,9 +131,9 @@
               "ongoing": true,
               "scoreStr": "0 - 0",
               "liveTime": {
-                "short": "28‎’‎",
+                "short": "31‎’‎",
                 "shortKey": "",
-                "long": "27:39",
+                "long": "30:39",
                 "longKey": "",
                 "maxTime": 45,
                 "basePeriod": 45,
@@ -174,9 +174,9 @@
               "ongoing": true,
               "scoreStr": "1 - 3",
               "liveTime": {
-                "short": "71‎’‎",
+                "short": "74‎’‎",
                 "shortKey": "",
-                "long": "70:49",
+                "long": "73:49",
                 "longKey": "",
                 "maxTime": 90,
                 "basePeriod": 90,
@@ -216,9 +216,9 @@
               "ongoing": true,
               "scoreStr": "1 - 0",
               "liveTime": {
-                "short": "26‎’‎",
+                "short": "29‎’‎",
                 "shortKey": "",
-                "long": "25:43",
+                "long": "28:43",
                 "longKey": "",
                 "maxTime": 45,
                 "basePeriod": 45,
@@ -258,9 +258,9 @@
               "ongoing": true,
               "scoreStr": "0 - 0",
               "liveTime": {
-                "short": "24‎’‎",
+                "short": "27‎’‎",
                 "shortKey": "",
-                "long": "23:20",
+                "long": "26:20",
                 "longKey": "",
                 "maxTime": 45,
                 "basePeriod": 45,
@@ -515,9 +515,9 @@
               "ongoing": true,
               "scoreStr": "1 - 0",
               "liveTime": {
-                "short": "26‎’‎",
+                "short": "29‎’‎",
                 "shortKey": "",
-                "long": "25:48",
+                "long": "28:57",
                 "longKey": "",
                 "maxTime": 45,
                 "basePeriod": 45,
@@ -557,9 +557,9 @@
               "ongoing": true,
               "scoreStr": "0 - 1",
               "liveTime": {
-                "short": "26‎’‎",
+                "short": "29‎’‎",
                 "shortKey": "",
-                "long": "25:45",
+                "long": "28:54",
                 "longKey": "",
                 "maxTime": 45,
                 "basePeriod": 45,
@@ -723,9 +723,9 @@
               "ongoing": true,
               "scoreStr": "0 - 0",
               "liveTime": {
-                "short": "28‎’‎",
+                "short": "31‎’‎",
                 "shortKey": "",
-                "long": "27:42",
+                "long": "30:51",
                 "longKey": "",
                 "maxTime": 45,
                 "basePeriod": 45,
@@ -1003,9 +1003,9 @@
               "ongoing": true,
               "scoreStr": "1 - 3",
               "liveTime": {
-                "short": "71‎’‎",
+                "short": "75‎’‎",
                 "shortKey": "",
-                "long": "70:52",
+                "long": "74:01",
                 "longKey": "",
                 "maxTime": 90,
                 "basePeriod": 90,
@@ -1045,9 +1045,9 @@
               "ongoing": true,
               "scoreStr": "1 - 0",
               "liveTime": {
-                "short": "26‎’‎",
+                "short": "29‎’‎",
                 "shortKey": "",
-                "long": "25:46",
+                "long": "28:55",
                 "longKey": "",
                 "maxTime": 45,
                 "basePeriod": 45,
@@ -1087,9 +1087,9 @@
               "ongoing": true,
               "scoreStr": "0 - 0",
               "liveTime": {
-                "short": "24‎’‎",
+                "short": "27‎’‎",
                 "shortKey": "",
-                "long": "23:23",
+                "long": "26:32",
                 "longKey": "",
                 "maxTime": 45,
                 "basePeriod": 45,
@@ -2835,7 +2835,119 @@
       }
     },
     {
-      "path": "/football-get-match-detail",
+      "path": "/football-get-lineup",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-get-lineup' does not exist"
+      }
+    },
+    {
+      "path": "/football-match-lineup",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-match-lineup' does not exist"
+      }
+    },
+    {
+      "path": "/football-get-formations",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-get-formations' does not exist"
+      }
+    },
+    {
+      "path": "/football-get-match-data",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-get-match-data' does not exist"
+      }
+    },
+    {
+      "path": "/football-get-match-statistics",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-get-match-statistics' does not exist"
+      }
+    },
+    {
+      "path": "/football-match-detail-stats",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-match-detail-stats' does not exist"
+      }
+    },
+    {
+      "path": "/football-get-match-momentum",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-get-match-momentum' does not exist"
+      }
+    },
+    {
+      "path": "/football-get-match-highlights",
       "params": {
         "eventid": "5729607"
       },
@@ -2845,55 +2957,14 @@
         "response"
       ],
       "body_keys": [
-        "detail"
+        "highlights"
       ],
       "body_sample": {
-        "detail": {
-          "matchId": "5729607",
-          "matchName": "Panama-vs-Dominican Republic_Thu, Jun 4, 2026, 00:45 UTC",
-          "matchRound": null,
-          "teamColors": {
-            "darkMode": {
-              "home": "#BF1F27",
-              "away": "#3060A8"
-            },
-            "lightMode": {
-              "home": "#BF1F27",
-              "away": "#3060A8"
-            },
-            "fontDarkMode": {
-              "home": "rgba(255, 255, 255, 1.0)",
-              "away": "rgba(255, 255, 255, 1.0)"
-            },
-            "fontLightMode": {
-              "home": "rgba(255, 255, 255, 1.0)",
-              "away": "rgba(255, 255, 255, 1.0)"
-            }
-          },
-          "leagueId": 914609,
-          "leagueName": "Friendlies",
-          "leagueRoundName": null,
-          "parentLeagueId": 114,
-          "countryCode": "INT",
-          "homeTeam": {
-            "name": "Panama",
-            "id": 5922
-          },
-          "awayTeam": {
-            "name": "Dominican Republic",
-            "id": 262134
-          },
-          "coverageLevel": "lower",
-          "matchTimeUTC": "Thu, Jun 4, 2026, 00:45 UTC",
-          "matchTimeUTCDate": "2026-06-04T00:45:00.000Z",
-          "started": true,
-          "finished": true,
-          "gender": "male"
-        }
+        "highlights": null
       }
     },
     {
-      "path": "/football-get-match-info",
+      "path": "/football-get-match-news",
       "params": {
         "eventid": "5729607"
       },
@@ -2905,11 +2976,11 @@
         "message"
       ],
       "body_sample": {
-        "message": "Endpoint '/football-get-match-info' does not exist"
+        "message": "Endpoint '/football-get-match-news' does not exist"
       }
     },
     {
-      "path": "/football-get-match-lineups",
+      "path": "/football-get-match-report",
       "params": {
         "eventid": "5729607"
       },
@@ -2921,11 +2992,11 @@
         "message"
       ],
       "body_sample": {
-        "message": "Endpoint '/football-get-match-lineups' does not exist"
+        "message": "Endpoint '/football-get-match-report' does not exist"
       }
     },
     {
-      "path": "/football-get-lineups",
+      "path": "/football-get-match-summary",
       "params": {
         "eventid": "5729607"
       },
@@ -2937,30 +3008,11 @@
         "message"
       ],
       "body_sample": {
-        "message": "Endpoint '/football-get-lineups' does not exist"
+        "message": "Endpoint '/football-get-match-summary' does not exist"
       }
     },
     {
-      "path": "/football-get-match-all-stats",
-      "params": {
-        "eventid": "5729607"
-      },
-      "status": 200,
-      "top_keys": [
-        "status",
-        "message"
-      ],
-      "body_keys": [
-        "status",
-        "message"
-      ],
-      "body_sample": {
-        "status": "failed",
-        "message": "Request Failed Please try Again"
-      }
-    },
-    {
-      "path": "/football-get-match-stats",
+      "path": "/football-get-match-commentary",
       "params": {
         "eventid": "5729607"
       },
@@ -2972,11 +3024,11 @@
         "message"
       ],
       "body_sample": {
-        "message": "Endpoint '/football-get-match-stats' does not exist"
+        "message": "Endpoint '/football-get-match-commentary' does not exist"
       }
     },
     {
-      "path": "/football-get-match-events",
+      "path": "/football-get-match-incidents",
       "params": {
         "eventid": "5729607"
       },
@@ -2988,11 +3040,11 @@
         "message"
       ],
       "body_sample": {
-        "message": "Endpoint '/football-get-match-events' does not exist"
+        "message": "Endpoint '/football-get-match-incidents' does not exist"
       }
     },
     {
-      "path": "/football-get-match-shotmap",
+      "path": "/football-get-match-timeline",
       "params": {
         "eventid": "5729607"
       },
@@ -3004,11 +3056,11 @@
         "message"
       ],
       "body_sample": {
-        "message": "Endpoint '/football-get-match-shotmap' does not exist"
+        "message": "Endpoint '/football-get-match-timeline' does not exist"
       }
     },
     {
-      "path": "/football-get-match-player-stats",
+      "path": "/football-get-match-facts",
       "params": {
         "eventid": "5729607"
       },
@@ -3020,11 +3072,11 @@
         "message"
       ],
       "body_sample": {
-        "message": "Endpoint '/football-get-match-player-stats' does not exist"
+        "message": "Endpoint '/football-get-match-facts' does not exist"
       }
     },
     {
-      "path": "/football-get-match-h2h",
+      "path": "/football-get-match-content",
       "params": {
         "eventid": "5729607"
       },
@@ -3036,7 +3088,87 @@
         "message"
       ],
       "body_sample": {
-        "message": "Endpoint '/football-get-match-h2h' does not exist"
+        "message": "Endpoint '/football-get-match-content' does not exist"
+      }
+    },
+    {
+      "path": "/football-get-match-team-form",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-get-match-team-form' does not exist"
+      }
+    },
+    {
+      "path": "/football-get-match-top-stats",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-get-match-top-stats' does not exist"
+      }
+    },
+    {
+      "path": "/football-get-match-players",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-get-match-players' does not exist"
+      }
+    },
+    {
+      "path": "/football-get-players-by-match",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-get-players-by-match' does not exist"
+      }
+    },
+    {
+      "path": "/football-get-match-shotmap-team",
+      "params": {
+        "eventid": "5729607"
+      },
+      "status": 404,
+      "top_keys": [
+        "message"
+      ],
+      "body_keys": [
+        "message"
+      ],
+      "body_sample": {
+        "message": "Endpoint '/football-get-match-shotmap-team' does not exist"
       }
     }
   ],
