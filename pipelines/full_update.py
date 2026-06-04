@@ -29,7 +29,7 @@ DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
 LOGS_DIR = BASE_DIR / "data" / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies")
+VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe")
 
 
 def _setup_logger() -> logging.Logger:
@@ -432,6 +432,14 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
     if scope == "historical":
         _step("Fetch Historical WC Data", step_fetch_historical)
         _print_summary(_db_summary())
+        return True
+
+    # ── Scope: probe (descubrir endpoints de Free API Live Football Data) ───────
+    if scope == "probe":
+        def _probe_api():
+            from pipelines.probe_smartapi import run as probe_run
+            probe_run(datetime.utcnow().strftime("%Y%m%d"))
+        _step("Probe SmartAPI Endpoints", _probe_api)
         return True
 
     # ── Scope: lineups_friendlies (alineaciones pre-torneo de amistosos) ────────
