@@ -1,9 +1,9 @@
 {
-  "ran_at": "2026-06-04T22:29:05.990560",
+  "ran_at": "2026-06-04T22:38:14.737787",
   "apisports": {
     "plan": "Free",
     "requests": {
-      "current": 0,
+      "current": 3,
       "limit_day": 100
     },
     "leagues_wc": [
@@ -494,5 +494,40 @@
       "Goias vs Novorizontino [] id=5190554",
       "Sport Recife vs Athletic Club [] id=5190550"
     ]
+  },
+  "lineup_detail": {
+    "lineup_status": 200,
+    "candidate_endpoints": {
+      "/football-get-match-player-stats": {
+        "status": 404,
+        "response_keys": null,
+        "has_data": false
+      },
+      "/football-get-player-stats": {
+        "status": 404,
+        "response_keys": null,
+        "has_data": false
+      },
+      "/football-get-match-events": {
+        "status": 404,
+        "response_keys": null,
+        "has_data": false
+      },
+      "/football-get-match-details": {
+        "status": 404,
+        "response_keys": null,
+        "has_data": false
+      },
+      "/football-get-lineups-detail": {
+        "status": 404,
+        "response_keys": null,
+        "has_data": false
+      },
+      "/football-get-match-lineups": {
+        "status": 404,
+        "response_keys": null,
+        "has_data": false
+      }
+    }
   }
 }
