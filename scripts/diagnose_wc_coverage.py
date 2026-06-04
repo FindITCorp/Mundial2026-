@@ -129,9 +129,58 @@ def test_rapidapi():
     out["all_matches_20260611"] = all_matches
 
 
+def probe_lineup_detail():
+    """Volcar la estructura CRUDA del lineup de un amistoso senior terminado, para
+    ver qué campos por jugador trae la RapidAPI (minutos, subs, goles, tarjetas) y
+    qué endpoints adicionales existen (player-stats / events / match-details)."""
+    out = report["lineup_detail"] = {}
+    if not APIFOOT:
+        out["error"] = "APIFOOT no configurada"
+        return
+    import re
+    key = APIFOOT.strip()
+    m = re.search(r"[0-9a-zA-Z]+msh[0-9a-zA-Z]+jsn[0-9a-zA-Z]+", key)
+    if m:
+        key = m.group(0)
+    host = "free-api-live-football-data.p.rapidapi.com"
+    h = {"x-rapidapi-host": host, "x-rapidapi-key": key}
+    base = f"https://{host}"
+    eid = "5729607"  # Panama vs Dominican Republic (senior, terminado)
+
+    # 1. Lineup local crudo — campos por jugador
+    st, d = _get(f"{base}/football-get-hometeam-lineup", h, {"eventid": eid})
+    out["lineup_status"] = st
+    lu = (d.get("response", {}) or {}).get("lineup") if isinstance(d, dict) else None
+    if isinstance(lu, dict):
+        out["lineup_keys"] = list(lu.keys())
+        starters = lu.get("starters", [])
+        subs = lu.get("subs", [])
+        out["starter_count"] = len(starters)
+        out["sub_count"] = len(subs)
+        if starters:
+            out["starter_player_fields"] = list(starters[0].keys())
+            out["starter_player_sample"] = starters[0]
+        if subs:
+            out["sub_player_sample"] = subs[0]
+
+    # 2. Probar endpoints candidatos de detalle por jugador / eventos
+    out["candidate_endpoints"] = {}
+    for path in ("/football-get-match-player-stats",
+                 "/football-get-player-stats",
+                 "/football-get-match-events",
+                 "/football-get-match-details",
+                 "/football-get-lineups-detail",
+                 "/football-get-match-lineups"):
+        st2, d2 = _get(f"{base}{path}", h, {"eventid": eid})
+        keys = list(d2.get("response", {}).keys()) if isinstance(d2, dict) and isinstance(d2.get("response"), dict) else None
+        out["candidate_endpoints"][path] = {"status": st2, "response_keys": keys,
+                                            "has_data": bool(d2.get("response")) if isinstance(d2, dict) else False}
+
+
 if __name__ == "__main__":
     test_apisports()
     test_rapidapi()
+    probe_lineup_detail()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(report, ensure_ascii=False, indent=2))
     print(json.dumps(report, ensure_ascii=False, indent=2))
