@@ -147,21 +147,20 @@ def probe_lineup_detail():
     base = f"https://{host}"
     eid = "5729607"  # Panama vs Dominican Republic (senior, terminado)
 
-    # 1. Lineup local crudo — campos por jugador
+    # 1. Lineup local crudo — VOLCAR ESTRUCTURA REAL completa (truncada)
     st, d = _get(f"{base}/football-get-hometeam-lineup", h, {"eventid": eid})
     out["lineup_status"] = st
-    lu = (d.get("response", {}) or {}).get("lineup") if isinstance(d, dict) else None
-    if isinstance(lu, dict):
-        out["lineup_keys"] = list(lu.keys())
-        starters = lu.get("starters", [])
-        subs = lu.get("subs", [])
-        out["starter_count"] = len(starters)
-        out["sub_count"] = len(subs)
-        if starters:
-            out["starter_player_fields"] = list(starters[0].keys())
-            out["starter_player_sample"] = starters[0]
-        if subs:
-            out["sub_player_sample"] = subs[0]
+    out["top_keys"] = list(d.keys()) if isinstance(d, dict) else type(d).__name__
+    resp = d.get("response") if isinstance(d, dict) else None
+    out["response_type"] = type(resp).__name__
+    if isinstance(resp, dict):
+        out["response_keys"] = list(resp.keys())
+    elif isinstance(resp, list) and resp:
+        out["response_list_len"] = len(resp)
+        out["response_first_keys"] = list(resp[0].keys()) if isinstance(resp[0], dict) else None
+    # Volcado crudo truncado para ver la forma exacta
+    raw = json.dumps(d, ensure_ascii=False)
+    out["raw_sample_2500"] = raw[:2500]
 
     # 2. Probar endpoints candidatos de detalle por jugador / eventos
     out["candidate_endpoints"] = {}
