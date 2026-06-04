@@ -24,6 +24,10 @@ OUT = BASE_DIR / "data" / "lineups" / "pair_predictions.json"
 
 from models.match_predictor import predict_by_name  # noqa: E402
 
+# El comando CANÓNICO es predict_match.py (en la raíz). Este script comparte el
+# MISMO motor (predict_by_name, 6 factores con XI 11v11). No usar simuladores
+# parciales: todo pasa por predict_by_name para no dejar factores fuera.
+
 
 def _parse_events(spec: str) -> list:
     """'Edson Álvarez:suspension,Raúl Jiménez:injury' → [{player,reason}, ...]"""
