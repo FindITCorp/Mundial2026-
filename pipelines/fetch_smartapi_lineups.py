@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sqlite3
 import sys
 import unicodedata
@@ -53,6 +54,22 @@ def _norm(s: str) -> str:
     return "".join(c for c in s if unicodedata.category(c) != "Mn")
 
 
+# Marcadores de equipos NO absolutos: juveniles, reservas, femeninos, olímpicos.
+# La API devuelve "Spain U21", "France U19", etc. y el fallback "contiene" del
+# resolver los emparejaba con la selección absoluta → contaminaba la forma.
+_NOT_SENIOR = re.compile(
+    r"\b(u-?\d{1,2}|sub-?\d{1,2}|under-?\d{1,2}|women|femenin|femenil|ladies|"
+    r"girls|reserves?|reserva|olympic|olimpic|olimpic[oa]|amateur|youth|"
+    r"juvenil|academy|\bb\b|ii)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_senior(api_name: str) -> bool:
+    """True solo si el nombre corresponde a una selección ABSOLUTA."""
+    return not _NOT_SENIOR.search(api_name or "")
+
+
 def _build_team_index(conn) -> dict:
     """norm(name) → team_id para todos los equipos WC."""
     idx = {}
@@ -62,6 +79,10 @@ def _build_team_index(conn) -> dict:
 
 
 def _resolve_team(team_index: dict, api_name: str) -> int | None:
+    # Rechazar juveniles/reservas/femeninos ANTES de cualquier match difuso:
+    # evita que "Spain U21" caiga en la selección absoluta por el fallback "contiene".
+    if not _is_senior(api_name):
+        return None
     n = _norm(api_name)
     if n in team_index:
         return team_index[n]

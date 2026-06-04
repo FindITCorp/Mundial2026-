@@ -350,6 +350,29 @@ REGLAS DURAS (no repetir errores pasados):
   dato antes de confiar en la predicción. Para rivales NO clasificados, el ⚠ es
   esperado y la predicción se reporta como "no fiable".
 
+### ★ PESO DE SEÑAL POR PARTIDO en la FORMA (calibración 04-jun-2026) ★
+No todos los partidos informan igual sobre la forma real. `_get_form()` pondera
+CADA partido por `señal = importancia_competición × fuerza_alineación`:
+- **Importancia de competición** (`_comp_importance`): amistoso 0.45 ≪ eliminatoria
+  0.84-0.88 < torneo mayor 1.00 (WC/Euro/Copa América). Un amistoso pesa la mitad.
+- **Fuerza de alineación** (`_lineup_strength_factor`): mide qué tanto del XI que
+  REALMENTE jugó (player_match_usage) está entre los 26 convocados oficiales
+  (projected_lineups). Equipo A ≈ 1.00; equipo B ≈ 0.60; juvenil/amateur ≈ 0.40.
+  → "empatar 1-1 con tu equipo B" NO penaliza la forma del equipo A del Mundial.
+  El cruce es por APELLIDO normalizado (`_name_key`), robusto a player_id duplicados.
+- Datos reales: competition (team_matches) + alineación (player_match_usage). NO se
+  recalibran parámetros sin datos — solo se pondera la SEÑAL conocida de cada partido.
+
+### ⚠ CONTAMINACIÓN JUVENIL/B — resuelta (04-jun-2026)
+El pipeline `fetch_smartapi_lineups.py` metía partidos juveniles ("Spain U21",
+"France U19") en el team_id ABSOLUTO por el fallback "contiene" de `_resolve_team`.
+Doble blindaje:
+1. **Pipeline**: `_is_senior()` rechaza nombres con U17/U21/women/reserves/etc ANTES
+   del match difuso. NO ingiere juveniles.
+2. **Modelo**: `_lineup_strength_factor` descuenta a 0.40 cualquier XI sin solape
+   con los convocados (defensa en profundidad si la API mintiera el nombre).
+Se limpiaron 638 filas (31 partidos) ya contaminadas de player_match_usage.
+
 ### Predicción legacy (referencia, NO usar como principal):
 ```bash
 python3 predict.py --home "Panama" --away "Croatia"
