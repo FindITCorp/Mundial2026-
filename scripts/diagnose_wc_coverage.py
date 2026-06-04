@@ -91,6 +91,38 @@ def test_apisports():
                 "stats_available": len(ds.get("response", [])) if isinstance(ds, dict) else 0,
             }
 
+    # 5. PRUEBA CLAVE: ¿api-sports trae AMISTOSOS 2026 con MINUTOS por jugador?
+    #    Friendlies = league 10. Esto decide si el objetivo (minutos) es viable.
+    fr = out["friendlies_2026"] = {}
+    st, d = _get(f"{base}/fixtures", h,
+                 {"league": 10, "season": 2026, "from": "2026-06-01", "to": "2026-06-04"})
+    fr["errors"] = d.get("errors") if isinstance(d, dict) else None
+    fixtures = d.get("response", []) if isinstance(d, dict) else []
+    fr["count"] = len(fixtures)
+    fr["sample"] = []
+    fid = None
+    for f in fixtures[:8]:
+        t = f.get("teams", {})
+        fr["sample"].append(f"{t.get('home', {}).get('name')} vs {t.get('away', {}).get('name')}")
+        if fid is None and t.get("home", {}).get("name"):
+            fid = f.get("fixture", {}).get("id")
+    # ¿Hay MINUTOS por jugador para un amistoso? (/fixtures/players)
+    if fid:
+        st_p, dp = _get(f"{base}/fixtures/players", h, {"fixture": fid})
+        players = dp.get("response", []) if isinstance(dp, dict) else []
+        sample_player = None
+        if players and players[0].get("players"):
+            pl = players[0]["players"][0]
+            stats0 = (pl.get("statistics") or [{}])[0]
+            sample_player = {
+                "name": pl.get("player", {}).get("name"),
+                "minutes": stats0.get("games", {}).get("minutes"),
+                "rating": stats0.get("games", {}).get("rating"),
+                "goals": stats0.get("goals", {}).get("total"),
+            }
+        fr["players_endpoint"] = {"fixture_id": fid, "teams": len(players),
+                                  "sample_player": sample_player}
+
 
 # ─────────────────────── RapidAPI (lo del $20) ───────────────────────
 def test_rapidapi():
