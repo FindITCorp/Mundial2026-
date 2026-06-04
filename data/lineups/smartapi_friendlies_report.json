@@ -1,166 +1,12 @@
 {
   "mode": "friendlies",
-  "ran_at": "2026-06-04T21:07:40.686354",
+  "ran_at": "2026-06-04T22:45:47.254381",
   "days": 10,
   "matches_processed": [
     {
       "event_id": 5729607,
       "home": "Panama",
       "away": "Dominican Republic",
-      "players": 28,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5628901,
-      "home": "South Korea",
-      "away": "El Salvador",
-      "players": 25,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5418295,
-      "home": "Slovenia",
-      "away": "Cyprus",
-      "players": 25,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5418296,
-      "home": "Sweden",
-      "away": "Greece",
-      "players": 26,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5316956,
-      "home": "Belgium U17",
-      "away": "France U17",
-      "players": 40,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5316957,
-      "home": "Italy U17",
-      "away": "Spain U17",
-      "players": 40,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5736071,
-      "home": "Sweden U21",
-      "away": "Finland U21",
-      "players": 0,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5629010,
-      "home": "Haiti",
-      "away": "New Zealand",
-      "players": 22,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5425678,
-      "home": "DR Congo",
-      "away": "Denmark",
-      "players": 48,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5477265,
-      "home": "Luxembourg",
-      "away": "Italy",
-      "players": 25,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5212021,
-      "home": "Netherlands",
-      "away": "Algeria",
-      "players": 52,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5293169,
-      "home": "Poland",
-      "away": "Nigeria",
-      "players": 47,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5736136,
-      "home": "Portugal U21",
-      "away": "Northern Ireland U21",
-      "players": 0,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5429868,
-      "home": "Japan U20",
-      "away": "Portugal U20",
-      "players": 0,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5429869,
-      "home": "Ivory Coast U20",
-      "away": "Venezuela U20",
-      "players": 0,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5629008,
-      "home": "Colombia",
-      "away": "Costa Rica",
-      "players": 49,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5142040,
-      "home": "Canada",
-      "away": "Uzbekistan",
-      "players": 49,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5147839,
-      "home": "Croatia",
-      "away": "Belgium",
-      "players": 50,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5288934,
-      "home": "Georgia",
-      "away": "Romania",
-      "players": 23,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5604660,
-      "home": "Morocco",
-      "away": "Madagascar",
-      "players": 24,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5226683,
-      "home": "Wales",
-      "away": "Ghana",
-      "players": 26,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5429858,
-      "home": "China U20",
-      "away": "DR Congo U20",
-      "players": 0,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5429859,
-      "home": "Saudi Arabia U23",
-      "away": "Colombia U19",
       "players": 0,
       "stats_rows": 0
     },
@@ -168,76 +14,13 @@
       "event_id": 1000010758,
       "home": "Maguary",
       "away": "Sousa",
-      "players": 20,
+      "players": 0,
       "stats_rows": 0
-    },
-    {
-      "event_id": 5098971,
-      "home": "USA",
-      "away": "Senegal",
-      "players": 46,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5629007,
-      "home": "Brazil",
-      "away": "Panama",
-      "players": 49,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5269692,
-      "home": "Norway",
-      "away": "Sweden",
-      "players": 47,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5483930,
-      "home": "Turkiye",
-      "away": "North Macedonia",
-      "players": 26,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5154119,
-      "home": "Austria",
-      "away": "Tunisia",
-      "players": 50,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5315809,
-      "home": "Denmark U17",
-      "away": "Italy U17",
-      "players": 40,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5315810,
-      "home": "France U17",
-      "away": "Montenegro U17",
-      "players": 20,
-      "stats_rows": 1
     },
     {
       "event_id": 4837951,
       "home": "Leganes",
       "away": "CD Mirandes",
-      "players": 23,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5429866,
-      "home": "Japan U20",
-      "away": "Ivory Coast U20",
-      "players": 0,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5429867,
-      "home": "Venezuela U20",
-      "away": "Canada U20",
       "players": 0,
       "stats_rows": 0
     },
@@ -245,104 +28,13 @@
       "event_id": 1000009421,
       "home": "Inter de Limeira",
       "away": "Ypiranga RS",
-      "players": 20,
+      "players": 0,
       "stats_rows": 0
-    },
-    {
-      "event_id": 5628899,
-      "home": "Ecuador",
-      "away": "Saudi Arabia",
-      "players": 49,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5628900,
-      "home": "South Korea",
-      "away": "Trinidad and Tobago",
-      "players": 26,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5217285,
-      "home": "Mexico",
-      "away": "Australia",
-      "players": 53,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5418293,
-      "home": "Japan",
-      "away": "Iceland",
-      "players": 26,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5418294,
-      "home": "Switzerland",
-      "away": "Jordan",
-      "players": 52,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5629006,
-      "home": "Czechia",
-      "away": "Kosovo",
-      "players": 21,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5667645,
-      "home": "Cape Verde",
-      "away": "Serbia",
-      "players": 51,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5648177,
-      "home": "Poland",
-      "away": "Ukraine",
-      "players": 25,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5084826,
-      "home": "Germany",
-      "away": "Finland",
-      "players": 25,
-      "stats_rows": 1
     },
     {
       "event_id": 5667811,
       "home": "Gent",
       "away": "Genk",
-      "players": 23,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5315800,
-      "home": "Belgium U17",
-      "away": "Estonia U17",
-      "players": 20,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5315799,
-      "home": "Spain U17",
-      "away": "Croatia U17",
-      "players": 40,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5429856,
-      "home": "China U20",
-      "away": "Saudi Arabia U23",
-      "players": 0,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5429857,
-      "home": "DR Congo U20",
-      "away": "Tunisia U23",
       "players": 0,
       "stats_rows": 0
     },
@@ -350,34 +42,13 @@
       "event_id": 5214835,
       "home": "England Aid XI",
       "away": "Soccer Aid World XI",
-      "players": 26,
-      "stats_rows": 1
+      "players": 0,
+      "stats_rows": 0
     },
     {
       "event_id": 5109774,
       "home": "Hartford Athletic",
       "away": "New Mexico United",
-      "players": 18,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5147838,
-      "home": "Scotland",
-      "away": "Curacao",
-      "players": 49,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5702912,
-      "home": "Jamaica",
-      "away": "Nigeria",
-      "players": 40,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5702943,
-      "home": "Croatia U21",
-      "away": "Greece U21",
       "players": 0,
       "stats_rows": 0
     },
@@ -392,14 +63,14 @@
       "event_id": 5155809,
       "home": "Busan I'Park",
       "away": "Paju Frontier",
-      "players": 20,
-      "stats_rows": 1
+      "players": 0,
+      "stats_rows": 0
     },
     {
       "event_id": 5113328,
       "home": "Almirante Brown",
       "away": "Colon",
-      "players": 20,
+      "players": 0,
       "stats_rows": 0
     },
     {
@@ -410,31 +81,17 @@
       "stats_rows": 0
     },
     {
-      "event_id": 5628832,
-      "home": "Iran",
-      "away": "Gambia",
-      "players": 26,
-      "stats_rows": 0
-    },
-    {
       "event_id": 5628898,
       "home": "Iraq",
       "away": "Andorra",
-      "players": 15,
+      "players": 0,
       "stats_rows": 0
-    },
-    {
-      "event_id": 5628897,
-      "home": "South Africa",
-      "away": "Nicaragua",
-      "players": 26,
-      "stats_rows": 1
     },
     {
       "event_id": 5648176,
       "home": "Bosnia and Herzegovina",
       "away": "North Macedonia",
-      "players": 25,
+      "players": 0,
       "stats_rows": 0
     },
     {
@@ -452,77 +109,14 @@
       "stats_rows": 0
     },
     {
-      "event_id": 5315807,
-      "home": "Montenegro U17",
-      "away": "Italy U17",
-      "players": 20,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5315808,
-      "home": "France U17",
-      "away": "Denmark U17",
-      "players": 40,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5451193,
-      "home": "Egypt",
-      "away": "Russia",
-      "players": 25,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5213041,
-      "home": "Ireland",
-      "away": "Qatar",
-      "players": 26,
-      "stats_rows": 1
-    },
-    {
-      "event_id": 5315797,
-      "home": "Belgium U17",
-      "away": "Spain U17",
-      "players": 40,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5315798,
-      "home": "Estonia U17",
-      "away": "Croatia U17",
-      "players": 20,
-      "stats_rows": 1
-    },
-    {
       "event_id": 5293168,
       "home": "Jamaica",
       "away": "India",
-      "players": 11,
+      "players": 0,
       "stats_rows": 0
-    },
-    {
-      "event_id": 5628896,
-      "home": "Nigeria",
-      "away": "Zimbabwe",
-      "players": 20,
-      "stats_rows": 0
-    },
-    {
-      "event_id": 5315805,
-      "home": "Italy U17",
-      "away": "France U17",
-      "players": 40,
-      "stats_rows": 2
-    },
-    {
-      "event_id": 5315806,
-      "home": "Montenegro U17",
-      "away": "Denmark U17",
-      "players": 20,
-      "stats_rows": 1
     }
   ],
-  "total_players": 1878,
+  "total_players": 0,
   "errors": [],
   "dates_scanned": [
     {
@@ -566,6 +160,6 @@
       "matches": 65
     }
   ],
-  "pmu_total": 1826,
-  "teams_covered": 53
+  "pmu_total": 1203,
+  "teams_covered": 47
 }
