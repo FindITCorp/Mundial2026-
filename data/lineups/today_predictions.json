@@ -1,6 +1,6 @@
 {
   "date": "20260604",
-  "generated_at": "2026-06-04T19:18:06.179260",
+  "generated_at": "2026-06-04T19:21:58.519130",
   "predictions": [
     {
       "event_id": 5729607,
@@ -9,8 +9,8 @@
       "home_wc": true,
       "away_wc": false,
       "scoreline": "0-1",
-      "p_home": 14.1,
-      "p_draw": 21.9,
+      "p_home": 14.8,
+      "p_draw": 21.2,
       "p_away": 64.0,
       "xg_home": 0.79,
       "xg_away": 1.95
@@ -22,9 +22,9 @@
       "home_wc": true,
       "away_wc": false,
       "scoreline": "1-1",
-      "p_home": 37.2,
-      "p_draw": 26.1,
-      "p_away": 36.7,
+      "p_home": 37.5,
+      "p_draw": 26.9,
+      "p_away": 35.7,
       "xg_home": 1.27,
       "xg_away": 1.24
     },
@@ -35,50 +35,11 @@
       "home_wc": true,
       "away_wc": false,
       "scoreline": "1-1",
-      "p_home": 29.8,
-      "p_draw": 27.0,
-      "p_away": 43.2,
+      "p_home": 29.3,
+      "p_draw": 26.5,
+      "p_away": 44.1,
       "xg_home": 1.11,
       "xg_away": 1.41
-    },
-    {
-      "event_id": 5316956,
-      "home": "Belgium",
-      "away": "France",
-      "home_wc": true,
-      "away_wc": true,
-      "scoreline": "1-1",
-      "p_home": 32.6,
-      "p_draw": 25.4,
-      "p_away": 41.9,
-      "xg_home": 1.28,
-      "xg_away": 1.5
-    },
-    {
-      "event_id": 5316957,
-      "home": "Italy U17",
-      "away": "Spain",
-      "home_wc": false,
-      "away_wc": true,
-      "scoreline": "1-1",
-      "p_home": 21.6,
-      "p_draw": 24.1,
-      "p_away": 54.4,
-      "xg_home": 0.98,
-      "xg_away": 1.71
-    },
-    {
-      "event_id": 5736071,
-      "home": "Sweden",
-      "away": "Finland U21",
-      "home_wc": true,
-      "away_wc": false,
-      "scoreline": "1-1",
-      "p_home": 34.5,
-      "p_draw": 25.8,
-      "p_away": 39.6,
-      "xg_home": 1.27,
-      "xg_away": 1.37
     }
   ],
   "errors": []
