@@ -11,3 +11,4 @@ venv/
 data/cache/
 data/logs/
 node_modules/
+insert_club_stats.py
