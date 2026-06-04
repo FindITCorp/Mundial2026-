@@ -19,10 +19,31 @@ sys.path.insert(0, str(BASE_DIR))
 DB = BASE_DIR / "data" / "mundial2026.db"
 OUT = BASE_DIR / "data" / "lineups" / "today_predictions.json"
 
+import re  # noqa: E402
+
 from pipelines import smartapi  # noqa: E402
 from pipelines.fetch_smartapi_lineups import _build_team_index, _resolve_team  # noqa: E402
 from models.predictor import TeamSnapshot, load_team, load_recent_form  # noqa: E402
 from models.simulator import simulate_match  # noqa: E402
+
+# Sufijos que indican selección NO absoluta (juvenil/reserva/femenil) → excluir.
+_NOT_SENIOR = re.compile(
+    r"\b("
+    r"u-?\d{1,2}|"            # U15..U23, U-17
+    r"sub-?\d{1,2}|"
+    r"under-?\d{1,2}|"
+    r"women|femenin|femenil|ladies|girls|"
+    r"reserves?|reserva|"
+    r"olympic|olimpic|olimpic[oa]|"
+    r"amateur|youth|juvenil|academy|"
+    r"\bb\b|ii"               # equipos B / II
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _is_senior(name: str) -> bool:
+    return not _NOT_SENIOR.search(name or "")
 
 
 def _snapshot(name: str) -> TeamSnapshot:
@@ -55,6 +76,9 @@ def main():
     for m in matches:
         home = (m.get("home") or {}).get("name", "")
         away = (m.get("away") or {}).get("name", "")
+        # Solo selecciones ABSOLUTAS: descarta juveniles/reservas/femenil/clubes B.
+        if not (_is_senior(home) and _is_senior(away)):
+            continue
         htid = _resolve_team(team_index, home)
         atid = _resolve_team(team_index, away)
         if not (htid or atid):

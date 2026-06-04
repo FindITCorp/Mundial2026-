@@ -17,6 +17,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from pipelines import smartapi  # noqa: E402
+from scripts.predict_today import _is_senior  # noqa: E402
 
 OUT = BASE_DIR / "data" / "lineups" / "today_fixtures.json"
 
@@ -32,6 +33,8 @@ def main():
     for m in matches:
         h = (m.get("home", {}) or {}).get("name", "")
         a = (m.get("away", {}) or {}).get("name", "")
+        if not (_is_senior(h) and _is_senior(a)):
+            continue
         if h.lower() in wc or a.lower() in wc:
             st = m.get("status", {})
             out.append({
