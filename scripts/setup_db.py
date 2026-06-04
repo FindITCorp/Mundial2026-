@@ -279,6 +279,21 @@ def create_tables(conn: sqlite3.Connection):
         UNIQUE(player_id, match_date, team_id)
     )""")
 
+    # --- match_odds (cuotas pre-partido para calibrar el modelo) ---
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS match_odds (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        wc_match_id     INTEGER REFERENCES wc_matches(id),
+        api_fixture_id  INTEGER,
+        provider        TEXT,
+        market          TEXT,
+        odds_home       REAL,
+        odds_draw       REAL,
+        odds_away       REAL,
+        captured_at     TEXT DEFAULT (datetime('now')),
+        UNIQUE(api_fixture_id, provider, market)
+    )""")
+
     conn.commit()
     print("  Tablas creadas correctamente.")
 

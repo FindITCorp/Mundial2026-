@@ -15,11 +15,29 @@ RapidAPI solo responde desde GitHub Actions (bloqueado localmente).
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
+from pathlib import Path
 
 HOST = "free-api-live-football-data.p.rapidapi.com"
+
+# Caché en disco (data/cache/smartapi) + memoización en-run para no gastar cuota.
+_CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "cache" / "smartapi"
+_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+_MEM: dict = {}
+
+# TTL por tipo de endpoint (segundos). Lineups/stats de partidos terminados no
+# cambian → TTL larguísimo. matches-by-date de fechas pasadas tampoco.
+_TTL_LONG = 60 * 60 * 24 * 30   # 30 días
+_TTL_LIVE = 60 * 2             # 2 min para current-live
+
+
+def _cache_path(path: str, params: dict) -> Path:
+    key = (path + "_" + "_".join(f"{k}{v}" for k, v in sorted((params or {}).items())))
+    key = re.sub(r"[^0-9a-zA-Z_]", "", key)
+    return _CACHE_DIR / f"{key}.json"
 
 
 def clean_key(raw: str) -> str:
@@ -32,9 +50,30 @@ def clean_key(raw: str) -> str:
     return m.group(0) if m else raw
 
 
-def get(path: str, params: dict | None = None, retries: int = 2) -> dict | None:
-    """GET a un endpoint. Devuelve el objeto 'response' o None."""
+def get(path: str, params: dict | None = None, retries: int = 2,
+        ttl: int = _TTL_LONG) -> dict | None:
+    """GET a un endpoint con caché en disco + memoización. Devuelve 'response' o None."""
     import requests
+
+    params = params or {}
+    cache_file = _cache_path(path, params)
+    mem_key = str(cache_file)
+
+    # 1) memoización en-run
+    if mem_key in _MEM:
+        return _MEM[mem_key]
+
+    # 2) caché en disco (no gasta cuota)
+    if cache_file.exists() and ttl > 0:
+        age = time.time() - cache_file.stat().st_mtime
+        if age < ttl:
+            try:
+                data = json.loads(cache_file.read_text())
+                resp = data.get("response", data)
+                _MEM[mem_key] = resp
+                return resp
+            except Exception:
+                pass
 
     key = clean_key(os.getenv("APIFOOT", ""))
     if not key:
@@ -46,8 +85,14 @@ def get(path: str, params: dict | None = None, retries: int = 2) -> dict | None:
             r = requests.get(url, headers=headers, params=params or {}, timeout=20)
             if r.status_code == 200:
                 data = r.json()
+                try:
+                    cache_file.write_text(json.dumps(data, ensure_ascii=False))
+                except Exception:
+                    pass
                 time.sleep(0.8)
-                return data.get("response", data)
+                resp = data.get("response", data)
+                _MEM[mem_key] = resp
+                return resp
             if r.status_code == 429:
                 print(f"  [smartapi] 429 rate limit en {path}, espera 30s...")
                 time.sleep(30)
@@ -60,9 +105,10 @@ def get(path: str, params: dict | None = None, retries: int = 2) -> dict | None:
     return None
 
 
-def matches_by_date(date_yyyymmdd: str) -> list:
-    """Partidos de una fecha (formato YYYYMMDD)."""
-    resp = get("/football-get-matches-by-date", {"date": date_yyyymmdd})
+def matches_by_date(date_yyyymmdd: str, fresh: bool = False) -> list:
+    """Partidos de una fecha (formato YYYYMMDD). fresh=True ignora caché (hoy/en vivo)."""
+    ttl = _TTL_LIVE if fresh else _TTL_LONG
+    resp = get("/football-get-matches-by-date", {"date": date_yyyymmdd}, ttl=ttl)
     if isinstance(resp, dict):
         return resp.get("matches", []) or []
     return []
@@ -86,6 +132,35 @@ def match_stats(event_id) -> list | None:
         st = resp.get("stats")
         if isinstance(st, list) and st:
             return st
+    return None
+
+
+_ODDS_PATH_FILE = _CACHE_DIR / "_odds_path.txt"
+
+
+def match_odds(event_id) -> dict | None:
+    """Cuotas pre-partido. Recuerda el path que funciona para no gastar llamadas.
+
+    La 1ª vez prueba candidatos (máx 4 req); guarda el path bueno y luego usa 1.
+    """
+    # Si ya descubrimos el path, usar solo ese (1 request)
+    if _ODDS_PATH_FILE.exists():
+        path = _ODDS_PATH_FILE.read_text().strip()
+        if path:
+            resp = get(path, {"eventid": str(event_id)})
+            if isinstance(resp, dict) and resp and "message" not in resp:
+                return {"path": path, "data": resp}
+            return None
+
+    for path in ("/football-get-match-odds", "/football-get-odds",
+                 "/football-get-pre-match-odds", "/football-get-match-prematch-odds"):
+        resp = get(path, {"eventid": str(event_id)})
+        if isinstance(resp, dict) and resp and "message" not in resp:
+            try:
+                _ODDS_PATH_FILE.write_text(path)
+            except Exception:
+                pass
+            return {"path": path, "data": resp}
     return None
 
 
