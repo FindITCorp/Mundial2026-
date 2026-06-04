@@ -1,0 +1,23 @@
+{
+  "ran_at": "2026-06-04T22:27:08.720790",
+  "apisports": {
+    "plan": "Free",
+    "requests": {
+      "current": 0,
+      "limit_day": 100
+    },
+    "leagues_wc2026": [],
+    "fixtures": {
+      "1": {
+        "count": 0,
+        "sample": [],
+        "first_fixture_id": null
+      }
+    }
+  },
+  "rapidapi": {
+    "status_20260611": 200,
+    "matches_count": 38,
+    "wc_like_matches": []
+  }
+}
