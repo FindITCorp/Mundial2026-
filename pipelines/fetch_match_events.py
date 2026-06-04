@@ -46,29 +46,57 @@ SPORTS_URL = "https://v3.football.api-sports.io"
 # HTTP helpers
 # ---------------------------------------------------------------------------
 
-def _get(endpoint: str, params: dict) -> dict | None:
-    """Call API-Football (prefers direct api-sports key, fallback to RapidAPI)."""
+def _is_plan_error(data: dict) -> bool:
+    errs = data.get("errors") if isinstance(data, dict) else None
+    if isinstance(errs, dict):
+        return any("plan" in str(k).lower() or "plan" in str(v).lower()
+                   for k, v in errs.items())
+    return False
+
+
+def _provider_get(provider: str, endpoint: str, params: dict) -> dict | None:
     import urllib.request
     import urllib.parse
 
     qs = urllib.parse.urlencode(params)
-    if SPORTS_KEY:
-        url     = f"{SPORTS_URL}/{endpoint}?{qs}"
-        headers = {"x-apisports-key": SPORTS_KEY}
-    elif RAPID_KEY:
-        url     = f"https://{RAPID_HOST}/{endpoint}?{qs}"
+    if provider == "rapid":
+        if not RAPID_KEY:
+            return None
+        url     = f"https://{RAPID_HOST}/v3/{endpoint}?{qs}"
         headers = {"x-rapidapi-key": RAPID_KEY, "x-rapidapi-host": RAPID_HOST}
     else:
-        print("  [events] No API key configured — skipping")
-        return None
+        if not SPORTS_KEY:
+            return None
+        url     = f"{SPORTS_URL}/{endpoint}?{qs}"
+        headers = {"x-apisports-key": SPORTS_KEY}
 
     req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
             return json.loads(r.read())
     except Exception as e:
-        print(f"  [events] HTTP error {endpoint}: {e}")
+        print(f"  [events:{provider}] HTTP error {endpoint}: {e}")
         return None
+
+
+def _get(endpoint: str, params: dict) -> dict | None:
+    """Call API-Football. RapidAPI primero (tiene temporada actual en free tier),
+    fallback a api-sports.io. Si un proveedor falla por plan, prueba el otro."""
+    if not SPORTS_KEY and not RAPID_KEY:
+        print("  [events] No API key configured — skipping")
+        return None
+
+    data = None
+    for provider in ("rapid", "apisports"):
+        d = _provider_get(provider, endpoint, params)
+        if d is None:
+            continue
+        if _is_plan_error(d):
+            print(f"  [events:{provider}] plan error → siguiente proveedor")
+            data = d
+            continue
+        return d
+    return data
 
 
 def _cached_get(cache_key: str, endpoint: str, params: dict, ttl_minutes: int = 35) -> dict | None:

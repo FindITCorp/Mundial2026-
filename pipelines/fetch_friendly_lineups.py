@@ -192,65 +192,110 @@ def _norm(name: str) -> str:
     return "".join(c for c in n if unicodedata.category(c) != "Mn")
 
 
-def _api_get(endpoint: str, params: dict, cache_key: str,
-             cache_hours: float = 48.0) -> dict | None:
-    """Call API-Football with cache and rate limiting."""
-    from pathlib import Path
+def _is_plan_error(data: dict) -> bool:
+    """True si la API rechazó por restricción de plan (temporada no accesible)."""
+    errs = data.get("errors") if isinstance(data, dict) else None
+    if isinstance(errs, dict):
+        return any("plan" in str(k).lower() or "plan" in str(v).lower()
+                   for k, v in errs.items())
+    return False
+
+
+def _provider_request(provider: str, endpoint: str, params: dict):
+    """Hace 1 request a un proveedor. Devuelve (data|None, status_code)."""
     import requests
 
-    cache_file = CACHE_DIR / f"{cache_key.replace('/', '_').replace('?','_')}.json"
-
-    # Serve from cache if fresh
-    if cache_file.exists():
-        age_h = (datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)).total_seconds() / 3600
-        if age_h < cache_hours:
-            with open(cache_file) as f:
-                return json.load(f)
-
-    apisports_key = os.getenv("APISPORTS_KEY", "")
-    rapid_key     = os.getenv("APIFOOT", "")
-    if not apisports_key and not rapid_key:
-        return None
-
-    if apisports_key:
+    if provider == "rapid":
+        rapid_key = os.getenv("APIFOOT", "")
+        if not rapid_key:
+            return None, None
+        url     = f"https://api-football-v1.p.rapidapi.com/v3/{endpoint}"
+        headers = {"x-rapidapi-key": rapid_key,
+                   "x-rapidapi-host": "api-football-v1.p.rapidapi.com"}
+    else:  # apisports
+        apisports_key = os.getenv("APISPORTS_KEY", "")
+        if not apisports_key:
+            return None, None
         url     = f"https://v3.football.api-sports.io/{endpoint}"
         headers = {"x-apisports-key": apisports_key}
-    else:
-        url     = f"https://api-football-v1.p.rapidapi.com/v3/{endpoint}"
-        headers = {"x-rapidapi-key": rapid_key, "x-rapidapi-host": "api-football-v1.p.rapidapi.com"}
 
     try:
         r = requests.get(url, headers=headers, params=params, timeout=20)
         remaining = r.headers.get("x-ratelimit-requests-remaining") or \
                     r.headers.get("X-RateLimit-Requests-Remaining", "?")
-        print(f"  [API] {endpoint} → {r.status_code}  remaining={remaining}")
+        print(f"  [API:{provider}] {endpoint} → {r.status_code}  remaining={remaining}")
         if r.status_code == 200:
-            data = r.json()
-            # Diagnóstico: capturar errores de la API y una muestra cruda
-            errs = data.get("errors")
-            if errs:
-                _API_DIAG["errors"].append({"endpoint": endpoint, "params": params, "errors": errs})
-            if _API_DIAG["sample"] is None:
-                _API_DIAG["sample"] = {
-                    "endpoint": endpoint, "params": params,
-                    "results": data.get("results"),
-                    "errors": errs,
-                    "first_item": (data.get("response") or [None])[0],
-                }
-            with open(cache_file, "w") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            time.sleep(1.2)  # polite delay
-            return data
+            return r.json(), 200
         elif r.status_code == 429:
-            print("  [API] Rate limit hit, sleeping 65s...")
-            _API_DIAG["errors"].append({"endpoint": endpoint, "status": 429})
+            print(f"  [API:{provider}] Rate limit, sleeping 65s...")
+            _API_DIAG["errors"].append({"provider": provider, "endpoint": endpoint, "status": 429})
             time.sleep(65)
+            return None, 429
         else:
-            _API_DIAG["errors"].append({"endpoint": endpoint, "status": r.status_code,
-                                        "body": r.text[:300]})
+            _API_DIAG["errors"].append({"provider": provider, "endpoint": endpoint,
+                                        "status": r.status_code, "body": r.text[:300]})
+            return None, r.status_code
     except Exception as e:
-        print(f"  [API] Exception: {e}")
-    return None
+        print(f"  [API:{provider}] Exception: {e}")
+        return None, None
+
+
+def _api_get(endpoint: str, params: dict, cache_key: str,
+             cache_hours: float = 48.0) -> dict | None:
+    """Call API-Football with cache + multi-provider fallback.
+
+    El plan gratuito de api-sports.io NO da acceso a 2025/2026, pero RapidAPI
+    sí. Por eso intentamos RapidAPI primero y, si un proveedor falla por
+    restricción de plan, reintentamos con el otro.
+    """
+    cache_file = CACHE_DIR / f"{cache_key.replace('/', '_').replace('?','_')}.json"
+
+    # Serve from cache if fresh (y sin error de plan)
+    if cache_file.exists():
+        age_h = (datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)).total_seconds() / 3600
+        if age_h < cache_hours:
+            with open(cache_file) as f:
+                cached = json.load(f)
+            if not _is_plan_error(cached):
+                return cached  # cache válido; si era error de plan, re-intentar
+
+    if not os.getenv("APISPORTS_KEY") and not os.getenv("APIFOOT"):
+        return None
+
+    # Orden de proveedores: RapidAPI primero (tiene temporada actual en free)
+    providers = ["rapid", "apisports"]
+    data = None
+    for provider in providers:
+        d, status = _provider_request(provider, endpoint, params)
+        if d is None:
+            continue
+        if _is_plan_error(d):
+            print(f"  [API:{provider}] error de plan → probando siguiente proveedor")
+            _API_DIAG["errors"].append({"provider": provider, "endpoint": endpoint,
+                                        "params": params, "errors": d.get("errors")})
+            data = d  # guardar por si ningún proveedor funciona
+            continue
+        data = d
+        break
+
+    if data is None:
+        return None
+
+    # Diagnóstico
+    errs = data.get("errors")
+    if _API_DIAG["sample"] is None:
+        _API_DIAG["sample"] = {
+            "endpoint": endpoint, "params": params,
+            "results": data.get("results"), "errors": errs,
+            "first_item": (data.get("response") or [None])[0],
+        }
+
+    # Solo cachear respuestas válidas (no errores de plan)
+    if not _is_plan_error(data):
+        with open(cache_file, "w") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    time.sleep(1.0)
+    return data
 
 
 def _load_progress() -> dict:
