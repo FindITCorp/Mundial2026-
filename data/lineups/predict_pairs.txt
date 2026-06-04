@@ -1,2 +1,3 @@
-Czechia|Guatemala
+Spain|Iraq
+France|Ivory Coast
 Mexico|Serbia
