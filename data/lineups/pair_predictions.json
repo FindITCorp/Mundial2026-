@@ -1,89 +1,150 @@
 {
-  "generated_at": "2026-06-04T19:35:37.550723",
+  "generated_at": "2026-06-04T19:45:42.611389",
+  "engine": "match_predictor.predict_by_name (6 factores, XI 11v11)",
   "predictions": [
     {
-      "home": "Czechia",
-      "away": "Guatemala",
-      "scoreline": "1-1",
-      "p_home": 28.0,
-      "p_draw": 25.6,
-      "p_away": 46.5,
-      "xg_home": 1.08,
-      "xg_away": 1.45,
-      "top_scorelines": [
-        {
-          "scoreline": "1-1",
-          "home_goals": 1,
-          "away_goals": 1,
-          "pct": 12.5
-        },
-        {
-          "scoreline": "0-1",
-          "home_goals": 0,
-          "away_goals": 1,
-          "pct": 12.1
-        },
-        {
-          "scoreline": "1-2",
-          "home_goals": 1,
-          "away_goals": 2,
-          "pct": 9.4
-        },
-        {
-          "scoreline": "1-0",
-          "home_goals": 1,
-          "away_goals": 0,
-          "pct": 8.4
-        },
-        {
-          "scoreline": "0-2",
-          "home_goals": 0,
-          "away_goals": 2,
-          "pct": 8.3
-        }
-      ]
+      "home": "Spain",
+      "away": "Iraq",
+      "scoreline": "2-0",
+      "winner": "Spain",
+      "p_home": 86.0,
+      "p_draw": 10.1,
+      "p_away": 3.8,
+      "lambda_home": 2.911,
+      "lambda_away": 0.486,
+      "xi_home": null,
+      "xi_away": null,
+      "elo_home": 1953.8,
+      "elo_away": 1657.0,
+      "formation_home": "4-3-3",
+      "formation_away": "4-4-2",
+      "possession_home": 53.7,
+      "possession_away": 46.3,
+      "goleada_band": null,
+      "top_scores": [
+        [
+          "2-0",
+          14.3
+        ],
+        [
+          "3-0",
+          13.9
+        ],
+        [
+          "4-0",
+          10.1
+        ],
+        [
+          "1-0",
+          9.8
+        ],
+        [
+          "2-1",
+          7.0
+        ],
+        [
+          "3-1",
+          6.8
+        ]
+      ],
+      "home_events": [],
+      "away_events": []
+    },
+    {
+      "home": "France",
+      "away": "Ivory Coast",
+      "scoreline": "2-1",
+      "winner": "France",
+      "p_home": 54.7,
+      "p_draw": 21.5,
+      "p_away": 23.8,
+      "lambda_home": 2.014,
+      "lambda_away": 1.265,
+      "xi_home": null,
+      "xi_away": null,
+      "elo_home": 1893.3,
+      "elo_away": 1683.6,
+      "formation_home": "4-2-3-1",
+      "formation_away": "4-2-3-1",
+      "possession_home": 50.1,
+      "possession_away": 49.9,
+      "goleada_band": null,
+      "top_scores": [
+        [
+          "2-1",
+          9.7
+        ],
+        [
+          "1-1",
+          9.6
+        ],
+        [
+          "2-0",
+          7.6
+        ],
+        [
+          "1-0",
+          7.6
+        ],
+        [
+          "3-1",
+          6.5
+        ],
+        [
+          "2-2",
+          6.1
+        ]
+      ],
+      "home_events": [],
+      "away_events": []
     },
     {
       "home": "Mexico",
       "away": "Serbia",
-      "scoreline": "1-1",
-      "p_home": 51.1,
-      "p_draw": 25.6,
-      "p_away": 23.3,
-      "xg_home": 1.62,
-      "xg_away": 1.0,
-      "top_scorelines": [
-        {
-          "scoreline": "1-1",
-          "home_goals": 1,
-          "away_goals": 1,
-          "pct": 11.9
-        },
-        {
-          "scoreline": "1-0",
-          "home_goals": 1,
-          "away_goals": 0,
-          "pct": 11.4
-        },
-        {
-          "scoreline": "2-1",
-          "home_goals": 2,
-          "away_goals": 1,
-          "pct": 9.8
-        },
-        {
-          "scoreline": "2-0",
-          "home_goals": 2,
-          "away_goals": 0,
-          "pct": 9.1
-        },
-        {
-          "scoreline": "0-0",
-          "home_goals": 0,
-          "away_goals": 0,
-          "pct": 7.7
-        }
-      ]
+      "scoreline": "2-0",
+      "winner": "Mexico",
+      "p_home": 76.5,
+      "p_draw": 16.8,
+      "p_away": 6.7,
+      "lambda_home": 2.143,
+      "lambda_away": 0.465,
+      "xi_home": null,
+      "xi_away": null,
+      "elo_home": 1744.9,
+      "elo_away": 1614.4,
+      "formation_home": "4-2-3-1",
+      "formation_away": "3-4-2-1",
+      "possession_home": 49.8,
+      "possession_away": 50.2,
+      "goleada_band": null,
+      "top_scores": [
+        [
+          "2-0",
+          17.0
+        ],
+        [
+          "1-0",
+          15.8
+        ],
+        [
+          "3-0",
+          12.1
+        ],
+        [
+          "2-1",
+          7.9
+        ],
+        [
+          "0-0",
+          7.4
+        ],
+        [
+          "1-1",
+          7.4
+        ]
+      ],
+      "home_events": [],
+      "away_events": []
     }
   ],
   "errors": []
