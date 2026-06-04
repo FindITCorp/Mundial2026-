@@ -96,6 +96,31 @@ def candidate_calls(date_str: str) -> list:
     ]
 
 
+def _extract_match_id(date_str: str) -> str | None:
+    """Obtiene un eventid real de los partidos de la fecha dada."""
+    res = _probe("/football-get-matches-by-date", {"date": date_str})
+    sample = res.get("body_sample") or {}
+    matches = sample.get("matches") or []
+    if matches:
+        return str(matches[0].get("id"))
+    return None
+
+
+def detail_calls(event_id: str) -> list:
+    return [
+        ("/football-get-match-detail", {"eventid": event_id}),
+        ("/football-get-match-info", {"eventid": event_id}),
+        ("/football-get-match-lineups", {"eventid": event_id}),
+        ("/football-get-lineups", {"eventid": event_id}),
+        ("/football-get-match-all-stats", {"eventid": event_id}),
+        ("/football-get-match-stats", {"eventid": event_id}),
+        ("/football-get-match-events", {"eventid": event_id}),
+        ("/football-get-match-shotmap", {"eventid": event_id}),
+        ("/football-get-match-player-stats", {"eventid": event_id}),
+        ("/football-get-match-h2h", {"eventid": event_id}),
+    ]
+
+
 def run(date_str: str) -> None:
     report = {
         "ran_at": datetime.utcnow().isoformat(),
@@ -108,6 +133,17 @@ def run(date_str: str) -> None:
         res = _probe(path, params)
         print(f"    → status={res.get('status')} keys={res.get('top_keys') or res.get('error')}")
         report["probes"].append(res)
+
+    # Fase 2: con un eventid real, probar endpoints de detalle/lineups/eventos
+    event_id = _extract_match_id(date_str)
+    report["event_id_used"] = event_id
+    print(f"\n  event_id real: {event_id}")
+    if event_id:
+        for path, params in detail_calls(event_id):
+            print(f"  Probing {path} {params}")
+            res = _probe(path, params)
+            print(f"    → status={res.get('status')} keys={res.get('top_keys') or res.get('error')}")
+            report["probes"].append(res)
 
     out_dir = BASE_DIR / "data" / "lineups"
     out_dir.mkdir(parents=True, exist_ok=True)
