@@ -51,13 +51,18 @@ def test_apisports():
         out["plan"] = resp.get("subscription", {}).get("plan")
         out["requests"] = resp.get("requests", {})
 
-    # 2. Liga WC2026
-    st, d = _get(f"{base}/leagues", h, {"name": "World Cup", "season": 2026})
+    # 2. Liga WC2026 — buscar por varios criterios
     ligas = []
-    for item in (d.get("response", []) if isinstance(d, dict) else []):
-        lg = item.get("league", {})
-        ligas.append({"id": lg.get("id"), "name": lg.get("name"), "type": lg.get("type")})
-    out["leagues_wc2026"] = ligas
+    for params in ({"search": "World Cup"}, {"id": 1}, {"type": "cup", "current": "true"}):
+        st, d = _get(f"{base}/leagues", h, params)
+        for item in (d.get("response", []) if isinstance(d, dict) else []):
+            lg = item.get("league", {})
+            seasons = [s.get("year") for s in item.get("seasons", [])]
+            name = lg.get("name", "")
+            if "world" in name.lower() or lg.get("id") == 1:
+                ligas.append({"id": lg.get("id"), "name": name,
+                              "type": lg.get("type"), "seasons": seasons[-5:]})
+    out["leagues_wc"] = ligas
 
     # 3. Fixtures jornada 1 — probar varios league_id candidatos
     out["fixtures"] = {}
@@ -110,14 +115,18 @@ def test_rapidapi():
         matches = d.get("response", {}).get("matches", []) or d.get("response", []) or []
     out["status_20260611"] = st
     out["matches_count"] = len(matches) if isinstance(matches, list) else 0
-    # Buscar partidos que parezcan del Mundial (selecciones top)
-    wc_like = []
-    for m_ in (matches if isinstance(matches, list) else [])[:200]:
-        home = (m_.get("home") or {}).get("name", "")
-        away = (m_.get("away") or {}).get("name", "")
-        if any(x in f"{home} {away}" for x in ["Mexico", "Argentina", "Germany", "Italy", "France"]):
-            wc_like.append(f"{home} vs {away} (id={m_.get('id')})")
-    out["wc_like_matches"] = wc_like[:10]
+    # Volcar TODOS los partidos del 11-jun con su estructura real
+    all_matches = []
+    sample_raw = None
+    for m_ in (matches if isinstance(matches, list) else []):
+        if sample_raw is None:
+            sample_raw = list(m_.keys())  # ver qué campos trae cada match
+        home = (m_.get("home") or {}).get("name") or m_.get("homeTeam") or "?"
+        away = (m_.get("away") or {}).get("name") or m_.get("awayTeam") or "?"
+        league = m_.get("leagueName") or m_.get("league") or m_.get("tournament") or ""
+        all_matches.append(f"{home} vs {away} [{league}] id={m_.get('id')}")
+    out["match_fields"] = sample_raw
+    out["all_matches_20260611"] = all_matches
 
 
 if __name__ == "__main__":
