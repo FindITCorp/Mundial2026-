@@ -1,9 +1,9 @@
 {
-  "ran_at": "2026-06-04T22:38:14.737787",
+  "ran_at": "2026-06-04T22:40:05.170315",
   "apisports": {
     "plan": "Free",
     "requests": {
-      "current": 3,
+      "current": 6,
       "limit_day": 100
     },
     "leagues_wc": [
@@ -497,6 +497,12 @@
   },
   "lineup_detail": {
     "lineup_status": 200,
+    "top_keys": [
+      "status",
+      "message"
+    ],
+    "response_type": "NoneType",
+    "raw_sample_2500": "{\"status\": \"failed\", \"message\": \"Request Failed Please try Again\"}",
     "candidate_endpoints": {
       "/football-get-match-player-stats": {
         "status": 404,
