@@ -1,87 +1,87 @@
 {
-  "generated_at": "2026-06-04T19:30:27.002216",
+  "generated_at": "2026-06-04T19:35:37.550723",
   "predictions": [
     {
-      "home": "Spain",
-      "away": "Iraq",
-      "scoreline": "2-0",
-      "p_home": 74.1,
-      "p_draw": 16.7,
-      "p_away": 9.2,
-      "xg_home": 2.26,
-      "xg_away": 0.66,
+      "home": "Czechia",
+      "away": "Guatemala",
+      "scoreline": "1-1",
+      "p_home": 28.0,
+      "p_draw": 25.6,
+      "p_away": 46.5,
+      "xg_home": 1.08,
+      "xg_away": 1.45,
       "top_scorelines": [
         {
-          "scoreline": "2-0",
-          "home_goals": 2,
-          "away_goals": 0,
-          "pct": 13.6
-        },
-        {
-          "scoreline": "1-0",
+          "scoreline": "1-1",
           "home_goals": 1,
-          "away_goals": 0,
+          "away_goals": 1,
           "pct": 12.5
-        },
-        {
-          "scoreline": "3-0",
-          "home_goals": 3,
-          "away_goals": 0,
-          "pct": 10.0
-        },
-        {
-          "scoreline": "2-1",
-          "home_goals": 2,
-          "away_goals": 1,
-          "pct": 9.2
-        },
-        {
-          "scoreline": "1-1",
-          "home_goals": 1,
-          "away_goals": 1,
-          "pct": 8.0
-        }
-      ]
-    },
-    {
-      "home": "France",
-      "away": "Ivory Coast",
-      "scoreline": "1-0",
-      "p_home": 55.6,
-      "p_draw": 23.4,
-      "p_away": 21.0,
-      "xg_home": 1.76,
-      "xg_away": 1.0,
-      "top_scorelines": [
-        {
-          "scoreline": "1-0",
-          "home_goals": 1,
-          "away_goals": 0,
-          "pct": 11.3
-        },
-        {
-          "scoreline": "1-1",
-          "home_goals": 1,
-          "away_goals": 1,
-          "pct": 11.3
-        },
-        {
-          "scoreline": "2-1",
-          "home_goals": 2,
-          "away_goals": 1,
-          "pct": 10.0
-        },
-        {
-          "scoreline": "2-0",
-          "home_goals": 2,
-          "away_goals": 0,
-          "pct": 9.7
         },
         {
           "scoreline": "0-1",
           "home_goals": 0,
           "away_goals": 1,
-          "pct": 6.9
+          "pct": 12.1
+        },
+        {
+          "scoreline": "1-2",
+          "home_goals": 1,
+          "away_goals": 2,
+          "pct": 9.4
+        },
+        {
+          "scoreline": "1-0",
+          "home_goals": 1,
+          "away_goals": 0,
+          "pct": 8.4
+        },
+        {
+          "scoreline": "0-2",
+          "home_goals": 0,
+          "away_goals": 2,
+          "pct": 8.3
+        }
+      ]
+    },
+    {
+      "home": "Mexico",
+      "away": "Serbia",
+      "scoreline": "1-1",
+      "p_home": 51.1,
+      "p_draw": 25.6,
+      "p_away": 23.3,
+      "xg_home": 1.62,
+      "xg_away": 1.0,
+      "top_scorelines": [
+        {
+          "scoreline": "1-1",
+          "home_goals": 1,
+          "away_goals": 1,
+          "pct": 11.9
+        },
+        {
+          "scoreline": "1-0",
+          "home_goals": 1,
+          "away_goals": 0,
+          "pct": 11.4
+        },
+        {
+          "scoreline": "2-1",
+          "home_goals": 2,
+          "away_goals": 1,
+          "pct": 9.8
+        },
+        {
+          "scoreline": "2-0",
+          "home_goals": 2,
+          "away_goals": 0,
+          "pct": 9.1
+        },
+        {
+          "scoreline": "0-0",
+          "home_goals": 0,
+          "away_goals": 0,
+          "pct": 7.7
         }
       ]
     }
