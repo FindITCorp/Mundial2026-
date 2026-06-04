@@ -208,6 +208,7 @@ def _provider_request(provider: str, endpoint: str, params: dict):
     if provider == "rapid":
         rapid_key = os.getenv("APIFOOT", "")
         if not rapid_key:
+            _API_DIAG["errors"].append({"provider": "rapid", "skip": "APIFOOT no configurado"})
             return None, None
         url     = f"https://api-football-v1.p.rapidapi.com/v3/{endpoint}"
         headers = {"x-rapidapi-key": rapid_key,
@@ -215,6 +216,7 @@ def _provider_request(provider: str, endpoint: str, params: dict):
     else:  # apisports
         apisports_key = os.getenv("APISPORTS_KEY", "")
         if not apisports_key:
+            _API_DIAG["errors"].append({"provider": "apisports", "skip": "APISPORTS_KEY no configurado"})
             return None, None
         url     = f"https://v3.football.api-sports.io/{endpoint}"
         headers = {"x-apisports-key": apisports_key}
@@ -237,6 +239,8 @@ def _provider_request(provider: str, endpoint: str, params: dict):
             return None, r.status_code
     except Exception as e:
         print(f"  [API:{provider}] Exception: {e}")
+        _API_DIAG["errors"].append({"provider": provider, "endpoint": endpoint,
+                                    "exception": str(e)[:200]})
         return None, None
 
 
@@ -648,7 +652,11 @@ def run(team_filter: str = None, max_teams: int = 48,
     report["players_saved"] = total_saved
     report["pmu_total"] = total_usage
     report["teams_covered"] = teams_covered
-    report["api_errors"] = _API_DIAG["errors"][:20]
+    report["keys_present"] = {
+        "APISPORTS_KEY": bool(os.getenv("APISPORTS_KEY")),
+        "APIFOOT": bool(os.getenv("APIFOOT")),
+    }
+    report["api_errors"] = _API_DIAG["errors"][:25]
     report["sample_api_response"] = _API_DIAG["sample"]
     try:
         report_dir = BASE_DIR / "data" / "lineups"
