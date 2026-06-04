@@ -37,6 +37,7 @@ on:
           - historical
           - lineups_friendlies
           - probe
+          - today_fixtures
 
 jobs:
   update:

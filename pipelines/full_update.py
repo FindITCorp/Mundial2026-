@@ -29,7 +29,7 @@ DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
 LOGS_DIR = BASE_DIR / "data" / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe")
+VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "today_fixtures")
 
 
 def _setup_logger() -> logging.Logger:
@@ -440,6 +440,14 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
             from pipelines.probe_smartapi import run as probe_run
             probe_run(datetime.utcnow().strftime("%Y%m%d"))
         _step("Probe SmartAPI Endpoints", _probe_api)
+        return True
+
+    # ── Scope: today_fixtures (listar amistosos WC de hoy para predecir) ────────
+    if scope == "today_fixtures":
+        def _today_fixtures():
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "today_fixtures.py")], check=False)
+        _step("List Today's WC Fixtures (SmartAPI)", _today_fixtures)
         return True
 
     # ── Scope: lineups_friendlies (alineaciones pre-torneo de amistosos) ────────
