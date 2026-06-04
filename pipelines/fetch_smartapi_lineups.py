@@ -223,49 +223,57 @@ def _process_match(conn, m: dict, team_index: dict, pcache: dict,
 
 
 def run_friendlies(days: int = 10, dry_run: bool = False) -> None:
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    team_index = _build_team_index(conn)
-    pcache: dict = {}
+    import traceback
     report = {"mode": "friendlies", "ran_at": datetime.utcnow().isoformat(),
-              "days": days, "matches_processed": [], "total_players": 0}
-
-    today = datetime.utcnow().date()
-    for d in range(days):
-        day = today - timedelta(days=d)
-        ymd = day.strftime("%Y%m%d")
-        matches = smartapi.matches_by_date(ymd)
-        if not matches:
-            continue
-        # filtrar: al menos un equipo WC
-        for m in matches:
-            home = (m.get("home") or {}).get("name", "")
-            away = (m.get("away") or {}).get("name", "")
-            if not (_resolve_team(team_index, home) or _resolve_team(team_index, away)):
+              "days": days, "matches_processed": [], "total_players": 0,
+              "errors": [], "dates_scanned": []}
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    try:
+        team_index = _build_team_index(conn)
+        pcache: dict = {}
+        today = datetime.utcnow().date()
+        for d in range(days):
+            day = today - timedelta(days=d)
+            ymd = day.strftime("%Y%m%d")
+            try:
+                matches = smartapi.matches_by_date(ymd)
+            except Exception as e:
+                report["errors"].append(f"matches_by_date {ymd}: {e}")
                 continue
-            # solo terminados
-            if not (m.get("status", {}).get("finished")):
+            report["dates_scanned"].append({"date": ymd, "matches": len(matches)})
+            if not matches:
                 continue
-            s = _process_match(conn, m, team_index, pcache, None, dry_run)
-            if s.get("skipped"):
-                continue
-            report["matches_processed"].append(s)
-            report["total_players"] += s.get("players", 0)
-            print(f"  {ymd} {s.get('home')} vs {s.get('away')}: "
-                  f"{s.get('players')} jugadores, {s.get('stats_rows')} stats")
-
-    if not dry_run:
-        conn.commit()
-    total = conn.execute("SELECT COUNT(*) FROM player_match_usage").fetchone()[0]
-    teams_cov = conn.execute("SELECT COUNT(DISTINCT team_id) FROM player_match_usage").fetchone()[0]
-    report["pmu_total"] = total
-    report["teams_covered"] = teams_cov
-    conn.close()
-
-    out = BASE_DIR / "data" / "lineups" / "smartapi_friendlies_report.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(report, indent=2, ensure_ascii=False, default=str))
-    print(f"\n  player_match_usage total: {total} | equipos: {teams_cov}")
-    print(f"  Reporte → {out.relative_to(BASE_DIR)}")
+            for m in matches:
+                home = (m.get("home") or {}).get("name", "")
+                away = (m.get("away") or {}).get("name", "")
+                if not (_resolve_team(team_index, home) or _resolve_team(team_index, away)):
+                    continue
+                if not (m.get("status", {}).get("finished")):
+                    continue
+                try:
+                    s = _process_match(conn, m, team_index, pcache, None, dry_run)
+                except Exception as e:
+                    report["errors"].append(f"{home} vs {away}: {e} | {traceback.format_exc()[:300]}")
+                    continue
+                if s.get("skipped"):
+                    continue
+                report["matches_processed"].append(s)
+                report["total_players"] += s.get("players", 0)
+                print(f"  {ymd} {s.get('home')} vs {s.get('away')}: "
+                      f"{s.get('players')} jugadores, {s.get('stats_rows')} stats")
+        if not dry_run:
+            conn.commit()
+        report["pmu_total"] = conn.execute("SELECT COUNT(*) FROM player_match_usage").fetchone()[0]
+        report["teams_covered"] = conn.execute("SELECT COUNT(DISTINCT team_id) FROM player_match_usage").fetchone()[0]
+    except Exception as e:
+        report["fatal"] = f"{e} | {traceback.format_exc()[:500]}"
+    finally:
+        conn.close()
+        out = BASE_DIR / "data" / "lineups" / "smartapi_friendlies_report.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+        print(f"\n  Reporte → {out.relative_to(BASE_DIR)} | players(run)={report['total_players']} "
+              f"pmu_total={report.get('pmu_total')} errors={len(report['errors'])}")
 
 
 def run_matchday(dry_run: bool = False) -> None:
