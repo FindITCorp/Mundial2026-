@@ -123,6 +123,9 @@ _CORRECT_IDS = {
     "Uruguay":      28,  "Uzbekistan":  160,  "Venezuela":    88,
 }
 
+# Captura de diagnóstico de la API (errores y muestra cruda)
+_API_DIAG: dict = {"errors": [], "sample": None}
+
 # IDs definitivos sin colisiones (verificados contra API-Football docs)
 TEAM_API_IDS = {
     "Argentina":    26,
@@ -223,13 +226,28 @@ def _api_get(endpoint: str, params: dict, cache_key: str,
         print(f"  [API] {endpoint} → {r.status_code}  remaining={remaining}")
         if r.status_code == 200:
             data = r.json()
+            # Diagnóstico: capturar errores de la API y una muestra cruda
+            errs = data.get("errors")
+            if errs:
+                _API_DIAG["errors"].append({"endpoint": endpoint, "params": params, "errors": errs})
+            if _API_DIAG["sample"] is None:
+                _API_DIAG["sample"] = {
+                    "endpoint": endpoint, "params": params,
+                    "results": data.get("results"),
+                    "errors": errs,
+                    "first_item": (data.get("response") or [None])[0],
+                }
             with open(cache_file, "w") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             time.sleep(1.2)  # polite delay
             return data
         elif r.status_code == 429:
             print("  [API] Rate limit hit, sleeping 65s...")
+            _API_DIAG["errors"].append({"endpoint": endpoint, "status": 429})
             time.sleep(65)
+        else:
+            _API_DIAG["errors"].append({"endpoint": endpoint, "status": r.status_code,
+                                        "body": r.text[:300]})
     except Exception as e:
         print(f"  [API] Exception: {e}")
     return None
@@ -448,6 +466,19 @@ def run(team_filter: str = None, max_teams: int = 48,
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
+    # Debug report (committed via data/lineups/) so we can inspect what the
+    # API returned from the Actions runner — logs are not downloadable.
+    report: dict = {
+        "ran_at": datetime.utcnow().isoformat(),
+        "teams": [],
+        "fixtures_seen": 0,
+        "lineups_with_data": 0,
+        "lineups_empty": 0,
+        "players_saved": 0,
+        "api_errors": [],
+        "sample_api_response": None,
+    }
+
     # Load our teams
     wc_teams = conn.execute(
         "SELECT id, name FROM teams WHERE wc_group IS NOT NULL ORDER BY name"
@@ -480,6 +511,9 @@ def run(team_filter: str = None, max_teams: int = 48,
 
             print(f"\n→ {team['name']} (api_id={api_id})")
             fixtures = fetch_team_fixtures(api_id, team["name"])
+            report["teams"].append({"name": team["name"], "api_id": api_id,
+                                     "fixtures": len(fixtures)})
+            report["fixtures_seen"] += len(fixtures)
 
             # Store fixture IDs pending lineup fetch
             existing_pending = set(progress.get("pending_lineups", []))
@@ -529,6 +563,7 @@ def run(team_filter: str = None, max_teams: int = 48,
 
         if not lineup_resp:
             print(f"    → Sin alineación disponible")
+            report["lineups_empty"] += 1
             progress["lineups_fetched"].append(fixture_id)
             progress["pending_lineups"] = [x for x in progress.get("pending_lineups", []) if x != fixture_id]
             _save_progress(progress)
@@ -536,6 +571,7 @@ def run(team_filter: str = None, max_teams: int = 48,
 
         n = save_lineup_to_db(conn, fixture_id, fixture_date, competition,
                               lineup_resp, team_id_map, dry_run)
+        report["lineups_with_data"] += 1
         print(f"    → {n} jugadores guardados en player_match_usage")
 
         # Enrich with events (sub minutes, goals)
@@ -562,6 +598,21 @@ def run(team_filter: str = None, max_teams: int = 48,
     print(f"  player_match_usage total: {total_usage}")
     print(f"  Equipos con datos: {teams_covered}/48")
     print(f"  Registros nuevos esta ejecución: {total_saved}")
+
+    # Escribir reporte de diagnóstico (commiteado vía data/lineups/)
+    report["players_saved"] = total_saved
+    report["pmu_total"] = total_usage
+    report["teams_covered"] = teams_covered
+    report["api_errors"] = _API_DIAG["errors"][:20]
+    report["sample_api_response"] = _API_DIAG["sample"]
+    try:
+        report_dir = BASE_DIR / "data" / "lineups"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        with open(report_dir / "friendly_report.json", "w") as f:
+            json.dump(report, f, indent=2, ensure_ascii=False, default=str)
+        print(f"  Reporte escrito en data/lineups/friendly_report.json")
+    except Exception as e:
+        print(f"  No se pudo escribir reporte: {e}")
 
     conn.close()
 
