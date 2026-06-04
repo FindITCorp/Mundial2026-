@@ -4,7 +4,7 @@
 **Ultima actualizacion:** 04 de junio de 2026
 **Proposito:** Sistema completo de prediccion y analisis del Mundial 2026
 **Stack:** Python 3.11 · SQLite · requests · scipy · StatsBomb open data
-**Estado:** 🟢 DATOS CARGADOS · WORKFLOWS PASANDO · SIMULADOR FUNCIONAL · EXPERT ANALYSIS LISTO
+**Estado:** 🟢 DATOS CARGADOS · WORKFLOWS PASANDO · COMANDO ÚNICO `predict_match.py` (6 factores + auditoría) · EXPERT ANALYSIS LISTO
 
 ---
 
@@ -319,11 +319,40 @@ Brazil vs Argentina (10,000 sim):
 
 ## PROTOCOLO DE TRABAJO
 
-### Para predecir un partido:
+### ★★★ COMANDO OFICIAL DE PREDICCION — predict_match.py ★★★
+**ÚNICO comando canónico. El usuario pasa los partidos, este devuelve el resultado.**
+NO usar simuladores parciales ni scripts ad-hoc: SIEMPRE pasa por el motor completo
+de 6 factores (Elo + forma/xG + XI 11v11 con ratings club+selección + balón parado
++ pressing + H2H) y AUDITA que cada factor tenga datos reales. Si alguno cae en
+default, lo AVISA explícitamente (regla de oro: el modelo nunca deja una
+consideración fuera en silencio).
+
 ```bash
 cd /home/user/mundial2026
+python3 predict_match.py "Mexico" "Serbia"                       # un partido
+python3 predict_match.py --pairs "Spain|Iraq" "Mexico|Serbia"    # varios
+python3 predict_match.py --file data/lineups/predict_pairs.txt   # desde archivo
+python3 predict_match.py "Mexico" "Serbia" --home-out "Edson Álvarez:suspension,Raúl Jiménez:injury"
+python3 predict_match.py "Mexico" "Serbia" --json                # salida JSON
+```
+- Corre LOCAL (solo lee la DB, no consume API ni GitHub Actions).
+- Salida: marcador probable + prob (L/E/V) + λ goles + **calidad XI (11v11)** + Elo
+  + formación + posesión + top marcadores + **AUDITORÍA de los 6 factores**.
+- Acepta bajas/suspensiones con `--home-out` / `--away-out` (formato `Jugador:reason`,
+  reason ∈ injury/suspension/red_card). Recalcula el λ excluyendo al ausente.
+
+REGLAS DURAS (no repetir errores pasados):
+- El motor lee `projected_lineups` (XI titular, 26 convocados) + `player_ratings`
+  (context='nat') + `player_club_stats` season '2024/25' (xg/goals/assists reales).
+- El factor XI se capa a 0.62 si hay club_stats reales (no a 0.36, que era para
+  equipos sin datos). Ver `_get_xi_rating()` en models/match_predictor.py.
+- Si la auditoría marca ⚠ DEFAULT en un equipo CLASIFICADO → hay que cargar ese
+  dato antes de confiar en la predicción. Para rivales NO clasificados, el ⚠ es
+  esperado y la predicción se reporta como "no fiable".
+
+### Predicción legacy (referencia, NO usar como principal):
+```bash
 python3 predict.py --home "Panama" --away "Croatia"
-# O el analisis experto (cuando este listo):
 python3 models/expert_analysis.py "Panama" "Croatia"
 ```
 
