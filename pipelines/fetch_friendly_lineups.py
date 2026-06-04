@@ -187,6 +187,40 @@ TEAM_API_IDS = {
 }
 
 
+import re
+
+
+def _clean_key(raw: str, kind: str) -> str:
+    """Sanitiza un valor de secret posiblemente mal configurado.
+
+    El secret APIFOOT en el runner viene como un blob multilínea tipo
+    'API_FOOTBALL_KEY = 557119c7a1msh...'. Extraemos el token real.
+      - rapid:     token de RapidAPI (contiene 'msh' y 'jsn', ~50 chars)
+      - apisports: hash hexadecimal de 32 chars
+    """
+    if not raw:
+        return ""
+    raw = raw.strip()
+    # Si ya es un token limpio (sin espacios/saltos), úsalo
+    if "\n" not in raw and " " not in raw and "=" not in raw:
+        return raw
+    if kind == "rapid":
+        m = re.search(r"[0-9a-zA-Z]+msh[0-9a-zA-Z]+jsn[0-9a-zA-Z]+", raw)
+        if m:
+            return m.group(0)
+    else:  # apisports: hex de 32
+        for tok in re.findall(r"[0-9a-fA-F]{32}", raw):
+            return tok
+    # Fallback: último token sin espacios de longitud razonable
+    for tok in re.findall(r"[0-9a-zA-Z]{20,}", raw):
+        return tok
+    return raw
+
+
+def _get_key(env_name: str, kind: str) -> str:
+    return _clean_key(os.getenv(env_name, ""), kind)
+
+
 def _norm(name: str) -> str:
     n = unicodedata.normalize("NFD", name.lower().strip())
     return "".join(c for c in n if unicodedata.category(c) != "Mn")
@@ -206,7 +240,7 @@ def _provider_request(provider: str, endpoint: str, params: dict):
     import requests
 
     if provider == "rapid":
-        rapid_key = os.getenv("APIFOOT", "")
+        rapid_key = _get_key("APIFOOT", "rapid")
         if not rapid_key:
             _API_DIAG["errors"].append({"provider": "rapid", "skip": "APIFOOT no configurado"})
             return None, None
@@ -214,7 +248,7 @@ def _provider_request(provider: str, endpoint: str, params: dict):
         headers = {"x-rapidapi-key": rapid_key,
                    "x-rapidapi-host": "api-football-v1.p.rapidapi.com"}
     else:  # apisports
-        apisports_key = os.getenv("APISPORTS_KEY", "")
+        apisports_key = _get_key("APISPORTS_KEY", "apisports")
         if not apisports_key:
             _API_DIAG["errors"].append({"provider": "apisports", "skip": "APISPORTS_KEY no configurado"})
             return None, None

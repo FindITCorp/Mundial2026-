@@ -35,8 +35,30 @@ DB_PATH   = BASE_DIR / "data" / "mundial2026.db"
 CACHE_DIR = BASE_DIR / "data" / "cache" / "match_events"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-RAPID_KEY  = os.getenv("APIFOOT", "")
-SPORTS_KEY = os.getenv("APISPORTS_KEY", "")
+import re
+
+
+def _clean_key(raw: str, kind: str) -> str:
+    """Sanitiza secrets mal configurados (blob multilínea) y extrae el token real."""
+    if not raw:
+        return ""
+    raw = raw.strip()
+    if "\n" not in raw and " " not in raw and "=" not in raw:
+        return raw
+    if kind == "rapid":
+        m = re.search(r"[0-9a-zA-Z]+msh[0-9a-zA-Z]+jsn[0-9a-zA-Z]+", raw)
+        if m:
+            return m.group(0)
+    else:
+        for tok in re.findall(r"[0-9a-fA-F]{32}", raw):
+            return tok
+    for tok in re.findall(r"[0-9a-zA-Z]{20,}", raw):
+        return tok
+    return raw
+
+
+RAPID_KEY  = _clean_key(os.getenv("APIFOOT", ""), "rapid")
+SPORTS_KEY = _clean_key(os.getenv("APISPORTS_KEY", ""), "apisports")
 
 RAPID_HOST = "api-football-v1.p.rapidapi.com"
 SPORTS_URL = "https://v3.football.api-sports.io"
