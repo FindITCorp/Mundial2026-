@@ -272,8 +272,7 @@ def _get_attack_defense_strength(conn, team_id: int, db_key: str) -> dict:
 def _get_form(conn, team_id: int, n: int = 10) -> dict:
     rows = conn.execute("""
         SELECT tm.goals_for gf, tm.goals_against ga, tm.result,
-               tm.opponent_name, tm.competition, te.elo AS opp_elo,
-               COALESCE(tm.squad_weight, 1.0) AS squad_weight
+               tm.opponent_name, tm.competition, te.elo AS opp_elo
         FROM team_matches tm
         LEFT JOIN team_elo te ON te.team_id = tm.opponent_id
         WHERE tm.team_id=? AND tm.goals_for IS NOT NULL
@@ -286,13 +285,12 @@ def _get_form(conn, team_id: int, n: int = 10) -> dict:
         return {"avg_gf": 1.1, "avg_ga": 1.1, "form_score": 0.40,
                 "last5": [], "gp": 0, "wins": 0, "draws": 0, "losses": 0}
 
-    # ── SOS × squad_weight: cuadro B reduce el peso del resultado ────────────
+    # ── Strength-of-schedule: ponderar goles por fuerza del rival ────────────
+    # Marcar/conceder frente a rivales fuertes pesa más que frente a débiles.
     num_gf = num_ga = denom = 0.0
     for r in filtered:
         opp_elo = r["opp_elo"] if r["opp_elo"] is not None else SOS_DEFAULT_ELO
-        sos_w = (opp_elo / SOS_PIVOT) ** SOS_EXP
-        sq_w  = r["squad_weight"]
-        w = sos_w * sq_w
+        w = (opp_elo / SOS_PIVOT) ** SOS_EXP
         num_gf += r["gf"] * w
         num_ga += r["ga"] * w
         denom  += w
@@ -307,22 +305,23 @@ def _get_form(conn, team_id: int, n: int = 10) -> dict:
     wins  = sum(1 for r in filtered if r["result"] == "W")
     draws = sum(1 for r in filtered if r["result"] == "D")
 
-    # Ponderación temporal × SOS × squad_weight
+    # Ponderación temporal × calidad del rival (SOS-adjusted form_score)
+    # Ganar vs rival fuerte vale más; perder vs rival fuerte penaliza menos
     w_pts = 0.0
     max_pts = 0.0
     for i, r in enumerate(reversed(filtered)):
         opp_elo = r["opp_elo"] if r["opp_elo"] is not None else SOS_DEFAULT_ELO
         recency = 1 + i * 0.07
-        opp_factor = (opp_elo / SOS_PIVOT) ** 0.75
-        sq_w = r["squad_weight"]
+        opp_factor = (opp_elo / SOS_PIVOT) ** 0.75   # más sensible a calidad rival
         if r["result"] == "W":
-            pts = 1.5 * opp_factor * sq_w
+            pts = 1.5 * opp_factor          # ganar vs fuerte vale más
         elif r["result"] == "D":
-            pts = 0.5 * opp_factor * sq_w
+            pts = 0.5 * opp_factor          # empate vs fuerte también vale más
         else:
-            pts = max(0.0, 0.40 * (opp_elo - SOS_PIVOT) / 300) * sq_w
+            # Perder vs rival mucho más fuerte: crédito proporcional a la brecha
+            pts = max(0.0, 0.40 * (opp_elo - SOS_PIVOT) / 300)
         w_pts   += pts * recency
-        max_pts += 1.5 * recency
+        max_pts += 1.5 * recency            # máximo sigue siendo ganar todo
     # Racha ganadora: boost si los últimos N partidos son todos victorias
     recent = filtered[:5]
     win_streak = 0
@@ -452,13 +451,9 @@ def _get_xi_rating(conn, team_id: int) -> float:
     # If no starter has tournament event data (sb_matches=0 for all),
     # cap xi — club stats alone (e.g. Haaland's 18xG) don't reflect
     # how a team performs in international tournaments.
-    # Si no hay datos StatsBomb de torneo pero SÍ hay club_stats 2024/25,
-    # el cap sube a 0.62 (club xG + rating son datos reales, no estimados).
-    # Solo dejamos el cap 0.36 para equipos sin ningún dato real de rendimiento.
     any_tournament = any((r["sb_matches"] or 0) > 0 for r in rows)
-    any_club_xg    = any((r["xg"] or 0) > 0 for r in rows)
     if not any_tournament:
-        xi = min(xi, 0.62 if any_club_xg else 0.360)
+        xi = min(xi, 0.360)
 
     return xi
 
@@ -1187,9 +1182,6 @@ def predict_match(
         "pressing_away":   round(away_tac["pressing_intensity"], 2),
         "tac_matchup_home": round(h_tac_f, 3),   # ventaja/desventaja táctica del local
         "tac_matchup_away": round(a_tac_f, 3),   # ventaja/desventaja táctica del visitante
-        # Calidad del XI (0-1) usando ratings club+selección de los 11 titulares
-        "xi_home":         round(home_xi, 3),
-        "xi_away":         round(away_xi, 3),
         # Top marcadores
         "top_scores":      [(f"{s[0]}-{s[1]}", round(p / prob_total_raw * 100, 1))
                             for s, p in top_scores[:6]],

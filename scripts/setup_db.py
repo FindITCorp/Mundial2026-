@@ -1282,15 +1282,6 @@ def migrate_db(conn: sqlite3.Connection):
         ("player_club_stats", "goals_per_90",      "REAL DEFAULT 0"),
         ("player_club_stats", "assists_per_90",    "REAL DEFAULT 0"),
         ("player_club_stats", "xa",                "REAL DEFAULT 0"),
-        # wc_matches extended
-        ("wc_matches",        "api_fixture_id",    "INTEGER"),
-        # match_lineups extended
-        ("match_lineups",     "estimated",         "INTEGER DEFAULT 1"),
-        ("match_lineups",     "minutes_played",    "INTEGER DEFAULT 0"),
-        ("match_lineups",     "sub_in_minute",     "INTEGER"),
-        ("match_lineups",     "sub_out_minute",    "INTEGER"),
-        ("match_lineups",     "sub_for_player_id", "INTEGER"),
-        ("match_lineups",     "confirmed_at",      "TEXT"),
     ]
 
     applied = 0
