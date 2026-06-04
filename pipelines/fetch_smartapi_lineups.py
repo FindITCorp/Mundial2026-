@@ -150,6 +150,44 @@ def _ensure_player(conn, team_id: int, api_player: dict) -> int | None:
     return row[0] if row else None
 
 
+_PLAYER_SAMPLE_DUMPED = False
+
+
+def _first_num(ap: dict, *keys):
+    """Primer valor numérico no nulo entre varios nombres de campo candidatos."""
+    for k in keys:
+        v = ap.get(k)
+        if isinstance(v, (int, float)):
+            return v
+        if isinstance(v, str) and v.strip().lstrip("-").isdigit():
+            return int(v)
+        # a veces viene anidado en performance/stats
+        if isinstance(v, dict):
+            for kk in ("value", "total", "count"):
+                if isinstance(v.get(kk), (int, float)):
+                    return v[kk]
+    return None
+
+
+def _extract_player_events(ap: dict, is_starter: int) -> dict:
+    """Extrae minutos/goles/tarjetas/subs del objeto jugador si la API los trae.
+    Defensivo ante distintos esquemas. Si no hay datos, usa placeholder 90/0."""
+    perf = ap.get("performance") or ap.get("stats") or {}
+    src = {**(perf if isinstance(perf, dict) else {}), **ap}
+    minutes = _first_num(src, "minutesPlayed", "minutes", "mins", "timePlayed")
+    sub_in = _first_num(src, "subbedInTime", "subInMinute", "subbedIn", "timeSubbedIn")
+    sub_out = _first_num(src, "subbedOutTime", "subOutMinute", "subbedOut", "timeSubbedOut")
+    goals = _first_num(src, "goals", "goalsScored", "goal")
+    assists = _first_num(src, "assists", "assist", "goalAssist")
+    yellow = _first_num(src, "yellowCards", "yellow", "yellowCard")
+    red = _first_num(src, "redCards", "red", "redCard")
+    if minutes is None:
+        minutes = 90 if is_starter else 0  # placeholder si la API no da minutos
+    return {"minutes": minutes, "sub_in": sub_in, "sub_out": sub_out,
+            "goals": goals or 0, "assists": assists or 0,
+            "yellow": yellow or 0, "red": red or 0}
+
+
 def _save_lineup(conn, team_id: int, lineup: dict, match_id, match_date: str,
                  competition: str, wc_match_id: int | None, pcache: dict,
                  dry_run: bool) -> int:
@@ -163,14 +201,29 @@ def _save_lineup(conn, team_id: int, lineup: dict, match_id, match_date: str,
                 pid = _ensure_player(conn, team_id, ap)
             if pid is None:
                 continue
-            mins = 90 if is_starter else 0
+            # Volcar UNA vez la estructura cruda del jugador para descubrir qué
+            # campos reales trae (minutos, goles, tarjetas, sub) — diagnóstico.
+            global _PLAYER_SAMPLE_DUMPED
+            if not _PLAYER_SAMPLE_DUMPED:
+                try:
+                    (BASE_DIR / "data" / "lineups" / "player_obj_sample.json").write_text(
+                        __import__("json").dumps(ap, ensure_ascii=False, indent=2))
+                    _PLAYER_SAMPLE_DUMPED = True
+                except Exception:
+                    pass
+            # Capturar campos reales del jugador si existen (defensivo: varios
+            # nombres candidatos). Si no existen, caemos al placeholder 90/0.
+            ev = _extract_player_events(ap, is_starter)
             if not dry_run:
                 conn.execute("""
                     INSERT OR IGNORE INTO player_match_usage
                         (player_id, team_id, match_id, match_date, competition,
-                         is_starter, minutes_played)
-                    VALUES (?,?,?,?,?,?,?)
-                """, (pid, team_id, match_id, match_date, competition, is_starter, mins))
+                         is_starter, minutes_played, sub_in_minute, sub_out_minute,
+                         goals, assists, yellow_cards, red_card)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (pid, team_id, match_id, match_date, competition, is_starter,
+                      ev["minutes"], ev["sub_in"], ev["sub_out"], ev["goals"],
+                      ev["assists"], ev["yellow"], ev["red"]))
                 if wc_match_id:
                     conn.execute("""
                         INSERT OR IGNORE INTO match_lineups

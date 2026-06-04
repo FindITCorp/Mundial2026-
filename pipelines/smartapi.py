@@ -85,6 +85,14 @@ def get(path: str, params: dict | None = None, retries: int = 2,
             r = requests.get(url, headers=headers, params=params or {}, timeout=20)
             if r.status_code == 200:
                 data = r.json()
+                # FALLO BLANDO: la API devuelve 200 con {"status":"failed",
+                # "message":"Request Failed Please try Again"}. NO cachear (envenena
+                # el caché) y reintentar con back-off — es intermitente.
+                if isinstance(data, dict) and str(data.get("status", "")).lower() == "failed":
+                    if attempt < retries:
+                        time.sleep(1.5 * (attempt + 1))
+                        continue
+                    return None
                 try:
                     cache_file.write_text(json.dumps(data, ensure_ascii=False))
                 except Exception:
@@ -115,13 +123,19 @@ def matches_by_date(date_yyyymmdd: str, fresh: bool = False) -> list:
 
 
 def team_lineup(event_id, side: str) -> dict | None:
-    """side = 'home' | 'away'. Devuelve el dict de lineup o None."""
+    """side = 'home' | 'away'. Devuelve el dict de lineup o None.
+
+    El endpoint es intermitente ('Request Failed'), así que reintentamos más veces.
+    """
     path = "/football-get-hometeam-lineup" if side == "home" else "/football-get-awayteam-lineup"
-    resp = get(path, {"eventid": str(event_id)})
+    resp = get(path, {"eventid": str(event_id)}, retries=4)
     if isinstance(resp, dict):
         lu = resp.get("lineup")
         if isinstance(lu, dict) and lu.get("starters"):
             return lu
+        # algunas variantes devuelven el lineup directo en response
+        if resp.get("starters"):
+            return resp
     return None
 
 
