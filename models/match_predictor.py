@@ -452,9 +452,13 @@ def _get_xi_rating(conn, team_id: int) -> float:
     # If no starter has tournament event data (sb_matches=0 for all),
     # cap xi — club stats alone (e.g. Haaland's 18xG) don't reflect
     # how a team performs in international tournaments.
+    # Si no hay datos StatsBomb de torneo pero SÍ hay club_stats 2024/25,
+    # el cap sube a 0.62 (club xG + rating son datos reales, no estimados).
+    # Solo dejamos el cap 0.36 para equipos sin ningún dato real de rendimiento.
     any_tournament = any((r["sb_matches"] or 0) > 0 for r in rows)
+    any_club_xg    = any((r["xg"] or 0) > 0 for r in rows)
     if not any_tournament:
-        xi = min(xi, 0.360)
+        xi = min(xi, 0.62 if any_club_xg else 0.360)
 
     return xi
 
@@ -1183,6 +1187,9 @@ def predict_match(
         "pressing_away":   round(away_tac["pressing_intensity"], 2),
         "tac_matchup_home": round(h_tac_f, 3),   # ventaja/desventaja táctica del local
         "tac_matchup_away": round(a_tac_f, 3),   # ventaja/desventaja táctica del visitante
+        # Calidad del XI (0-1) usando ratings club+selección de los 11 titulares
+        "xi_home":         round(home_xi, 3),
+        "xi_away":         round(away_xi, 3),
         # Top marcadores
         "top_scores":      [(f"{s[0]}-{s[1]}", round(p / prob_total_raw * 100, 1))
                             for s, p in top_scores[:6]],
