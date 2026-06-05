@@ -208,10 +208,139 @@ def probe_lineup_detail():
                                             "has_data": bool(d2.get("response")) if isinstance(d2, dict) else False}
 
 
+# ─────────────────────── football-data.org ───────────────────────
+def test_football_data_org():
+    """Testea football-data.org con FOOTBALL_DATA_KEY.
+    Preguntas clave:
+      1. ¿Qué competiciones cubre para 2026?
+      2. ¿Tiene el WC2026 (FIFA World Cup)?
+      3. ¿Tiene amistosos (Friendlies) de junio 2026?
+      4. ¿Devuelve lineups con minutos por jugador?
+    """
+    key = os.getenv("FOOTBALL_DATA_KEY", "")
+    out = report["football_data_org"] = {}
+    if not key:
+        out["error"] = "FOOTBALL_DATA_KEY no configurada"
+        return
+
+    base = "https://api.football-data.org/v4"
+    h = {"X-Auth-Token": key}
+
+    # 1. Plan / cuota
+    st, d = _get(f"{base}/", h, {})
+    out["status_root"] = st
+    if isinstance(d, dict):
+        out["plan"] = d.get("plan")
+        out["version"] = d.get("version")
+        out["message_root"] = d.get("message")
+
+    # 2. Competiciones disponibles
+    st, d = _get(f"{base}/competitions", h, {})
+    out["competitions_status"] = st
+    comps = []
+    if isinstance(d, dict):
+        for c in d.get("competitions", []):
+            comps.append({
+                "id": c.get("id"),
+                "code": c.get("code"),
+                "name": c.get("name"),
+                "type": c.get("type"),
+                "plan": c.get("plan"),
+            })
+    out["competitions"] = comps
+    out["competitions_count"] = len(comps)
+
+    # Buscar WC2026 específicamente
+    wc_candidates = [c for c in comps if "world" in (c.get("name") or "").lower()
+                     or c.get("code") in ("WC", "FIFA")]
+    out["wc_candidates"] = wc_candidates
+
+    # 3. Matches del WC2026 — probar código WC
+    for code in ("WC", "FIFA", "CWC"):
+        st, d = _get(f"{base}/competitions/{code}/matches", h,
+                     {"dateFrom": "2026-06-11", "dateTo": "2026-06-12"})
+        fixtures = []
+        if isinstance(d, dict):
+            for m in (d.get("matches") or [])[:5]:
+                home = (m.get("homeTeam") or {}).get("name", "?")
+                away = (m.get("awayTeam") or {}).get("name", "?")
+                fixtures.append(f"{home} vs {away}")
+        out[f"wc_matches_{code}"] = {"status": st, "count": len(fixtures), "sample": fixtures}
+        if st == 200 and len(fixtures):
+            break
+
+    # 4. Amistosos junio 2026 — endpoint general /matches con dateFrom/dateTo
+    st, d = _get(f"{base}/matches", h,
+                 {"dateFrom": "2026-06-01", "dateTo": "2026-06-05"})
+    out["friendlies_june_status"] = st
+    friendlies = []
+    fid = None
+    if isinstance(d, dict):
+        for m in (d.get("matches") or []):
+            home = (m.get("homeTeam") or {}).get("name", "?")
+            away = (m.get("awayTeam") or {}).get("name", "?")
+            comp = (m.get("competition") or {}).get("name", "?")
+            mid = m.get("id")
+            friendlies.append(f"{home} vs {away} [{comp}] id={mid}")
+            if fid is None:
+                fid = mid
+    out["friendlies_june"] = {"count": len(d.get("matches", [])) if isinstance(d, dict) else 0,
+                               "sample": friendlies[:8]}
+
+    # 5. ¿Hay lineup con minutos? — probar con primer partido encontrado
+    if fid:
+        st_l, dl = _get(f"{base}/matches/{fid}/lineups", h, {})
+        out["lineups_endpoint"] = {"status": st_l, "fixture_id": fid}
+        if isinstance(dl, dict):
+            out["lineups_endpoint"]["keys"] = list(dl.keys())
+            lineups = dl.get("lineups") or dl.get("response") or []
+            if isinstance(lineups, list) and lineups:
+                first = lineups[0]
+                out["lineups_endpoint"]["first_keys"] = list(first.keys()) if isinstance(first, dict) else None
+                # ¿tiene minutos por jugador?
+                players = first.get("startXI") or first.get("lineup") or []
+                if players:
+                    sample_p = players[0]
+                    out["lineups_endpoint"]["player_sample"] = sample_p
+            out["lineups_endpoint"]["raw_200"] = json.dumps(dl, ensure_ascii=False)[:2000]
+
+        # También probar /matches/{id}/head2head y /matches/{id} para ver la estructura
+        st_m, dm = _get(f"{base}/matches/{fid}", h, {})
+        out["match_detail_sample"] = {
+            "status": st_m,
+            "keys": list(dm.keys()) if isinstance(dm, dict) else None,
+            "score": dm.get("score") if isinstance(dm, dict) else None,
+        }
+    else:
+        out["lineups_endpoint"] = {"error": "no fixture found to test lineups"}
+
+    # 6. Probar España-Iraq específicamente (2026-06-04) si existe
+    st, d = _get(f"{base}/matches", h,
+                 {"dateFrom": "2026-06-04", "dateTo": "2026-06-04"})
+    spain_iraq = []
+    spain_iraq_id = None
+    if isinstance(d, dict):
+        for m in (d.get("matches") or []):
+            home = (m.get("homeTeam") or {}).get("name", "?")
+            away = (m.get("awayTeam") or {}).get("name", "?")
+            spain_iraq.append(f"{home} vs {away} id={m.get('id')}")
+            if "spain" in home.lower() or "spain" in away.lower():
+                spain_iraq_id = m.get("id")
+    out["june4_matches"] = spain_iraq
+
+    if spain_iraq_id:
+        st_l, dl = _get(f"{base}/matches/{spain_iraq_id}/lineups", h, {})
+        out["spain_iraq_lineups"] = {
+            "status": st_l,
+            "raw": json.dumps(dl, ensure_ascii=False)[:3000] if isinstance(dl, dict) else str(dl)
+        }
+
+
 if __name__ == "__main__":
     test_apisports()
     test_rapidapi()
     probe_lineup_detail()
+    test_football_data_org()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(report, ensure_ascii=False, indent=2))
     print(json.dumps(report, ensure_ascii=False, indent=2))
