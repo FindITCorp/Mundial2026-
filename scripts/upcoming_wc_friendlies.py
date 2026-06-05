@@ -162,6 +162,9 @@ def predict_match(home, away):
         return {"error": str(e)}
 
 
+OUT_FILE = BASE_DIR / "data" / "lineups" / "upcoming_friendlies.json"
+
+
 if __name__ == "__main__":
     conn = sqlite3.connect(DB_PATH)
 
@@ -215,4 +218,25 @@ if __name__ == "__main__":
                       f"{ev['away']} gana {p['away_win']}%")
 
     conn.close()
+
+    # Guardar predicciones en archivo para leer desde fuera de Actions
+    output = {
+        "generated_at": date.today().isoformat(),
+        "results_inserted": new_total,
+        "upcoming": []
+    }
+    for ev in sorted(upcoming, key=lambda x: x["date"]):
+        p = predict_match(ev["home"], ev["away"])
+        entry = {
+            "date": ev["date"],
+            "home": ev["home"], "away": ev["away"],
+            "home_wc": ev["home_wc"], "away_wc": ev["away_wc"],
+        }
+        if p and "error" not in p:
+            entry.update(p)
+        output["upcoming"].append(entry)
+
+    OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    OUT_FILE.write_text(json.dumps(output, ensure_ascii=False, indent=2))
+    print(f"\nPredicciones guardadas en {OUT_FILE}")
     print("\n" + "=" * 70)
