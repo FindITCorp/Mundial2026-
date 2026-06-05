@@ -1,9 +1,9 @@
 {
-  "ran_at": "2026-06-04T22:55:09.312759",
+  "ran_at": "2026-06-05T01:42:50.367641",
   "apisports": {
     "plan": "Free",
     "requests": {
-      "current": 9,
+      "current": 0,
       "limit_day": 100
     },
     "leagues_wc": [
@@ -542,5 +542,133 @@
         "has_data": false
       }
     }
+  },
+  "football_data_org": {
+    "status_root": 404,
+    "plan": null,
+    "version": null,
+    "message_root": null,
+    "competitions_status": 200,
+    "competitions": [
+      {
+        "id": 2013,
+        "code": "BSA",
+        "name": "Campeonato Brasileiro Série A",
+        "type": "LEAGUE",
+        "plan": "TIER_ONE"
+      },
+      {
+        "id": 2016,
+        "code": "ELC",
+        "name": "Championship",
+        "type": "LEAGUE",
+        "plan": "TIER_ONE"
+      },
+      {
+        "id": 2021,
+        "code": "PL",
+        "name": "Premier League",
+        "type": "LEAGUE",
+        "plan": "TIER_ONE"
+      },
+      {
+        "id": 2001,
+        "code": "CL",
+        "name": "UEFA Champions League",
+        "type": "CUP",
+        "plan": "TIER_ONE"
+      },
+      {
+        "id": 2018,
+        "code": "EC",
+        "name": "European Championship",
+        "type": "CUP",
+        "plan": "TIER_ONE"
+      },
+      {
+        "id": 2015,
+        "code": "FL1",
+        "name": "Ligue 1",
+        "type": "LEAGUE",
+        "plan": "TIER_ONE"
+      },
+      {
+        "id": 2002,
+        "code": "BL1",
+        "name": "Bundesliga",
+        "type": "LEAGUE",
+        "plan": "TIER_ONE"
+      },
+      {
+        "id": 2019,
+        "code": "SA",
+        "name": "Serie A",
+        "type": "LEAGUE",
+        "plan": "TIER_ONE"
+      },
+      {
+        "id": 2003,
+        "code": "DED",
+        "name": "Eredivisie",
+        "type": "LEAGUE",
+        "plan": "TIER_ONE"
+      },
+      {
+        "id": 2017,
+        "code": "PPL",
+        "name": "Primeira Liga",
+        "type": "LEAGUE",
+        "plan": "TIER_ONE"
+      },
+      {
+        "id": 2152,
+        "code": "CLI",
+        "name": "Copa Libertadores",
+        "type": "CUP",
+        "plan": "TIER_FOUR"
+      },
+      {
+        "id": 2014,
+        "code": "PD",
+        "name": "Primera Division",
+        "type": "LEAGUE",
+        "plan": "TIER_ONE"
+      },
+      {
+        "id": 2000,
+        "code": "WC",
+        "name": "FIFA World Cup",
+        "type": "CUP",
+        "plan": "TIER_ONE"
+      }
+    ],
+    "competitions_count": 13,
+    "wc_candidates": [
+      {
+        "id": 2000,
+        "code": "WC",
+        "name": "FIFA World Cup",
+        "type": "CUP",
+        "plan": "TIER_ONE"
+      }
+    ],
+    "wc_matches_WC": {
+      "status": 200,
+      "count": 3,
+      "sample": [
+        "Mexico vs South Africa",
+        "South Korea vs Czechia",
+        "Canada vs Bosnia-Herzegovina"
+      ]
+    },
+    "friendlies_june_status": 200,
+    "friendlies_june": {
+      "count": 0,
+      "sample": []
+    },
+    "lineups_endpoint": {
+      "error": "no fixture found to test lineups"
+    },
+    "june4_matches": []
   }
 }
