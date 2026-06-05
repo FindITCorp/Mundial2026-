@@ -40,6 +40,7 @@ on:
           - diagnose
           - today_fixtures
           - predict_pairs
+          - thesportsdb
 
 jobs:
   update:
