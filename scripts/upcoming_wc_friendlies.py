@@ -91,53 +91,99 @@ def _insert_result(conn, home_db, away_db, hg, ag, ev_date, dry=False):
     return inserted
 
 
-def fetch_upcoming_and_results(days_back=3, days_ahead=10):
-    """Devuelve (resultados_nuevos, proximos_partidos)."""
+def _process_event(ev, today_str):
+    """Extrae campos relevantes de un evento TSDB."""
+    home_tsdb = ev.get("strHomeTeam", "")
+    away_tsdb = ev.get("strAwayTeam", "")
+    league    = ev.get("strLeague", "")
+    ev_date   = ev.get("dateEvent", "")
+    if not ev_date:
+        return None, None
+    if "friendly" not in league.lower() and "international" not in league.lower():
+        return None, None
+    if not (_is_wc(home_tsdb) or _is_wc(away_tsdb)):
+        return None, None
+    score_h = ev.get("intHomeScore")
+    score_a = ev.get("intAwayScore")
+    has_score = score_h is not None and score_a is not None
+    try:
+        score_h = int(score_h) if has_score else None
+        score_a = int(score_a) if has_score else None
+    except (ValueError, TypeError):
+        has_score = False; score_h = score_a = None
+    return ev_date, {
+        "date": ev_date,
+        "home": _resolve(home_tsdb), "away": _resolve(away_tsdb),
+        "home_wc": _is_wc(home_tsdb), "away_wc": _is_wc(away_tsdb),
+        "league": league, "id": ev.get("idEvent"),
+        "score_h": score_h, "score_a": score_a, "has_score": has_score,
+    }
+
+
+def fetch_upcoming_and_results(days_back=5, days_ahead=10):
+    """Busca via eventslast + eventsnext por equipo (más fiable que eventsday)."""
     today = date.today()
-    results_new = []
-    upcoming = {}
+    today_str = today.isoformat()
+    cutoff_past  = (today - timedelta(days=days_back)).isoformat()
+    cutoff_future = (today + timedelta(days=days_ahead)).isoformat()
 
-    for delta in range(-days_back, days_ahead + 1):
-        d = (today + timedelta(days=delta)).isoformat()
-        data = _get("/eventsday.php", {"d": d, "s": "Soccer"})
-        if not data:
-            time.sleep(0.5)
+    results_new: dict[str, dict] = {}
+    upcoming: dict[str, dict] = {}
+
+    # Buscar por equipo — más fiable que eventsday
+    # Solo los equipos WC2026 principales (para no gastar demasiadas requests)
+    probe_teams = [
+        "Spain","France","Germany","England","Brazil","Argentina","Mexico",
+        "USA","Canada","Japan","Morocco","Portugal","Netherlands","Belgium",
+        "Croatia","Serbia","Turkey","Hungary","Uruguay","Colombia","Ecuador",
+        "Senegal","Nigeria","Ghana","Ivory Coast","South Korea","Australia",
+        "Saudi Arabia","Iran","Iraq","Qatar","Tunisia","Algeria","Egypt",
+        "Norway","Sweden","Slovenia","Slovakia","Romania","Switzerland",
+        "Costa Rica","Panama","Haiti","Paraguay","Bolivia","Venezuela",
+        "Honduras","Jamaica","Cape Verde","Uzbekistan","Curacao","DR Congo",
+        "New Zealand","South Africa","Scotland","Cameroon","Georgia",
+    ]
+
+    for tsdb_name in probe_teams:
+        # Buscar idTeam
+        data = _get("/searchteams.php", {"t": tsdb_name})
+        if not data or not data.get("teams"):
+            time.sleep(0.2)
             continue
-        for ev in (data.get("events") or []):
-            home_tsdb = ev.get("strHomeTeam", "")
-            away_tsdb = ev.get("strAwayTeam", "")
-            league    = ev.get("strLeague", "")
-            home_db   = _resolve(home_tsdb)
-            away_db   = _resolve(away_tsdb)
+        team_id = None
+        for t in data["teams"]:
+            if t.get("strTeam","").lower() == tsdb_name.lower():
+                team_id = t["idTeam"]
+                break
+        if not team_id:
+            time.sleep(0.2)
+            continue
 
-            # Solo amistosos internacionales
-            if "friendly" not in league.lower() and "international" not in league.lower():
+        # Últimos eventos (resultados)
+        last = _get("/eventslast.php", {"id": team_id})
+        for ev in (last.get("results") or [] if last else []):
+            ev_date, entry = _process_event(ev, today_str)
+            if not entry or not entry["has_score"]:
                 continue
-            # Al menos un equipo WC2026
-            if not (_is_wc(home_tsdb) or _is_wc(away_tsdb)):
+            if ev_date < cutoff_past or ev_date > today_str:
                 continue
+            key = f"{ev_date}|{min(entry['home'],entry['away'])}|{max(entry['home'],entry['away'])}"
+            results_new[key] = entry
 
-            score_h = ev.get("intHomeScore")
-            score_a = ev.get("intAwayScore")
-            has_score = score_h is not None and score_a is not None
+        # Próximos eventos
+        nxt = _get("/eventsnext.php", {"id": team_id})
+        for ev in (nxt.get("events") or [] if nxt else []):
+            ev_date, entry = _process_event(ev, today_str)
+            if not entry or entry["has_score"]:
+                continue
+            if ev_date <= today_str or ev_date > cutoff_future:
+                continue
+            key = f"{ev_date}|{min(entry['home'],entry['away'])}|{max(entry['home'],entry['away'])}"
+            upcoming[key] = entry
 
-            entry = {
-                "date": d, "home": home_db, "away": away_db,
-                "home_wc": _is_wc(home_tsdb), "away_wc": _is_wc(away_tsdb),
-                "league": league, "id": ev.get("idEvent"),
-                "score_h": int(score_h) if has_score else None,
-                "score_a": int(score_a) if has_score else None,
-            }
-            key = f"{d}|{home_db}|{away_db}"
+        time.sleep(0.35)
 
-            if delta <= 0 and has_score:
-                results_new.append(entry)
-            elif delta > 0 and not has_score:
-                upcoming[key] = entry
-
-        time.sleep(0.4)
-
-    return results_new, list(upcoming.values())
+    return list(results_new.values()), list(upcoming.values())
 
 
 def predict_match(home, away):
