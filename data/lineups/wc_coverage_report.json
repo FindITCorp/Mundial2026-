@@ -1,9 +1,9 @@
 {
-  "ran_at": "2026-06-05T02:26:47.318036",
+  "ran_at": "2026-06-05T20:39:18.395304",
   "apisports": {
     "plan": "Free",
     "requests": {
-      "current": 3,
+      "current": 9,
       "limit_day": 100
     },
     "leagues_wc": [
@@ -506,10 +506,13 @@
     "lineup_status": 200,
     "top_keys": [
       "status",
-      "message"
+      "response"
     ],
-    "response_type": "NoneType",
-    "raw_sample_2500": "{\"status\": \"failed\", \"message\": \"Request Failed Please try Again\"}",
+    "response_type": "dict",
+    "response_keys": [
+      "lineup"
+    ],
+    "raw_sample_2500": "{\"status\": \"success\", \"response\": {\"lineup\": {\"id\": 5922, \"name\": \"Panama\", \"formation\": \"5-4-1\", \"starters\": [{\"id\": 1330683, \"age\": 32, \"optaId\": \"552322\", \"name\": \"César Samudio\", \"positionId\": 11, \"usualPlayingPositionId\": 0, \"shirtNumber\": \"12\", \"countryName\": \"Panama\", \"countryCode\": \"PAN\", \"primaryTeamId\": 9932, \"primaryTeamName\": \"CD Marathon\", \"horizontalLayout\": {\"x\": 0.1, \"y\": 0.5, \"height\": 0.195, \"width\": 0.2}, \"verticalLayout\": {\"x\": 0.5, \"y\": 0.1, \"height\": 0.2, \"width\": 1}, \"firstName\": \"César\", \"lastName\": \"Samudio\", \"rankings\": null}, {\"id\": 1454648, \"age\": 24, \"optaId\": \"552324\", \"name\": \"Edgardo Fariña\", \"positionId\": 33, \"usualPlayingPositionId\": 1, \"shirtNumber\": \"5\", \"countryName\": \"Panama\", \"countryCode\": \"PAN\", \"primaryTeamId\": 657508, \"primaryTeamName\": \"Nizhny Novgorod\", \"horizontalLayout\": {\"x\": 0.357, \"y\": 0.695, \"height\": 0.195, \"width\": 0.257}, \"verticalLayout\": {\"x\": 0.305, \"y\": 0.357, \"height\": 0.2, \"width\": 0.195}, \"firstName\": \"Edgardo\", \"lastName\": \"Fariña\", \"rankings\": null}, {\"id\": 688448, \"age\": 29, \"optaId\": \"248049\", \"name\": \"Jiovany Ramos\", \"positionId\": 35, \"usualPlayingPositionId\": 1, \"shirtNumber\": \"13\", \"countryName\": \"Panama\", \"countryCode\": \"PAN\", \"primaryTeamId\": 657277, \"primaryTeamName\": \"Academia Puerto Cabello\", \"horizontalLayout\": {\"x\": 0.357, \"y\": 0.5, \"height\": 0.195, \"width\": 0.257}, \"verticalLayout\": {\"x\": 0.5, \"y\": 0.357, \"height\": 0.2, \"width\": 0.195}, \"firstName\": \"Jiovany\", \"lastName\": \"Ramos\", \"rankings\": null}, {\"id\": 501847, \"age\": 34, \"optaId\": \"102108\", \"name\": \"Roderick Miller\", \"positionId\": 37, \"usualPlayingPositionId\": 1, \"shirtNumber\": \"25\", \"countryName\": \"Panama\", \"countryCode\": \"PAN\", \"primaryTeamId\": 4674, \"primaryTeamName\": \"Turan Tovuz\", \"horizontalLayout\": {\"x\": 0.357, \"y\": 0.305, \"height\": 0.195, \"width\": 0.257}, \"verticalLayout\": {\"x\": 0.695, \"y\": 0.357, \"height\": 0.2, \"width\": 0.195}, \"marketValue\": 153592, \"firstName\": \"Roderick\", \"lastName\": \"Miller\", \"rankings\": null}, {\"id\": 1017523, \"age\": 28, \"optaId\": \"444729\", \"name\": \"Iván Anderson\", \"positionId\": 51, \"usualPlayingPositionId\": 3, \"shirtNumber\": \"30\", \"countryName\": \"Panama\", \"countryCode\": \"PAN\", \"horizontalLayout\": {\"x\": 0.371, \"y\": 0.89, \"height\": 0.195, \"width\": 0.243}, \"verticalLayout\": {\"x\": 0.11, \"y\": 0.371, \"height\": 0.2, \"width\": 0.195}, \"firstName\": \"Iván\", \"lastName\": \"Anderson\", \"rankings\": null}, {\"id\": 924235, \"age\": 27, \"optaId\": \"248048\", \"name\": \"Jorge Gutiérrez\", \"positionId\": 59, \"usualPlayingPositi",
     "candidate_endpoints": {
       "/football-get-match-player-stats": {
         "status": 404,
@@ -673,73 +676,88 @@
   },
   "isports": {
     "livescores_status": 200,
-    "livescores_sample": "{'code': 0, 'message': 'success', 'data': [{'matchId': '362809926', 'leagueType': 2, 'leagueId': '107917', 'leagueName': 'Paraguay Cup', 'leagueShortName': 'PAR Cup', 'leagueColor': '#4B8C48', 'subLeagueId': '', 'subLeagueName': '', 'matchTime': 1780606800, 'halfStartTime': 1780610739, 'status': -1, 'homeId': '62565', 'homeName': 'CD Juventud', 'awayId': '57855', 'awayName': 'Sportivo Limpeno', 'homeScore': 1, 'awayScore': 3, 'homeHalfScore': 0, 'awayHalfScore': 1, 'homeRed': 0, 'awayRed': 0, 'h",
-    "fixtures_2026-06-04": {
+    "live_count": 357,
+    "live_sample": [
+      "Florida Futbol Club 0-0 Parkland SC [USA National Premier Soccer League] id=201339927",
+      "Union KC (W) 1-1 Kansas City Current II (W) [USA Women's Premier Soccer League] id=493929923",
+      "San Antonio(ECU) 0-0 CD Independiente Juniors [Liga Pro Ecuador Serie B] id=306295923",
+      "Czech Republic 3-1 Guatemala [International Friendly] id=363719927",
+      "Mexico 5-1 Serbia [International Friendly] id=351519922"
+    ],
+    "results_status": 200,
+    "results_count": 0,
+    "results_sample": [],
+    "probe_match_id": "201339927",
+    "lineups": {
       "status": 200,
-      "count": 0,
-      "sample": [],
-      "raw_keys": [
-        "code",
-        "message"
-      ]
+      "api_code": 0,
+      "has_data": true,
+      "raw": "[{\"matchId\": \"201339927\", \"homeFormation\": \"\", \"awayFormation\": \"\", \"homeLineup\": [], \"awayLineup\": [], \"homeBackup\": [], \"awayBackup\": []}]"
     },
-    "fixtures_2026-06-03": {
+    "events": {
       "status": 200,
-      "count": 0,
-      "sample": [],
-      "raw_keys": [
-        "code",
-        "message"
-      ]
+      "api_code": 0,
+      "has_data": true,
+      "raw": "[{\"matchId\": \"313569723\", \"events\": [{\"eventId\": \"14785458\", \"minute\": \"21\", \"type\": 1, \"playerId\": \"\", \"playerName\": \"Spiegl\", \"assistPlayerId\": \"\", \"overtime\": \"0\", \"homeEvent\": true, \"oprTime\": 1780686941}, {\"eventId\": \"14785459\", \"minute\": \"33\", \"type\": 1, \"playerId\": \"\", \"playerName\": \"Vorraber\", \"assistPlayerId\": \"\", \"overtime\": \"0\", \"homeEvent\": false, \"oprTime\": 1780686941}, {\"eventId\": \"14785460\", \"minute\": \"64\", \"type\": 1, \"playerId\": \"\", \"playerName\": \"Pesu\", \"assistPlayerId\": \"\", \"overtime\": \"0\", \"homeEvent\": true, \"oprTime\": 1780686941}, {\"eventId\": \"14785438\", \"minute\": \"90\", \"type\": 2, \"playerId\": \"\", \"playerName\": \"Nenadic\", \"assistPlayerId\": \"\", \"overtime\": \"4\", \"homeEvent\": false, \"oprTime\": 1780689608}], \"penalty\": []}, {\"matchId\": \"323569724\", \"events\": [{\"eventId\": \"14"
     },
-    "fixtures_2026-06-01": {
+    "stats": {
       "status": 200,
-      "count": 0,
-      "sample": [],
-      "raw_keys": [
-        "code",
-        "message"
-      ]
+      "api_code": 2,
+      "has_data": false,
+      "raw": "You haven't purchased this data, please contact our business personnel. "
     },
-    "lineup_tests": {
-      "/sport/football/lineups": {
-        "status": 200,
-        "has_data": true,
-        "raw": "{\"code\": 0, \"message\": \"success\", \"data\": [{\"matchId\": \"353690722\", \"homeFormation\": \"4231\", \"awayFormation\": \"433\", \"homeLineup\": [{\"playerId\": \"171849\", \"name\": \"Mostafa Matar\", \"number\": 21, \"position\": 0, \"isCaptain\": false}, {\"playerId\": \"220092\", \"name\": \"Khalil Khamis\", \"number\": 3, \"position\": 1, \"isCaptain\": false}, {\"playerId\": \"213485\", \"name\": \"Jihad Ayoub\", \"number\": 15, \"position\": 1, \"isCaptain\": false}, {\"playerId\": \"329686\", \"name\": \"Hasan Farhat\", \"number\": 22, \"position\": 1, \"isCaptain\": false}, {\"playerId\": \"224374\", \"name\": \"Nassar Nassar\", \"number\": 5, \"position\": 1, \"isC"
-      },
-      "/sport/football/lineup": {
-        "status": 200,
-        "has_data": true,
-        "raw": "{\"code\": 2, \"message\": \"You haven't purchased this data, please contact our business personnel. \"}"
-      },
-      "/sport/football/match/lineups": {
-        "status": 200,
-        "has_data": true,
-        "raw": "{\"code\": 2, \"message\": \"You haven't purchased this data, please contact our business personnel. \"}"
-      },
-      "/sport/football/match/players": {
-        "status": 200,
-        "has_data": true,
-        "raw": "{\"code\": 2, \"message\": \"You haven't purchased this data, please contact our business personnel. \"}"
-      },
-      "/sport/football/player/stats": {
-        "status": 200,
-        "has_data": true,
-        "raw": "{\"code\": 2, \"message\": \"You haven't purchased this data, please contact our business personnel. \"}"
-      },
-      "/sport/football/match/stats": {
-        "status": 200,
-        "has_data": true,
-        "raw": "{\"code\": 2, \"message\": \"You haven't purchased this data, please contact our business personnel. \"}"
-      },
-      "/sport/football/events": {
-        "status": 200,
-        "has_data": true,
-        "raw": "{\"code\": 0, \"message\": \"success\", \"data\": [{\"matchId\": \"353690722\", \"events\": [{\"eventId\": \"14782863\", \"minute\": \"40\", \"type\": 3, \"playerId\": \"171849\", \"playerName\": \"Mostafa Matar\", \"assistPlayerId\": \"\", \"overtime\": \"0\", \"homeEvent\": true, \"oprTime\": 1780591456}, {\"eventId\": \"14782864\", \"minute\": \"40\", \"type\": 3, \"playerId\": \"267177\", \"playerName\": \"Osama Anbar\", \"assistPlayerId\": \"\", \"overtime\": \"0\", \"homeEvent\": false, \"oprTime\": 1780591456}, {\"eventId\": \"14782876\", \"minute\": \"45\", \"type\": 3, \"playerId\": \"181781\", \"playerName\": \"Nasser Al-Gahwashi\", \"assistPlayerId\": \"\", \"overtime\": \"6\", \"h"
+    "players": {
+      "status": 200,
+      "api_code": 2,
+      "has_data": false,
+      "raw": "You haven't purchased this data, please contact our business personnel. "
+    }
+  },
+  "thesportsdb": {
+    "friendlies_status": 200,
+    "friendlies_count": 0,
+    "friendlies_sample": [],
+    "wc2026_status": 200,
+    "wc2026_count": 0,
+    "wc2026_sample": [],
+    "june4_status": 200,
+    "june4_matches": [
+      "Dornbirn vs Reichenau [Austrian Regionalliga West] id=2286038",
+      "Lustenau vs Hohenems [Austrian Regionalliga West] id=2286039",
+      "Kitzbühel vs St. Johann [Austrian Regionalliga West] id=2286040"
+    ],
+    "june5_status": 200,
+    "june5_matches": [
+      "Junge Wikinger Ried vs Lafnitz [Austrian Regionalliga Mitte] id=2285784",
+      "Treibach vs LASK Amateure OÖ [Austrian Regionalliga Mitte] id=2285785",
+      "Union Gurten vs Weiz [Austrian Regionalliga Mitte] id=2285786"
+    ],
+    "june5_count": 3,
+    "lineup_test": {
+      "event_id": "2285784",
+      "status": 200,
+      "player_count": 0
+    },
+    "events_test": {
+      "status": 200,
+      "raw": "{\"eventstats\": null}"
+    },
+    "spain_team": {
+      "id": "133909",
+      "name": "Spain",
+      "league": "FIFA World Cup"
+    },
+    "spain_last_events": [
+      {
+        "date": "2026-06-04",
+        "event": "Spain vs Iraq",
+        "score": "1-1",
+        "league": "International Friendlies",
+        "id": "2470308"
       }
-    },
-    "wc_search_leagues": [],
-    "wc_search_competitions": [],
-    "wc_search_tournaments": []
+    ],
+    "mexico_last_events": [
+      "2026-05-31 Mexico vs Australia 1-0 [International Friendlies] id=2438969"
+    ]
   }
 }
