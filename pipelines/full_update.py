@@ -29,7 +29,7 @@ DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
 LOGS_DIR = BASE_DIR / "data" / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical")
+VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "diagnose", "today_fixtures", "predict_pairs", "thesportsdb", "upcoming_friendlies", "apisports_today")
 
 
 def _setup_logger() -> logging.Logger:
@@ -429,6 +429,74 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
         _step("Fetch Historical WC Data", step_fetch_historical)
         _print_summary(_db_summary())
         return True
+
+    # ── Scope: probe (descubrir endpoints de Free API Live Football Data) ───────
+    if scope == "probe":
+        def _probe_api():
+            from pipelines.probe_smartapi import run as probe_run
+            probe_run(datetime.utcnow().strftime("%Y%m%d"))
+        _step("Probe SmartAPI Endpoints", _probe_api)
+        return True
+
+    # ── Scope: diagnose (¿qué API cubre el WC2026 con datos completos?) ──────────
+    if scope == "diagnose":
+        def _diagnose():
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "diagnose_wc_coverage.py")], check=False)
+        _step("Diagnose WC2026 API Coverage", _diagnose)
+        return True
+
+    # ── Scope: upcoming_friendlies (próximos amistosos WC + predicciones) ───────
+    if scope == "upcoming_friendlies":
+        def _upcoming():
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "upcoming_wc_friendlies.py")], check=False)
+        _step("Upcoming WC Friendlies + Predictions", _upcoming)
+        return True
+
+    # ── Scope: thesportsdb (resultados amistosos internacionales, gratis) ────────
+    if scope == "thesportsdb":
+        def _thesportsdb():
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "pipelines" / "fetch_thesportsdb.py"),
+                            "--days", "30"], check=False)
+        _step("Sync Friendly Results from TheSportsDB", _thesportsdb)
+        return True
+
+    # ── Scope: predict_pairs (predecir parejas explícitas para evaluar en vivo) ─
+    if scope == "predict_pairs":
+        def _predict_pairs():
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "predict_pair.py")], check=False)
+        _step("Predict Explicit Pairs (Poisson)", _predict_pairs)
+        return True
+
+    # ── Scope: apisports_today (player data vía api-sports.io FREE por fecha) ────
+    if scope == "apisports_today":
+        def _apisports_today():
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "fetch_apisports_today.py")], check=False)
+        _step("Fetch Today Player Data (api-sports.io FREE)", _apisports_today)
+        return True
+
+    # ── Scope: today_fixtures (listar amistosos WC de hoy para predecir) ────────
+    if scope == "today_fixtures":
+        def _today_fixtures():
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "today_fixtures.py")], check=False)
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "predict_today.py")], check=False)
+        _step("Predict Today's WC Friendlies (SmartAPI + Poisson)", _today_fixtures)
+        return True
+
+    # ── Scope: lineups_friendlies (alineaciones pre-torneo de amistosos) ────────
+    if scope == "lineups_friendlies":
+        def _fetch_friendly_lineups():
+            from pipelines.fetch_smartapi_lineups import run_friendlies
+            run_friendlies(days=10)  # últimos 10 días de amistosos vía Smart API
+        _step("Fetch Friendly Lineups (SmartAPI)", _fetch_friendly_lineups)
+        _print_summary(_db_summary())
+        return True
+
 
     # ── Scope: lineups (fetch confirmed match lineups) ────────────────────────
     if scope == "lineups":

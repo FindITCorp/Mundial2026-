@@ -848,8 +848,10 @@ def predict_match(
         h_str = _get_attack_defense_strength(conn, home_id, db_key)
         a_str = _get_attack_defense_strength(conn, away_id, db_key)
 
-    home_name = conn.execute("SELECT name FROM teams WHERE id=?", (home_id,)).fetchone()["name"]
-    away_name = conn.execute("SELECT name FROM teams WHERE id=?", (away_id,)).fetchone()["name"]
+    _hn = conn.execute("SELECT name FROM teams WHERE id=?", (home_id,)).fetchone()
+    _an = conn.execute("SELECT name FROM teams WHERE id=?", (away_id,)).fetchone()
+    home_name = _hn[0] if _hn else home
+    away_name = _an[0] if _an else away
 
     # Timing profiles (fatiga defensiva/ofensiva por franja de 15 minutos)
     h_timing = _get_timing_factor(home_name, conn)
