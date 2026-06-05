@@ -1,0 +1,1173 @@
+{
+  "date": "2026-06-05",
+  "key_configured": true,
+  "fixtures": [
+    {
+      "fixture_id": 1542893,
+      "home": "Czech Republic",
+      "away": "Guatemala",
+      "status": "FT",
+      "score": "3-1",
+      "lineups_count": 2,
+      "lineups": [
+        {
+          "team": "Czech Republic",
+          "formation": "5-4-1",
+          "starters": [
+            "Matěj Kovář",
+            "Štěpán Chaloupek",
+            "Robin Hranáč",
+            "Ladislav Krejčí",
+            "Vladimír Coufal",
+            "Tomáš Souček",
+            "Michal Sadílek",
+            "David Jurásek",
+            "Lukáš Provod",
+            "Pavel Šulc",
+            "Patrik Schick"
+          ],
+          "subs": [
+            "Tomáš Holeš",
+            "Jaroslav Zelený",
+            "Vladimír Darida",
+            "Adam Hložek",
+            "David Zima",
+            "Lukáš Červ",
+            "David Douděra",
+            "Alexandr Sojka",
+            "Denis Višinský",
+            "Tomáš Chorý",
+            "Jindřich Staněk",
+            "Lukáš Horníček",
+            "Hugo Sochurek",
+            "Mojmír Chytil",
+            "Jan Kuchta"
+          ]
+        },
+        {
+          "team": "Guatemala",
+          "formation": "3-4-2-1",
+          "starters": [
+            "Luis Morán",
+            "Aaron Herrera",
+            "Marcelo Hernández",
+            "Nicolás Samayoa",
+            "José Pinto",
+            "José Morales",
+            "Óscar Santis",
+            "Jonathan Franco",
+            "José Rosales",
+            "William Jehú Fajardo",
+            "Daniel Méndez"
+          ],
+          "subs": [
+            "Matthew Evans",
+            "Olger Escobar",
+            "Arquímides Ordóñez",
+            "Oscar Castellanos",
+            "Nicholas Hagen",
+            "José Ardón",
+            "Arian Recinos",
+            "Kevin Ramirez",
+            "Jhon Méndez",
+            "Jefry Bantes",
+            "Darwin Lom"
+          ]
+        }
+      ],
+      "players_error": []
+    },
+    {
+      "fixture_id": 1528284,
+      "home": "Mexico",
+      "away": "Serbia",
+      "status": "FT",
+      "score": "5-1",
+      "lineups_count": 2,
+      "lineups": [
+        {
+          "team": "Mexico",
+          "formation": "4-1-4-1",
+          "starters": [
+            "Raúl Rangel",
+            "Jorge Sánchez",
+            "César Montes",
+            "Johan Vásquez",
+            "Jesús Gallardo",
+            "Erik Lira",
+            "Brian Gutiérrez",
+            "Roberto Alvarado",
+            "Álvaro Fidalgo",
+            "Julián Quiñones",
+            "Raúl Jiménez"
+          ],
+          "subs": [
+            "Edson Álvarez",
+            "Alexis Vega",
+            "Guillermo Martínez",
+            "Israel Reyes",
+            "Gilberto Mora",
+            "Luis Chávez",
+            "Luis Romo",
+            "Mateo Chávez",
+            "Orbelín Pineda",
+            "Guillermo Ochoa",
+            "Carlos Acevedo",
+            "César Huerta",
+            "Obed Vargas",
+            "Santiago Giménez",
+            "Armando González"
+          ]
+        },
+        {
+          "team": "Serbia",
+          "formation": "4-2-3-1",
+          "starters": [
+            "Filip Stanković",
+            "Vukašin Đurđević",
+            "Strahinja Eraković",
+            "Nikola Simic",
+            "Stefan Bukinac",
+            "Aleksandar Stanković",
+            "Vanja Dragojević",
+            "Lazar Ranđelović",
+            "Petar Stanić",
+            "Vladimir Lučić",
+            "Nikola Štulić"
+          ],
+          "subs": [
+            "Dejan Zukić",
+            "Veljko Birmančević",
+            "Mihailo Ivanović",
+            "Veljko Ilić",
+            "Adem Avdić",
+            "Njegoš Petrović",
+            "Petar Petrović",
+            "Ognjen Mimović",
+            "Vasilije Kostov",
+            "Mirko Milikić",
+            "Kosta Nedeljković",
+            "Luka Lijeskić",
+            "Andrija Maksimović"
+          ]
+        }
+      ],
+      "players_teams": 2,
+      "players": [
+        {
+          "team": "Mexico",
+          "players": [
+            {
+              "name": "Raúl Rangel",
+              "minutes": 90,
+              "rating": "6.3",
+              "position": "G",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Jorge Sánchez",
+              "minutes": 90,
+              "rating": "6.3",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "César Montes",
+              "minutes": 59,
+              "rating": "6.5",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Johan Vásquez",
+              "minutes": 73,
+              "rating": "7.3",
+              "position": "D",
+              "goals": 1,
+              "assists": 0
+            },
+            {
+              "name": "Jesús Gallardo",
+              "minutes": 72,
+              "rating": "6.5",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Erik Lira",
+              "minutes": 45,
+              "rating": "6.3",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Brian Gutiérrez",
+              "minutes": 58,
+              "rating": "7.5",
+              "position": "M",
+              "goals": null,
+              "assists": 1
+            },
+            {
+              "name": "Roberto Alvarado",
+              "minutes": 73,
+              "rating": "7.5",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Álvaro Fidalgo",
+              "minutes": 59,
+              "rating": "6.9",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Julián Quiñones",
+              "minutes": 58,
+              "rating": "6.5",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Raúl Jiménez",
+              "minutes": 59,
+              "rating": "6.9",
+              "position": "F",
+              "goals": 1,
+              "assists": 0
+            },
+            {
+              "name": "Edson Álvarez",
+              "minutes": 45,
+              "rating": "6.6",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Alexis Vega",
+              "minutes": 32,
+              "rating": "6.9",
+              "position": "F",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Guillermo Martínez",
+              "minutes": 32,
+              "rating": "6.3",
+              "position": "F",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Israel Reyes",
+              "minutes": 31,
+              "rating": "6.6",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Gilberto Mora",
+              "minutes": 31,
+              "rating": "6.9",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Luis Chávez",
+              "minutes": 31,
+              "rating": "7.7",
+              "position": "M",
+              "goals": 1,
+              "assists": 0
+            },
+            {
+              "name": "Luis Romo",
+              "minutes": 18,
+              "rating": "6.7",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Mateo Chávez",
+              "minutes": 17,
+              "rating": "7",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Orbelín Pineda",
+              "minutes": 17,
+              "rating": "6.7",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Guillermo Ochoa",
+              "minutes": null,
+              "rating": null,
+              "position": "G",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Carlos Acevedo",
+              "minutes": null,
+              "rating": null,
+              "position": "G",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "César Huerta",
+              "minutes": null,
+              "rating": null,
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Obed Vargas",
+              "minutes": null,
+              "rating": null,
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Santiago Giménez",
+              "minutes": null,
+              "rating": null,
+              "position": "F",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Armando González",
+              "minutes": null,
+              "rating": null,
+              "position": "F",
+              "goals": null,
+              "assists": null
+            }
+          ]
+        },
+        {
+          "team": "Serbia",
+          "players": [
+            {
+              "name": "Filip Stanković",
+              "minutes": 61,
+              "rating": "6.6",
+              "position": "G",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Vukašin Đurđević",
+              "minutes": 75,
+              "rating": "5.9",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Strahinja Eraković",
+              "minutes": 79,
+              "rating": "5.9",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Nikola Simic",
+              "minutes": 75,
+              "rating": "6",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Stefan Bukinac",
+              "minutes": 61,
+              "rating": "5.2",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Aleksandar Stanković",
+              "minutes": 75,
+              "rating": "6.6",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Vanja Dragojević",
+              "minutes": 61,
+              "rating": "6.2",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Lazar Ranđelović",
+              "minutes": 45,
+              "rating": "6.7",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Petar Stanić",
+              "minutes": 45,
+              "rating": "7.5",
+              "position": "M",
+              "goals": 1,
+              "assists": 0
+            },
+            {
+              "name": "Vladimir Lučić",
+              "minutes": 79,
+              "rating": "6",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Nikola Štulić",
+              "minutes": 45,
+              "rating": "6.6",
+              "position": "F",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Dejan Zukić",
+              "minutes": 45,
+              "rating": "6.2",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Veljko Birmančević",
+              "minutes": 45,
+              "rating": "6.3",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Mihailo Ivanović",
+              "minutes": 45,
+              "rating": "6.3",
+              "position": "F",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Veljko Ilić",
+              "minutes": 29,
+              "rating": "6.3",
+              "position": "G",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Adem Avdić",
+              "minutes": 29,
+              "rating": "5.3",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Njegoš Petrović",
+              "minutes": 29,
+              "rating": "6.3",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Petar Petrović",
+              "minutes": 15,
+              "rating": "6.5",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Ognjen Mimović",
+              "minutes": 15,
+              "rating": "6.2",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Vasilije Kostov",
+              "minutes": 15,
+              "rating": "6.5",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Mirko Milikić",
+              "minutes": 11,
+              "rating": "6.5",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Kosta Nedeljković",
+              "minutes": 11,
+              "rating": "6.2",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Luka Lijeskić",
+              "minutes": null,
+              "rating": null,
+              "position": "G",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Andrija Maksimović",
+              "minutes": null,
+              "rating": null,
+              "position": "M",
+              "goals": null,
+              "assists": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_id": 1523007,
+      "home": "Hungary",
+      "away": "Finland",
+      "status": "FT",
+      "score": "2-1",
+      "lineups_count": 2,
+      "lineups": [
+        {
+          "team": "Hungary",
+          "formation": "4-2-3-1",
+          "starters": [
+            "Péter Szappanos",
+            "Attila Osváth",
+            "Márk Csinger",
+            "Willi Orbán",
+            "Miloš Kerkez",
+            "András Schäfer",
+            "Milán Vitális",
+            "Alex Tóth",
+            "Dominik Szoboszlai",
+            "Roland Sallai",
+            "Barnabás Varga"
+          ],
+          "subs": [
+            "Kornél Szűcs",
+            "Damir Redzic",
+            "Áron Yaakobishvili",
+            "Tamás Szűcs",
+            "Dániel Lukács",
+            "Bendegúz Kovács",
+            "Zsolt Nagy",
+            "Balázs Tóth",
+            "Ármin Pécsi",
+            "Callum Styles",
+            "Ákos Markgráf",
+            "Péter Baráth",
+            "Rajmund Tóth",
+            "Norbert Szendrei",
+            "Zsombor Gruber"
+          ]
+        },
+        {
+          "team": "Finland",
+          "formation": "4-3-3",
+          "starters": [
+            "Lukáš Hrádecký",
+            "Rony Jansson",
+            "Ville Koski",
+            "Tony Miettinen",
+            "Ryan Mahuta",
+            "Adam Markhiev",
+            "Anssi Suhonen",
+            "Leo Walta",
+            "Daniel Håkans",
+            "Joel Pohjanpalo",
+            "Naatan Skyttä"
+          ],
+          "subs": [
+            "Miro Tenho",
+            "Oliver Antman",
+            "Santeri Väänänen",
+            "Topi Keskinen",
+            "Oiva Jukkola",
+            "Jesse Joronen",
+            "Nikolai Alho",
+            "Niklas Pyyhtiä",
+            "Viljami Sinisalo",
+            "Samuli Miettinen",
+            "Matti Peltola",
+            "Doni Arifi",
+            "Robin Lod",
+            "Benjamin Källman",
+            "Casper Terho"
+          ]
+        }
+      ],
+      "players_teams": 2,
+      "players": [
+        {
+          "team": "Hungary",
+          "players": [
+            {
+              "name": "Péter Szappanos",
+              "minutes": 63,
+              "rating": "6.9",
+              "position": "G",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Attila Osváth",
+              "minutes": 45,
+              "rating": "7",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Márk Csinger",
+              "minutes": 95,
+              "rating": "6.7",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Willi Orbán",
+              "minutes": 95,
+              "rating": "7.2",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Miloš Kerkez",
+              "minutes": 80,
+              "rating": "6.3",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "András Schäfer",
+              "minutes": 95,
+              "rating": "6.9",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Milán Vitális",
+              "minutes": 63,
+              "rating": "6.9",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Alex Tóth",
+              "minutes": 45,
+              "rating": "6.3",
+              "position": "M",
+              "goals": null,
+              "assists": 1
+            },
+            {
+              "name": "Dominik Szoboszlai",
+              "minutes": 95,
+              "rating": "7.3",
+              "position": "M",
+              "goals": null,
+              "assists": 1
+            },
+            {
+              "name": "Roland Sallai",
+              "minutes": 72,
+              "rating": "6.7",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Barnabás Varga",
+              "minutes": 72,
+              "rating": "8.9",
+              "position": "F",
+              "goals": 2,
+              "assists": null
+            },
+            {
+              "name": "Kornél Szűcs",
+              "minutes": 50,
+              "rating": "6.5",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Damir Redzic",
+              "minutes": 50,
+              "rating": "6.3",
+              "position": "F",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Áron Yaakobishvili",
+              "minutes": 32,
+              "rating": "6.2",
+              "position": "G",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Tamás Szűcs",
+              "minutes": 32,
+              "rating": "6.5",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Dániel Lukács",
+              "minutes": 23,
+              "rating": "6.9",
+              "position": "F",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Bendegúz Kovács",
+              "minutes": 23,
+              "rating": "6.5",
+              "position": "F",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Zsolt Nagy",
+              "minutes": 15,
+              "rating": "6.6",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Balázs Tóth",
+              "minutes": null,
+              "rating": null,
+              "position": "G",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Ármin Pécsi",
+              "minutes": null,
+              "rating": null,
+              "position": "G",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Callum Styles",
+              "minutes": null,
+              "rating": null,
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Ákos Markgráf",
+              "minutes": null,
+              "rating": null,
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Péter Baráth",
+              "minutes": null,
+              "rating": null,
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Rajmund Tóth",
+              "minutes": null,
+              "rating": null,
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Norbert Szendrei",
+              "minutes": null,
+              "rating": null,
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Zsombor Gruber",
+              "minutes": null,
+              "rating": null,
+              "position": "F",
+              "goals": null,
+              "assists": null
+            }
+          ]
+        },
+        {
+          "team": "Finland",
+          "players": [
+            {
+              "name": "Lukáš Hrádecký",
+              "minutes": 81,
+              "rating": "6",
+              "position": "G",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Rony Jansson",
+              "minutes": 95,
+              "rating": "6",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Ville Koski",
+              "minutes": 95,
+              "rating": "6.3",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Tony Miettinen",
+              "minutes": 81,
+              "rating": "7",
+              "position": "D",
+              "goals": 1,
+              "assists": null
+            },
+            {
+              "name": "Ryan Mahuta",
+              "minutes": 56,
+              "rating": "6.3",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Adam Markhiev",
+              "minutes": 81,
+              "rating": "7",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Anssi Suhonen",
+              "minutes": 57,
+              "rating": "6.9",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Leo Walta",
+              "minutes": 95,
+              "rating": "6.6",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Daniel Håkans",
+              "minutes": 56,
+              "rating": "6.3",
+              "position": "F",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Joel Pohjanpalo",
+              "minutes": 66,
+              "rating": "6.3",
+              "position": "F",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Naatan Skyttä",
+              "minutes": 66,
+              "rating": "6.7",
+              "position": "F",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Miro Tenho",
+              "minutes": 39,
+              "rating": "6.6",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Oliver Antman",
+              "minutes": 39,
+              "rating": "6.3",
+              "position": "F",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Santeri Väänänen",
+              "minutes": 38,
+              "rating": "7",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Topi Keskinen",
+              "minutes": 29,
+              "rating": "6.3",
+              "position": "F",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Oiva Jukkola",
+              "minutes": 29,
+              "rating": "7",
+              "position": "M",
+              "goals": null,
+              "assists": 1
+            },
+            {
+              "name": "Jesse Joronen",
+              "minutes": 14,
+              "rating": "6.3",
+              "position": "G",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Nikolai Alho",
+              "minutes": 6,
+              "rating": null,
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Niklas Pyyhtiä",
+              "minutes": 14,
+              "rating": "6.3",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Viljami Sinisalo",
+              "minutes": null,
+              "rating": null,
+              "position": "G",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Samuli Miettinen",
+              "minutes": null,
+              "rating": null,
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Matti Peltola",
+              "minutes": null,
+              "rating": null,
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Doni Arifi",
+              "minutes": null,
+              "rating": null,
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Robin Lod",
+              "minutes": null,
+              "rating": null,
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Benjamin Källman",
+              "minutes": null,
+              "rating": null,
+              "position": "F",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Casper Terho",
+              "minutes": null,
+              "rating": null,
+              "position": "F",
+              "goals": null,
+              "assists": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_id": 1543828,
+      "home": "Paraguay",
+      "away": "Nicaragua",
+      "status": "PST",
+      "score": "None-None",
+      "lineups_count": 0,
+      "lineups_error": [],
+      "players_error": []
+    },
+    {
+      "fixture_id": 1546497,
+      "home": "Puerto Rico",
+      "away": "Saudi Arabia",
+      "status": "NS",
+      "score": "None-None",
+      "lineups_count": 0,
+      "lineups_error": [],
+      "players_error": "no response"
+    },
+    {
+      "fixture_id": 1528285,
+      "home": "Canada",
+      "away": "Rep. Of Ireland",
+      "status": "NS",
+      "score": "None-None",
+      "lineups_count": 0,
+      "lineups_error": "no response",
+      "players_error": "no response"
+    }
+  ],
+  "requests_used": 13,
+  "api_errors": [],
+  "api_results_count": 207,
+  "wc_fixtures_count": 6,
+  "wc_fixtures": [
+    {
+      "id": 1542893,
+      "home": "Czech Republic",
+      "away": "Guatemala",
+      "league": "Friendlies",
+      "status": "FT",
+      "score": "3-1",
+      "home_wc": true,
+      "away_wc": false
+    },
+    {
+      "id": 1528284,
+      "home": "Mexico",
+      "away": "Serbia",
+      "league": "Friendlies",
+      "status": "FT",
+      "score": "5-1",
+      "home_wc": true,
+      "away_wc": true
+    },
+    {
+      "id": 1523007,
+      "home": "Hungary",
+      "away": "Finland",
+      "league": "Friendlies",
+      "status": "FT",
+      "score": "2-1",
+      "home_wc": true,
+      "away_wc": false
+    },
+    {
+      "id": 1543828,
+      "home": "Paraguay",
+      "away": "Nicaragua",
+      "league": "Friendlies",
+      "status": "PST",
+      "score": "None-None",
+      "home_wc": true,
+      "away_wc": false
+    },
+    {
+      "id": 1546497,
+      "home": "Puerto Rico",
+      "away": "Saudi Arabia",
+      "league": "Friendlies",
+      "status": "NS",
+      "score": "None-None",
+      "home_wc": false,
+      "away_wc": true
+    },
+    {
+      "id": 1528285,
+      "home": "Canada",
+      "away": "Rep. Of Ireland",
+      "league": "Friendlies",
+      "status": "NS",
+      "score": "None-None",
+      "home_wc": true,
+      "away_wc": false
+    }
+  ]
+}
