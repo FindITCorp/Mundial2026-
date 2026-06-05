@@ -336,11 +336,101 @@ def test_football_data_org():
         }
 
 
+# ─────────────────────── iSports API ───────────────────────
+def test_isports():
+    """Testea iSports API (isportsapi.com) con ISPORTS_KEY.
+    Preguntas clave:
+      1. ¿Tiene amistosos junio 2026 con lineup/minutos por jugador?
+      2. ¿Tiene el WC2026 partidos?
+      3. ¿Qué campos devuelve por jugador?
+    Base: http://api.isportsapi.com  o  http://api2.isportsapi.com
+    """
+    key = os.getenv("ISPORTS_KEY", "")
+    out = report["isports"] = {}
+    if not key:
+        out["error"] = "ISPORTS_KEY no configurada"
+        return
+
+    base = "http://api.isportsapi.com"
+
+    def _iget(path, extra_params=None):
+        params = {"api_key": key}
+        if extra_params:
+            params.update(extra_params)
+        return _get(f"{base}{path}", {}, params)
+
+    # 1. Livescores (sanity check que la key funciona)
+    st, d = _iget("/sport/football/livescores")
+    out["livescores_status"] = st
+    out["livescores_sample"] = str(d)[:500] if isinstance(d, dict) else str(d)[:200]
+
+    # 2. Amistosos/partidos junio 2026
+    for date in ("2026-06-04", "2026-06-03", "2026-06-01"):
+        st, d = _iget("/sport/football/fixtures", {"date": date})
+        matches = []
+        if isinstance(d, dict):
+            for m in (d.get("data") or d.get("fixtures") or d.get("results") or [])[:10]:
+                home = m.get("homeName") or m.get("homeTeam") or m.get("home_team") or "?"
+                away = m.get("awayName") or m.get("awayTeam") or m.get("away_team") or "?"
+                comp = m.get("leagueName") or m.get("competition") or ""
+                mid = m.get("matchId") or m.get("id") or m.get("fixture_id")
+                matches.append(f"{home} vs {away} [{comp}] id={mid}")
+        out[f"fixtures_{date}"] = {"status": st, "count": len(matches), "sample": matches,
+                                   "raw_keys": list(d.keys()) if isinstance(d, dict) else None}
+        if matches:
+            break
+
+    # 3. Probar endpoints de lineup/player stats
+    # Primero intentar encontrar un match_id reciente
+    st, d = _iget("/sport/football/fixtures", {"date": "2026-06-04"})
+    sample_mid = None
+    if isinstance(d, dict):
+        items = d.get("data") or d.get("fixtures") or d.get("results") or []
+        if items:
+            first = items[0]
+            sample_mid = first.get("matchId") or first.get("id") or first.get("fixture_id")
+            out["sample_match_raw"] = json.dumps(first, ensure_ascii=False)[:1000]
+
+    out["lineup_tests"] = {}
+    candidates = [
+        "/sport/football/lineups",
+        "/sport/football/lineup",
+        "/sport/football/match/lineups",
+        "/sport/football/match/players",
+        "/sport/football/player/stats",
+        "/sport/football/match/stats",
+        "/sport/football/events",
+    ]
+    for path in candidates:
+        params = {}
+        if sample_mid:
+            params["matchId"] = sample_mid
+        st2, d2 = _iget(path, params)
+        has = bool(d2) if isinstance(d2, dict) else False
+        out["lineup_tests"][path] = {
+            "status": st2,
+            "has_data": has,
+            "raw": json.dumps(d2, ensure_ascii=False)[:600] if isinstance(d2, dict) else str(d2)[:200]
+        }
+
+    # 4. WC2026 — buscar por liga/competición
+    for path in ("/sport/football/leagues", "/sport/football/competitions",
+                 "/sport/football/tournaments"):
+        st, d = _iget(path)
+        if isinstance(d, dict) and st == 200:
+            items = d.get("data") or d.get("leagues") or d.get("results") or []
+            wc = [x for x in items if "world" in str(x).lower() and "cup" in str(x).lower()]
+            out[f"wc_search_{path.split('/')[-1]}"] = wc[:5]
+            if wc:
+                break
+
+
 if __name__ == "__main__":
     test_apisports()
     test_rapidapi()
     probe_lineup_detail()
     test_football_data_org()
+    test_isports()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(report, ensure_ascii=False, indent=2))
     print(json.dumps(report, ensure_ascii=False, indent=2))

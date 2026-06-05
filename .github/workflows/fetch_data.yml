@@ -76,6 +76,7 @@ jobs:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+          ISPORTS_KEY: ${{ secrets.ISPORTS_KEY }}
         run: python scripts/setup_db.py
 
       - name: Determine scope automatically
@@ -174,6 +175,7 @@ jobs:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+          ISPORTS_KEY: ${{ secrets.ISPORTS_KEY }}
         run: |
           echo "=== Scope: ${{ steps.scope.outputs.scope }} ==="
           python pipelines/full_update.py --scope "${{ steps.scope.outputs.scope }}"
