@@ -1,9 +1,9 @@
 {
-  "ran_at": "2026-06-05T01:42:50.367641",
+  "ran_at": "2026-06-05T02:26:47.318036",
   "apisports": {
     "plan": "Free",
     "requests": {
-      "current": 0,
+      "current": 3,
       "limit_day": 100
     },
     "leagues_wc": [
@@ -670,5 +670,76 @@
       "error": "no fixture found to test lineups"
     },
     "june4_matches": []
+  },
+  "isports": {
+    "livescores_status": 200,
+    "livescores_sample": "{'code': 0, 'message': 'success', 'data': [{'matchId': '362809926', 'leagueType': 2, 'leagueId': '107917', 'leagueName': 'Paraguay Cup', 'leagueShortName': 'PAR Cup', 'leagueColor': '#4B8C48', 'subLeagueId': '', 'subLeagueName': '', 'matchTime': 1780606800, 'halfStartTime': 1780610739, 'status': -1, 'homeId': '62565', 'homeName': 'CD Juventud', 'awayId': '57855', 'awayName': 'Sportivo Limpeno', 'homeScore': 1, 'awayScore': 3, 'homeHalfScore': 0, 'awayHalfScore': 1, 'homeRed': 0, 'awayRed': 0, 'h",
+    "fixtures_2026-06-04": {
+      "status": 200,
+      "count": 0,
+      "sample": [],
+      "raw_keys": [
+        "code",
+        "message"
+      ]
+    },
+    "fixtures_2026-06-03": {
+      "status": 200,
+      "count": 0,
+      "sample": [],
+      "raw_keys": [
+        "code",
+        "message"
+      ]
+    },
+    "fixtures_2026-06-01": {
+      "status": 200,
+      "count": 0,
+      "sample": [],
+      "raw_keys": [
+        "code",
+        "message"
+      ]
+    },
+    "lineup_tests": {
+      "/sport/football/lineups": {
+        "status": 200,
+        "has_data": true,
+        "raw": "{\"code\": 0, \"message\": \"success\", \"data\": [{\"matchId\": \"353690722\", \"homeFormation\": \"4231\", \"awayFormation\": \"433\", \"homeLineup\": [{\"playerId\": \"171849\", \"name\": \"Mostafa Matar\", \"number\": 21, \"position\": 0, \"isCaptain\": false}, {\"playerId\": \"220092\", \"name\": \"Khalil Khamis\", \"number\": 3, \"position\": 1, \"isCaptain\": false}, {\"playerId\": \"213485\", \"name\": \"Jihad Ayoub\", \"number\": 15, \"position\": 1, \"isCaptain\": false}, {\"playerId\": \"329686\", \"name\": \"Hasan Farhat\", \"number\": 22, \"position\": 1, \"isCaptain\": false}, {\"playerId\": \"224374\", \"name\": \"Nassar Nassar\", \"number\": 5, \"position\": 1, \"isC"
+      },
+      "/sport/football/lineup": {
+        "status": 200,
+        "has_data": true,
+        "raw": "{\"code\": 2, \"message\": \"You haven't purchased this data, please contact our business personnel. \"}"
+      },
+      "/sport/football/match/lineups": {
+        "status": 200,
+        "has_data": true,
+        "raw": "{\"code\": 2, \"message\": \"You haven't purchased this data, please contact our business personnel. \"}"
+      },
+      "/sport/football/match/players": {
+        "status": 200,
+        "has_data": true,
+        "raw": "{\"code\": 2, \"message\": \"You haven't purchased this data, please contact our business personnel. \"}"
+      },
+      "/sport/football/player/stats": {
+        "status": 200,
+        "has_data": true,
+        "raw": "{\"code\": 2, \"message\": \"You haven't purchased this data, please contact our business personnel. \"}"
+      },
+      "/sport/football/match/stats": {
+        "status": 200,
+        "has_data": true,
+        "raw": "{\"code\": 2, \"message\": \"You haven't purchased this data, please contact our business personnel. \"}"
+      },
+      "/sport/football/events": {
+        "status": 200,
+        "has_data": true,
+        "raw": "{\"code\": 0, \"message\": \"success\", \"data\": [{\"matchId\": \"353690722\", \"events\": [{\"eventId\": \"14782863\", \"minute\": \"40\", \"type\": 3, \"playerId\": \"171849\", \"playerName\": \"Mostafa Matar\", \"assistPlayerId\": \"\", \"overtime\": \"0\", \"homeEvent\": true, \"oprTime\": 1780591456}, {\"eventId\": \"14782864\", \"minute\": \"40\", \"type\": 3, \"playerId\": \"267177\", \"playerName\": \"Osama Anbar\", \"assistPlayerId\": \"\", \"overtime\": \"0\", \"homeEvent\": false, \"oprTime\": 1780591456}, {\"eventId\": \"14782876\", \"minute\": \"45\", \"type\": 3, \"playerId\": \"181781\", \"playerName\": \"Nasser Al-Gahwashi\", \"assistPlayerId\": \"\", \"overtime\": \"6\", \"h"
+      }
+    },
+    "wc_search_leagues": [],
+    "wc_search_competitions": [],
+    "wc_search_tournaments": []
   }
 }
