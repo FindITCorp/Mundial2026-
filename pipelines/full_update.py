@@ -29,7 +29,7 @@ DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
 LOGS_DIR = BASE_DIR / "data" / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "diagnose", "today_fixtures", "predict_pairs", "thesportsdb", "upcoming_friendlies")
+VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "diagnose", "today_fixtures", "predict_pairs", "thesportsdb", "upcoming_friendlies", "apisports_today")
 
 
 def _setup_logger() -> logging.Logger:
@@ -473,6 +473,14 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
             import subprocess
             subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "predict_pair.py")], check=False)
         _step("Predict Explicit Pairs (Poisson)", _predict_pairs)
+        return True
+
+    # ── Scope: apisports_today (player data vía api-sports.io FREE por fecha) ────
+    if scope == "apisports_today":
+        def _apisports_today():
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "fetch_apisports_today.py")], check=False)
+        _step("Fetch Today Player Data (api-sports.io FREE)", _apisports_today)
         return True
 
     # ── Scope: today_fixtures (listar amistosos WC de hoy para predecir) ────────

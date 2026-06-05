@@ -42,6 +42,7 @@ on:
           - predict_pairs
           - thesportsdb
           - upcoming_friendlies
+          - apisports_today
 
 jobs:
   update:
