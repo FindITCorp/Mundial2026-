@@ -41,6 +41,7 @@ on:
           - today_fixtures
           - predict_pairs
           - thesportsdb
+          - upcoming_friendlies
 
 jobs:
   update:

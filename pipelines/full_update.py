@@ -29,7 +29,7 @@ DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
 LOGS_DIR = BASE_DIR / "data" / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "diagnose", "today_fixtures", "predict_pairs", "thesportsdb")
+VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "diagnose", "today_fixtures", "predict_pairs", "thesportsdb", "upcoming_friendlies")
 
 
 def _setup_logger() -> logging.Logger:
@@ -448,6 +448,14 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
             import subprocess
             subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "diagnose_wc_coverage.py")], check=False)
         _step("Diagnose WC2026 API Coverage", _diagnose)
+        return True
+
+    # ── Scope: upcoming_friendlies (próximos amistosos WC + predicciones) ───────
+    if scope == "upcoming_friendlies":
+        def _upcoming():
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "upcoming_wc_friendlies.py")], check=False)
+        _step("Upcoming WC Friendlies + Predictions", _upcoming)
         return True
 
     # ── Scope: thesportsdb (resultados amistosos internacionales, gratis) ────────
