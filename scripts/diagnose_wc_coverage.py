@@ -336,14 +336,10 @@ def test_football_data_org():
         }
 
 
-# ─────────────────────── iSports API ───────────────────────
+# ─────────────────────── iSports API — DEEP PROBE ───────────────────────
 def test_isports():
-    """Testea iSports API (isportsapi.com) con ISPORTS_KEY.
-    Preguntas clave:
-      1. ¿Tiene amistosos junio 2026 con lineup/minutos por jugador?
-      2. ¿Tiene el WC2026 partidos?
-      3. ¿Qué campos devuelve por jugador?
-    Base: http://api.isportsapi.com  o  http://api2.isportsapi.com
+    """Exploración profunda de iSports API (isportsapi.com).
+    Vuelca TODOS los campos disponibles por partido/jugador/evento.
     """
     key = os.getenv("ISPORTS_KEY", "")
     out = report["isports"] = {}
@@ -355,6 +351,136 @@ def test_isports():
 
     def _iget(path, extra_params=None):
         params = {"api_key": key}
+        if extra_params:
+            params.update(extra_params)
+        return _get(f"{base}{path}", {}, params)
+
+    # 1. Livescores — campos completos del primer partido
+    st, d = _iget("/sport/football/livescores")
+    out["livescores_status"] = st
+    matches_live = []
+    live_mid = None
+    if isinstance(d, dict):
+        items = d.get("data") or []
+        for m in items:
+            if live_mid is None:
+                live_mid = m.get("matchId")
+                out["livescore_first_match_all_fields"] = m  # TODOS los campos
+            matches_live.append({
+                "matchId": m.get("matchId"),
+                "home": m.get("homeName"), "away": m.get("awayName"),
+                "score": f"{m.get('homeScore')}-{m.get('awayScore')}",
+                "status": m.get("status"),
+                "league": m.get("leagueName"),
+            })
+    out["live_matches"] = matches_live
+    out["live_count"] = len(matches_live)
+
+    # 2. Schedule/fixtures por fecha — probar varios formatos
+    out["schedule_tests"] = {}
+    for path, params in [
+        ("/sport/football/schedule",          {"date": "2026-06-05"}),
+        ("/sport/football/fixtures",          {"date": "2026-06-05"}),
+        ("/sport/football/matches",           {"date": "2026-06-05"}),
+        ("/sport/football/schedule",          {"date": "20260605"}),
+        ("/sport/football/livescores/schedule", {"date": "2026-06-05"}),
+        ("/sport/football/fixtures/list",     {"date": "2026-06-05"}),
+        ("/sport/football/match/list",        {"date": "2026-06-05"}),
+        ("/sport/football/today",             {}),
+    ]:
+        st2, d2 = _iget(path, params)
+        items = []
+        if isinstance(d2, dict):
+            items = d2.get("data") or d2.get("matches") or d2.get("fixtures") or []
+        out["schedule_tests"][path] = {
+            "status": st2,
+            "count": len(items) if isinstance(items, list) else 0,
+            "raw": json.dumps(d2, ensure_ascii=False)[:400] if isinstance(d2, dict) else str(d2)[:200],
+        }
+
+    # 3. Para cada live match encontrado, probar TODOS los endpoints de detalle
+    # Usar live_mid si existe, sino el del diagnóstico anterior
+    test_mid = live_mid or "353690722"
+    out["detail_probe"] = {"match_id": test_mid}
+
+    detail_paths = [
+        "/sport/football/lineups",
+        "/sport/football/events",
+        "/sport/football/match/stats",
+        "/sport/football/match/players",          # minutos por jugador
+        "/sport/football/player/matchstats",
+        "/sport/football/match/playerStats",
+        "/sport/football/match/detail",
+        "/sport/football/match/info",
+        "/sport/football/odds",
+        "/sport/football/odds/live",
+        "/sport/football/odds/prematch",
+        "/sport/football/match/odds",
+        "/sport/football/h2h",
+        "/sport/football/match/h2h",
+        "/sport/football/standings",
+        "/sport/football/match/timeline",
+        "/sport/football/match/incidents",
+        "/sport/football/substitutions",
+        "/sport/football/match/substitutions",
+    ]
+    for path in detail_paths:
+        st2, d2 = _iget(path, {"matchId": test_mid})
+        if isinstance(d2, dict):
+            code = d2.get("code", "?")
+            msg = d2.get("message", "")
+            data = d2.get("data")
+            has_data = bool(data)
+            raw = json.dumps(data, ensure_ascii=False)[:800] if data else msg
+        else:
+            code, has_data, raw = "?", False, str(d2)[:200]
+        out["detail_probe"][path] = {
+            "http": st2, "api_code": code, "has_data": has_data, "raw": raw
+        }
+
+    # 4. Probar con matchId de un partido TERMINADO reciente (Mexico vs Serbia si lo tienen)
+    # Buscar via livescores histórico
+    st, d = _iget("/sport/football/results", {"date": "2026-06-05"})
+    out["results_today"] = {
+        "status": st,
+        "raw": json.dumps(d, ensure_ascii=False)[:1000] if isinstance(d, dict) else str(d)[:300]
+    }
+    finished_mid = None
+    if isinstance(d, dict):
+        items = d.get("data") or []
+        for m in items[:5]:
+            out["results_today"].setdefault("matches", []).append({
+                "id": m.get("matchId"), "home": m.get("homeName"),
+                "away": m.get("awayName"), "score": f"{m.get('homeScore')}-{m.get('awayScore')}"
+            })
+            if finished_mid is None:
+                finished_mid = m.get("matchId")
+
+    if finished_mid:
+        out["finished_match_probe"] = {"match_id": finished_mid}
+        for path in ["/sport/football/lineups", "/sport/football/events",
+                     "/sport/football/match/stats", "/sport/football/match/players"]:
+            st2, d2 = _iget(path, {"matchId": finished_mid})
+            data = d2.get("data") if isinstance(d2, dict) else None
+            out["finished_match_probe"][path] = {
+                "http": st2,
+                "api_code": d2.get("code") if isinstance(d2, dict) else "?",
+                "raw": json.dumps(data, ensure_ascii=False)[:1000] if data else
+                       (d2.get("message","") if isinstance(d2, dict) else "")
+            }
+
+    # 5. Probar endpoints de leagues/competitions para ver si hay WC2026
+    for path in ("/sport/football/leagues", "/sport/football/competitions",
+                 "/sport/football/tournaments", "/sport/football/league/list"):
+        st2, d2 = _iget(path)
+        if isinstance(d2, dict) and d2.get("code") == 0:
+            items = d2.get("data") or []
+            wc = [x for x in items if "world" in str(x).lower() and "cup" in str(x).lower()]
+            nat = [x for x in items if any(t in str(x).lower() for t in ["national","friendly","friendl","amist"])]
+            out[f"leagues_{path.split('/')[-1]}"] = {"wc": wc[:5], "national_friendly": nat[:5],
+                                                      "total": len(items)}
+            if wc or nat:
+                break
         if extra_params:
             params.update(extra_params)
         return _get(f"{base}{path}", {}, params)
