@@ -29,7 +29,7 @@ DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
 LOGS_DIR = BASE_DIR / "data" / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "diagnose", "today_fixtures", "predict_pairs", "thesportsdb", "upcoming_friendlies", "apisports_today")
+VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "diagnose", "today_fixtures", "predict_pairs", "thesportsdb", "upcoming_friendlies", "apisports_today", "sofascore_today")
 
 
 def _setup_logger() -> logging.Logger:
@@ -482,6 +482,18 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
             subprocess.run(cmd, check=False)
             subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "store_apisports_today.py")], check=False)
         _step("Fetch + Store Today Player Data (api-sports.io FREE)", _apisports_today)
+        return True
+
+    # ── Scope: sofascore_today (player data vía Sofascore, sin API key, cobertura total) ─
+    if scope == "sofascore_today":
+        def _sofascore_today():
+            import subprocess, os
+            fetch_date = os.getenv("FETCH_DATE", "").strip()
+            cmd = [sys.executable, str(BASE_DIR / "scripts" / "fetch_sofascore_today.py")]
+            if fetch_date:
+                cmd += ["--date", fetch_date]
+            subprocess.run(cmd, check=False)
+        _step("Fetch Player Data via Sofascore (sin API key, cobertura total)", _sofascore_today)
         return True
 
     # ── Scope: today_fixtures (listar amistosos WC de hoy para predecir) ────────

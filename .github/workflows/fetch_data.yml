@@ -42,6 +42,7 @@ on:
           - thesportsdb
           - upcoming_friendlies
           - apisports_today
+          - sofascore_today
       fetch_date:
         description: 'Fecha para apisports_today (YYYY-MM-DD, vacío = hoy)'
         required: false
