@@ -18,10 +18,21 @@ Uso:
 import sqlite3
 import math
 import logging
+import unicodedata
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent.parent / "data" / "mundial2026.db"
 log = logging.getLogger("predictor")
+
+
+def _name_key(name: str) -> str:
+    """Clave de identidad por APELLIDO normalizado (sin acentos, minúsculas).
+    Permite cruzar 'Edson Álvarez', 'Edson Alvarez' y 'E. Álvarez' como la misma
+    persona aunque tengan player_id distintos por duplicados de ingesta."""
+    s = unicodedata.normalize("NFD", (name or "").lower().strip())
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    parts = [p for p in s.replace(".", " ").split() if len(p) > 1]
+    return parts[-1] if parts else s  # apellido (última palabra significativa)
 
 # Pesos del modelo
 WEIGHTS = {
@@ -40,6 +51,88 @@ MIN_COMP_MATCHES = 5
 COMP_KEYWORDS = ("world cup", "copa america", "euro", "nations league",
                  "qualifier", "wcq", "gold cup", "afcon", "asian cup",
                  "confederation")
+
+# ── Importancia de la competición para el cálculo de FORMA ───────────────────
+# Un amistoso informa menos sobre la forma real que una eliminatoria o un torneo
+# mayor: hay rotaciones, experimentos y menos intensidad competitiva. Estos pesos
+# escalan cuánto aporta CADA partido al form_score (datos reales: columna
+# team_matches.competition). Regla del proyecto: no recalibra resultados, solo
+# pondera la SEÑAL de cada partido según su naturaleza conocida.
+COMP_IMPORTANCE = (
+    ("world cup qualification", 0.88), ("world cup qualifier", 0.88),
+    ("euro qualification", 0.85),      ("euro qualifier", 0.85),
+    ("qualification", 0.84),           ("qualifier", 0.84),
+    ("world cup", 1.00),
+    ("euro", 1.00),
+    ("copa américa", 1.00),            ("copa america", 1.00),
+    ("nations league", 0.90),
+    ("african cup of nations", 0.95),  ("afcon", 0.95),
+    ("asian cup", 0.92),
+    ("gold cup", 0.90),
+    ("concacaf championship", 0.88),   ("concacaf nations", 0.85),
+    ("confederations cup", 0.90),      ("confederation", 0.88),
+    ("gulf cup", 0.70),                ("arab cup", 0.70),
+    ("nordic championship", 0.55),
+    ("friendly", 0.45),
+)
+
+
+def _comp_importance(competition: str) -> float:
+    """Peso de señal por tipo de competición (amistoso ≪ eliminatoria < torneo)."""
+    if not competition:
+        return 0.60
+    c = competition.lower()
+    for kw, w in COMP_IMPORTANCE:
+        if kw in c:
+            return w
+    return 0.65  # competición desconocida → señal media
+
+
+def _lineup_strength_factor(conn, team_id: int, match_date: str):
+    """Fuerza relativa del XI que REALMENTE jugó ese partido vs el equipo que
+    irá al Mundial (los 26 convocados oficiales). >1 → jugó el equipo A;
+    <1 → equipo rotado/B; ≈0.40 → equipo juvenil/amateur (casi nadie del XI
+    está entre los convocados).
+
+    Empatar/ganar con el equipo B no informa lo mismo sobre la forma del XI
+    titular del Mundial. Usa datos reales: solapamiento del XI con los 26
+    convocados (projected_lineups) + ratio de ratings cuando hay rating 'nat'.
+    Devuelve None si no hay alineación real registrada (no inventa datos).
+    """
+    if not match_date:
+        return None
+    try:
+        starters = conn.execute("""
+            SELECT p.name AS name
+            FROM player_match_usage pmu
+            JOIN players p ON p.id = pmu.player_id
+            WHERE pmu.team_id=? AND pmu.is_starter=1
+              AND substr(pmu.match_date,1,10)=substr(?,1,10)
+        """, (team_id, match_date)).fetchall()
+    except sqlite3.OperationalError:
+        return None  # tabla aún no poblada (la crea el pipeline de alineaciones)
+    if len(starters) < 7:
+        return None  # sin alineación real suficiente → no aplicar
+
+    # El mismo jugador puede existir con varios player_id ("Edson Alvarez" vs
+    # "Edson Álvarez"), así que el solapamiento con los 26 convocados se mide por
+    # NOMBRE NORMALIZADO (apellido), no por id — robusto a duplicados de ingesta.
+    squad_names = conn.execute("""
+        SELECT p.name FROM projected_lineups pl
+        JOIN players p ON p.id = pl.player_id
+        WHERE pl.team_id=?
+    """, (team_id,)).fetchall()
+    squad_keys = {_name_key(r["name"]) for r in squad_names}
+    if not squad_keys:
+        return None  # sin convocados oficiales → no podemos juzgar la alineación
+
+    hits = sum(1 for s in starters if _name_key(s["name"]) in squad_keys)
+    overlap = hits / len(starters)   # 0 = nadie del Mundial jugó; 1 = XI íntegro
+
+    # Solapamiento → factor: 0% convocados ≈ 0.40 (juvenil/B);
+    # 100% convocados ≈ 1.00 (equipo A). Lineal y acotado.
+    return max(0.40, min(1.10, 0.40 + 0.60 * overlap))
+
 
 MINNOWS = {
     # Europa
@@ -272,7 +365,8 @@ def _get_attack_defense_strength(conn, team_id: int, db_key: str) -> dict:
 def _get_form(conn, team_id: int, n: int = 10) -> dict:
     rows = conn.execute("""
         SELECT tm.goals_for gf, tm.goals_against ga, tm.result,
-               tm.opponent_name, tm.competition, te.elo AS opp_elo
+               tm.opponent_name, tm.competition, tm.date AS mdate,
+               te.elo AS opp_elo
         FROM team_matches tm
         LEFT JOIN team_elo te ON te.team_id = tm.opponent_id
         WHERE tm.team_id=? AND tm.goals_for IS NOT NULL
@@ -285,12 +379,20 @@ def _get_form(conn, team_id: int, n: int = 10) -> dict:
         return {"avg_gf": 1.1, "avg_ga": 1.1, "form_score": 0.40,
                 "last5": [], "gp": 0, "wins": 0, "draws": 0, "losses": 0}
 
-    # ── Strength-of-schedule: ponderar goles por fuerza del rival ────────────
+    # Peso de SEÑAL por partido: importancia de competición × fuerza del XI real.
+    # Amistoso con equipo B aporta poco; eliminatoria con equipo A aporta pleno.
+    sig = {}
+    for r in filtered:
+        ci = _comp_importance(r["competition"])
+        lf = _lineup_strength_factor(conn, team_id, r["mdate"])
+        sig[id(r)] = ci * (lf if lf is not None else 1.0)
+
+    # ── Strength-of-schedule: ponderar goles por fuerza del rival × señal ─────
     # Marcar/conceder frente a rivales fuertes pesa más que frente a débiles.
     num_gf = num_ga = denom = 0.0
     for r in filtered:
         opp_elo = r["opp_elo"] if r["opp_elo"] is not None else SOS_DEFAULT_ELO
-        w = (opp_elo / SOS_PIVOT) ** SOS_EXP
+        w = (opp_elo / SOS_PIVOT) ** SOS_EXP * sig[id(r)]
         num_gf += r["gf"] * w
         num_ga += r["ga"] * w
         denom  += w
@@ -312,6 +414,7 @@ def _get_form(conn, team_id: int, n: int = 10) -> dict:
     for i, r in enumerate(reversed(filtered)):
         opp_elo = r["opp_elo"] if r["opp_elo"] is not None else SOS_DEFAULT_ELO
         recency = 1 + i * 0.07
+        s = sig[id(r)]                       # señal: competición × fuerza XI real
         opp_factor = (opp_elo / SOS_PIVOT) ** 0.75   # más sensible a calidad rival
         if r["result"] == "W":
             pts = 1.5 * opp_factor          # ganar vs fuerte vale más
@@ -320,8 +423,8 @@ def _get_form(conn, team_id: int, n: int = 10) -> dict:
         else:
             # Perder vs rival mucho más fuerte: crédito proporcional a la brecha
             pts = max(0.0, 0.40 * (opp_elo - SOS_PIVOT) / 300)
-        w_pts   += pts * recency
-        max_pts += 1.5 * recency            # máximo sigue siendo ganar todo
+        w_pts   += pts * recency * s
+        max_pts += 1.5 * recency * s        # máximo sigue siendo ganar todo
     # Racha ganadora: boost si los últimos N partidos son todos victorias
     recent = filtered[:5]
     win_streak = 0
@@ -452,8 +555,9 @@ def _get_xi_rating(conn, team_id: int) -> float:
     # cap xi — club stats alone (e.g. Haaland's 18xG) don't reflect
     # how a team performs in international tournaments.
     any_tournament = any((r["sb_matches"] or 0) > 0 for r in rows)
+    any_club_xg    = any((r["xg"] or 0) > 0 for r in rows)
     if not any_tournament:
-        xi = min(xi, 0.360)
+        xi = min(xi, 0.62 if any_club_xg else 0.360)
 
     return xi
 
@@ -1174,6 +1278,9 @@ def predict_match(
         "corners_away":    a_corners,
         "set_piece_goals_home": h_sp_goals,
         "set_piece_goals_away": a_sp_goals,
+        # XI rating (top-level para compatibilidad con predict_match.py)
+        "xi_home":         round(home_xi, 3),
+        "xi_away":         round(away_xi, 3),
         # Elo
         "elo_home":        round(home_elo, 1),
         "elo_away":        round(away_elo, 1),
