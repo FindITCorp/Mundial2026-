@@ -209,6 +209,12 @@ SOS_DEFAULT_ELO = 1430.0
 SOS_PIVOT       = 1550.0   # Elo de rival "neutro"
 SOS_EXP         = 1.5      # calibrado 04-jun-2026: reducido de 2.0 → más crédito al ritmo
                             # vs rivales débiles (evidencia: Mexico 4W 2D 0L vs WC sin inflar)
+
+# Calibración amistosos 06-jun-2026:
+# Evidencia: Spain 82%→empate, France 62%→perdió, Panama 66%→empate
+# En amistosos hay rotaciones y baja intensidad → reducir lambdas del favorito
+FRIENDLY_LAMBDA_DISCOUNT = 0.88  # aplica a lambda_home cuando es el favorito claro
+FRIENDLY_LAMBDA_CAP      = 2.60  # cap más conservador que el estándar 3.50
 # Regularización bayesiana: prior que regresa los promedios hacia la media
 PRIOR_N         = 3.0      # reducido 4.0→3.0: confiar más en forma reciente real
 PRIOR_GF        = 1.35
@@ -1112,8 +1118,16 @@ def predict_match(
     # que indican forma + Elo solos → convierte "2-0 probable" en "2-1 probable"
     h_timing_boost = _timing_lambda_boost(a_timing)   # local ataca vs defensa visitante
     a_timing_boost = _timing_lambda_boost(h_timing)   # visitante ataca vs defensa local
-    lh = min(max(lh_raw * h_timing_boost, 0.20), 3.50)
-    la = min(max(la_raw * a_timing_boost, 0.20), 3.50)
+    # Amistosos: descuento al favorito dominante (evidencia 5-6 jun: Spain/France/Panama)
+    # Solo aplica si competition es amistoso — inferido por ausencia de wc_match activo
+    _lambda_cap = FRIENDLY_LAMBDA_CAP
+    if lh_raw > la_raw * 1.5:   # favorito claro
+        lh_raw *= FRIENDLY_LAMBDA_DISCOUNT
+    if la_raw > lh_raw * 1.5:
+        la_raw *= FRIENDLY_LAMBDA_DISCOUNT
+
+    lh = min(max(lh_raw * h_timing_boost, 0.20), _lambda_cap)
+    la = min(max(la_raw * a_timing_boost, 0.20), _lambda_cap)
 
     # ── 10. Distribución Poisson ──────────────────────────────────────────
     probs = {}
@@ -1169,8 +1183,20 @@ def predict_match(
     if neutral and elo_gap < 40:
         draw_boost += 0.003
 
-    # Cap: máximo boost de +3.5pp (antes 5pp)
-    draw_boost = min(draw_boost, 0.035)
+    # Señal 6: Elo gap grande pero rival con forma real comparable (amistoso sorpresa)
+    # Evidencia 06-jun: Spain(elo+297,Iraq 8W/16GP 2025)→1-1; France(+210,IvC 12W/18GP)→perdió
+    # La forma reciente del rival compensa el Elo histórico en amistosos
+    away_form_score = away_form.get("form_score", 0.4) if isinstance(away_form, dict) else 0.4
+    home_form_score = home_form.get("form_score", 0.4) if isinstance(home_form, dict) else 0.4
+    if elo_gap > 200 and away_form_score > 0.55:
+        draw_boost += 0.015
+    elif elo_gap > 150 and away_form_score > 0.60:
+        draw_boost += 0.010
+    elif elo_gap > 200 and lambda_ratio > 0.40:
+        draw_boost += 0.008
+
+    # Cap: máximo boost de +4.5pp (subido desde 3.5pp por evidencia amistosos)
+    draw_boost = min(draw_boost, 0.045)
 
     # Redistribuir proporcionalmente de p_home y p_away
     if draw_boost > 0.001:
