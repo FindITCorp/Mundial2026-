@@ -993,8 +993,8 @@
       "fixture_id": 1528286,
       "home": "Portugal",
       "away": "Chile",
-      "status": "1H",
-      "score": "0-0",
+      "status": "FT",
+      "score": "2-1",
       "lineups_count": 2,
       "lineups": [
         {
@@ -1006,59 +1006,58 @@
             "Rúben Dias",
             "Renato Veiga",
             "João Cancelo",
-            "Bernardo Silva",
             "Samú Costa",
+            "Bernardo Silva",
             "Francisco Conceição",
             "Bruno Fernandes",
             "Rafael Leão",
             "Cristiano Ronaldo"
           ],
           "subs": [
-            "Diogo Costa",
             "Rui Silva",
-            "Ricardo Velho",
             "Gonçalo Inácio",
-            "Tomás Araújo",
             "Diogo Dalot",
-            "Matheus Nunes",
-            "Francisco Trincão",
             "Pedro Neto",
             "Rúben Neves",
             "Gonçalo Guedes",
-            "João Félix"
+            "João Félix",
+            "Tomás Araújo",
+            "Diogo Costa",
+            "Ricardo Velho",
+            "Francisco Trincão"
           ]
         },
         {
           "team": "Chile",
-          "formation": "4-3-3",
+          "formation": "4-4-2",
           "starters": [
             "Lawrence Vigouroux",
             "Felipe Faúndez",
             "Iván Román",
             "Guillermo Maripán",
             "Gabriel Suazo",
-            "Felipe Loyola",
-            "Agustín Arce",
-            "Vicente Pizarro",
             "Maximiliano Gutiérrez",
+            "Felipe Loyola",
+            "Vicente Pizarro",
+            "Darío Osorio",
             "Gonzalo Tapia",
-            "Darío Osorio"
+            "Agustín Arce"
           ],
           "subs": [
-            "Thomas Gillier",
-            "Brayan Cortés",
             "Francisco Sierralta",
-            "Igor Lichnovsky",
-            "Diego Ulloa",
+            "Rodrigo Echeverría",
+            "Lucas Cepeda",
             "Fabián Hormazábal",
             "Víctor Felipe Méndez",
-            "Rodrigo Echeverría",
-            "Clemente Montes",
-            "Lucas Cepeda",
             "Nils Reichmuth",
+            "Iván Morales",
+            "Thomas Gillier",
+            "Brayan Cortés",
+            "Igor Lichnovsky",
+            "Diego Ulloa",
+            "Clemente Montes",
             "Matías Sepúlveda",
-            "Lautaro Millán",
-            "Iván Morales"
+            "Lautaro Millán"
           ]
         }
       ],
@@ -1069,102 +1068,158 @@
           "players": [
             {
               "name": "José Sá",
-              "minutes": 18,
+              "minutes": 45,
               "rating": "6.3",
               "position": "G",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Nélson Semedo",
-              "minutes": 18,
-              "rating": "6.7",
+              "minutes": 45,
+              "rating": "6.6",
               "position": "D",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Rúben Dias",
-              "minutes": 18,
-              "rating": "6.6",
+              "minutes": 87,
+              "rating": "7.9",
               "position": "D",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Renato Veiga",
-              "minutes": 18,
-              "rating": "6.7",
+              "minutes": 45,
+              "rating": "7",
               "position": "D",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "João Cancelo",
-              "minutes": 18,
-              "rating": "6.6",
+              "minutes": 90,
+              "rating": "7.5",
               "position": "D",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Samú Costa",
-              "minutes": 18,
-              "rating": "6.6",
+              "minutes": 45,
+              "rating": "7.3",
               "position": "M",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Bernardo Silva",
-              "minutes": 18,
-              "rating": "6.6",
+              "minutes": 45,
+              "rating": "7.2",
               "position": "M",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Francisco Conceição",
-              "minutes": 18,
-              "rating": "6.7",
+              "minutes": 76,
+              "rating": "7.2",
               "position": "M",
               "goals": null,
-              "assists": null
+              "assists": 1
             },
             {
               "name": "Bruno Fernandes",
-              "minutes": 18,
-              "rating": "6.3",
+              "minutes": 90,
+              "rating": "7.9",
               "position": "M",
-              "goals": null,
-              "assists": null
+              "goals": 1,
+              "assists": 0
             },
             {
               "name": "Rafael Leão",
-              "minutes": 18,
-              "rating": "6.7",
+              "minutes": 47,
+              "rating": "6.3",
               "position": "M",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Cristiano Ronaldo",
-              "minutes": 18,
-              "rating": "6.3",
+              "minutes": 45,
+              "rating": "6.5",
               "position": "F",
               "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Diogo Costa",
-              "minutes": null,
-              "rating": null,
-              "position": "G",
-              "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Rui Silva",
+              "minutes": 45,
+              "rating": "7",
+              "position": "G",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Gonçalo Inácio",
+              "minutes": 45,
+              "rating": "6.7",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Diogo Dalot",
+              "minutes": 45,
+              "rating": "6.9",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Pedro Neto",
+              "minutes": 45,
+              "rating": "6.7",
+              "position": "F",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Rúben Neves",
+              "minutes": 45,
+              "rating": "7.6",
+              "position": "M",
+              "goals": null,
+              "assists": 1
+            },
+            {
+              "name": "Gonçalo Guedes",
+              "minutes": 45,
+              "rating": "7.7",
+              "position": "F",
+              "goals": 1,
+              "assists": 0
+            },
+            {
+              "name": "João Félix",
+              "minutes": 14,
+              "rating": "6.6",
+              "position": "F",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Tomás Araújo",
+              "minutes": 3,
+              "rating": null,
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Diogo Costa",
               "minutes": null,
               "rating": null,
               "position": "G",
@@ -1180,71 +1235,7 @@
               "assists": null
             },
             {
-              "name": "Gonçalo Inácio",
-              "minutes": null,
-              "rating": null,
-              "position": "D",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Tomás Araújo",
-              "minutes": null,
-              "rating": null,
-              "position": "D",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Diogo Dalot",
-              "minutes": null,
-              "rating": null,
-              "position": "D",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Matheus Nunes",
-              "minutes": null,
-              "rating": null,
-              "position": "M",
-              "goals": null,
-              "assists": null
-            },
-            {
               "name": "Francisco Trincão",
-              "minutes": null,
-              "rating": null,
-              "position": "F",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Pedro Neto",
-              "minutes": null,
-              "rating": null,
-              "position": "F",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Rúben Neves",
-              "minutes": null,
-              "rating": null,
-              "position": "M",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Gonçalo Guedes",
-              "minutes": null,
-              "rating": null,
-              "position": "F",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "João Félix",
               "minutes": null,
               "rating": null,
               "position": "F",
@@ -1258,91 +1249,147 @@
           "players": [
             {
               "name": "Lawrence Vigouroux",
-              "minutes": 18,
-              "rating": "7",
+              "minutes": 90,
+              "rating": "8",
               "position": "G",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Felipe Faúndez",
-              "minutes": 18,
-              "rating": "6.3",
-              "position": "D",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Iván Román",
-              "minutes": 18,
-              "rating": "6.3",
-              "position": "D",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Guillermo Maripán",
-              "minutes": 18,
+              "minutes": 45,
               "rating": "6.7",
               "position": "D",
               "goals": null,
-              "assists": null
+              "assists": 0
+            },
+            {
+              "name": "Iván Román",
+              "minutes": 47,
+              "rating": "5.9",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Guillermo Maripán",
+              "minutes": 90,
+              "rating": "6.3",
+              "position": "D",
+              "goals": null,
+              "assists": 0
             },
             {
               "name": "Gabriel Suazo",
-              "minutes": 18,
-              "rating": "6.6",
+              "minutes": 90,
+              "rating": "6.5",
               "position": "D",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Maximiliano Gutiérrez",
-              "minutes": 18,
-              "rating": "6.5",
-              "position": "M",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Felipe Loyola",
-              "minutes": 18,
+              "minutes": 67,
               "rating": "6.3",
               "position": "M",
               "goals": null,
-              "assists": null
+              "assists": 0
+            },
+            {
+              "name": "Felipe Loyola",
+              "minutes": 80,
+              "rating": "6.3",
+              "position": "M",
+              "goals": null,
+              "assists": 0
             },
             {
               "name": "Vicente Pizarro",
-              "minutes": 18,
-              "rating": "6.5",
+              "minutes": 80,
+              "rating": "6.2",
               "position": "M",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Darío Osorio",
-              "minutes": 18,
-              "rating": "6.5",
+              "minutes": 80,
+              "rating": "6.9",
               "position": "M",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Gonzalo Tapia",
-              "minutes": 18,
-              "rating": "6.9",
+              "minutes": 80,
+              "rating": "6.7",
               "position": "F",
               "goals": null,
-              "assists": null
+              "assists": 0
             },
             {
               "name": "Agustín Arce",
-              "minutes": 18,
+              "minutes": 67,
+              "rating": "7.3",
+              "position": "F",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Francisco Sierralta",
+              "minutes": 45,
+              "rating": "6.3",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Rodrigo Echeverría",
+              "minutes": 23,
+              "rating": "6.3",
+              "position": "D",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Lucas Cepeda",
+              "minutes": 23,
+              "rating": "7.7",
+              "position": "F",
+              "goals": 1,
+              "assists": 0
+            },
+            {
+              "name": "Fabián Hormazábal",
+              "minutes": 10,
               "rating": "6.5",
               "position": "F",
               "goals": null,
-              "assists": null
+              "assists": 0
+            },
+            {
+              "name": "Víctor Felipe Méndez",
+              "minutes": 10,
+              "rating": "6.9",
+              "position": "M",
+              "goals": null,
+              "assists": 1
+            },
+            {
+              "name": "Nils Reichmuth",
+              "minutes": 10,
+              "rating": "6.5",
+              "position": "M",
+              "goals": null,
+              "assists": 0
+            },
+            {
+              "name": "Iván Morales",
+              "minutes": 10,
+              "rating": "6.5",
+              "position": "F",
+              "goals": null,
+              "assists": 0
             },
             {
               "name": "Thomas Gillier",
@@ -1357,14 +1404,6 @@
               "minutes": null,
               "rating": null,
               "position": "G",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Francisco Sierralta",
-              "minutes": null,
-              "rating": null,
-              "position": "D",
               "goals": null,
               "assists": null
             },
@@ -1385,50 +1424,10 @@
               "assists": null
             },
             {
-              "name": "Fabián Hormazábal",
-              "minutes": null,
-              "rating": null,
-              "position": "F",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Víctor Felipe Méndez",
-              "minutes": null,
-              "rating": null,
-              "position": "M",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Rodrigo Echeverría",
-              "minutes": null,
-              "rating": null,
-              "position": "D",
-              "goals": null,
-              "assists": null
-            },
-            {
               "name": "Clemente Montes",
               "minutes": null,
               "rating": null,
               "position": "F",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Lucas Cepeda",
-              "minutes": null,
-              "rating": null,
-              "position": "F",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Nils Reichmuth",
-              "minutes": null,
-              "rating": null,
-              "position": "M",
               "goals": null,
               "assists": null
             },
@@ -1447,14 +1446,6 @@
               "position": "M",
               "goals": null,
               "assists": null
-            },
-            {
-              "name": "Iván Morales",
-              "minutes": null,
-              "rating": null,
-              "position": "F",
-              "goals": null,
-              "assists": null
             }
           ]
         }
@@ -1464,8 +1455,8 @@
       "fixture_id": 1542180,
       "home": "Romania",
       "away": "Wales",
-      "status": "1H",
-      "score": "0-0",
+      "status": "FT",
+      "score": "2-1",
       "lineups_count": 2,
       "lineups": [
         {
@@ -1485,52 +1476,52 @@
             "Ștefan Baiaram"
           ],
           "subs": [
-            "Marian Aioani",
             "Ștefan Târnovanu",
             "Adrian Rus",
             "Andrei Borza",
             "Tony Strata",
+            "Florinel Coman",
             "Andrei Coubiș",
             "Mihai Popescu",
-            "Florinel Coman",
-            "David Matei",
-            "Olimpiu Moruțan",
             "Cătălin Cîrjan",
-            "Alex Dobre",
-            "Denis Drăguş"
+            "Denis Drăguş",
+            "David Matei",
+            "Marian Aioani",
+            "Olimpiu Moruțan",
+            "Alex Dobre"
           ]
         },
         {
           "team": "Wales",
-          "formation": "4-3-3",
+          "formation": "4-2-3-1",
           "starters": [
             "Danny Ward",
-            "Kai Andrews",
-            "Joe Rodon",
-            "Rhys Norrington-Davies",
             "Neco Williams",
-            "Josh Sheehan",
+            "Joe Rodon",
             "Ethan Ampadu",
+            "Rhys Norrington-Davies",
+            "Josh Sheehan",
+            "Kai Andrews",
+            "Brennan Johnson",
             "Nathan Broadhead",
             "Daniel James",
-            "Kieffer Moore",
-            "Brennan Johnson"
+            "Kieffer Moore"
           ],
           "subs": [
+            "Connor Roberts",
+            "David Brooks",
+            "Lewis Koumas",
+            "Chris Mepham",
+            "Sorba Thomas",
+            "Cameron Congreve",
+            "Ronan Kpakio",
             "Tom King",
             "Karl Darlow",
-            "Chris Mepham",
-            "Ronan Kpakio",
-            "Connor Roberts",
             "Jay DaSilva",
             "Ben Davies",
             "Oliver Bostock",
-            "David Brooks",
-            "Sorba Thomas",
             "Joel Colwill",
-            "Cameron Congreve",
-            "Isaak Davies",
-            "Lewis Koumas"
+            "Isaak Davies"
           ]
         }
       ],
@@ -1541,79 +1532,79 @@
           "players": [
             {
               "name": "Ottó Hindrich",
-              "minutes": 22,
-              "rating": "7",
+              "minutes": 45,
+              "rating": "7.3",
               "position": "G",
               "goals": null,
               "assists": null
             },
             {
               "name": "Deian Sorescu",
-              "minutes": 22,
-              "rating": "6.5",
+              "minutes": 45,
+              "rating": "6.3",
               "position": "D",
               "goals": null,
               "assists": null
             },
             {
               "name": "Andrei Burcă",
-              "minutes": 22,
-              "rating": "6.3",
+              "minutes": 45,
+              "rating": "6.7",
               "position": "D",
               "goals": null,
               "assists": null
             },
             {
               "name": "Matei Ilie",
-              "minutes": 22,
-              "rating": "6.9",
+              "minutes": 64,
+              "rating": "6.3",
               "position": "D",
               "goals": null,
               "assists": null
             },
             {
               "name": "Lisav Naif Eissat",
-              "minutes": 22,
-              "rating": "7",
+              "minutes": 45,
+              "rating": "7.2",
               "position": "D",
               "goals": null,
               "assists": null
             },
             {
               "name": "Nicolae Stanciu",
-              "minutes": 22,
-              "rating": "6.3",
+              "minutes": 70,
+              "rating": "6.9",
               "position": "M",
               "goals": null,
               "assists": null
             },
             {
               "name": "Tudor Băluță",
-              "minutes": 22,
-              "rating": "6.3",
+              "minutes": 64,
+              "rating": "6.7",
               "position": "M",
               "goals": null,
               "assists": null
             },
             {
               "name": "Vlad Dragomir",
-              "minutes": 22,
-              "rating": "6.5",
+              "minutes": 97,
+              "rating": "6.9",
               "position": "M",
               "goals": null,
               "assists": null
             },
             {
               "name": "Darius Olaru",
-              "minutes": 22,
-              "rating": "6.7",
+              "minutes": 64,
+              "rating": "7.2",
               "position": "F",
               "goals": null,
-              "assists": null
+              "assists": 1
             },
             {
               "name": "Louis Munteanu",
-              "minutes": 22,
+              "minutes": 64,
               "rating": "6.7",
               "position": "F",
               "goals": null,
@@ -1621,81 +1612,97 @@
             },
             {
               "name": "Ștefan Baiaram",
-              "minutes": 22,
-              "rating": "6.3",
+              "minutes": 45,
+              "rating": "6.7",
               "position": "F",
               "goals": null,
               "assists": null
             },
             {
-              "name": "Marian Aioani",
-              "minutes": null,
-              "rating": null,
-              "position": "G",
-              "goals": null,
-              "assists": null
-            },
-            {
               "name": "Ștefan Târnovanu",
-              "minutes": null,
-              "rating": null,
+              "minutes": 52,
+              "rating": "7.7",
               "position": "G",
               "goals": null,
               "assists": null
             },
             {
               "name": "Adrian Rus",
-              "minutes": null,
-              "rating": null,
+              "minutes": 52,
+              "rating": "8.3",
               "position": "D",
-              "goals": null,
+              "goals": 1,
               "assists": null
             },
             {
               "name": "Andrei Borza",
-              "minutes": null,
-              "rating": null,
+              "minutes": 52,
+              "rating": "7",
               "position": "D",
               "goals": null,
               "assists": null
             },
             {
               "name": "Tony Strata",
-              "minutes": null,
-              "rating": null,
-              "position": "D",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Andrei Coubiș",
-              "minutes": null,
-              "rating": null,
-              "position": "D",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Mihai Popescu",
-              "minutes": null,
-              "rating": null,
+              "minutes": 52,
+              "rating": "6.3",
               "position": "D",
               "goals": null,
               "assists": null
             },
             {
               "name": "Florinel Coman",
-              "minutes": null,
-              "rating": null,
+              "minutes": 52,
+              "rating": "7.9",
+              "position": "F",
+              "goals": 1,
+              "assists": null
+            },
+            {
+              "name": "Andrei Coubiș",
+              "minutes": 33,
+              "rating": "6.7",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Mihai Popescu",
+              "minutes": 33,
+              "rating": "7.2",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Cătălin Cîrjan",
+              "minutes": 33,
+              "rating": "6.9",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Denis Drăguş",
+              "minutes": 33,
+              "rating": "6.3",
               "position": "F",
               "goals": null,
               "assists": null
             },
             {
               "name": "David Matei",
+              "minutes": 27,
+              "rating": "7.2",
+              "position": "M",
+              "goals": null,
+              "assists": 1
+            },
+            {
+              "name": "Marian Aioani",
               "minutes": null,
               "rating": null,
-              "position": "M",
+              "position": "G",
               "goals": null,
               "assists": null
             },
@@ -1708,23 +1715,7 @@
               "assists": null
             },
             {
-              "name": "Cătălin Cîrjan",
-              "minutes": null,
-              "rating": null,
-              "position": "M",
-              "goals": null,
-              "assists": null
-            },
-            {
               "name": "Alex Dobre",
-              "minutes": null,
-              "rating": null,
-              "position": "F",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Denis Drăguş",
               "minutes": null,
               "rating": null,
               "position": "F",
@@ -1738,89 +1729,145 @@
           "players": [
             {
               "name": "Danny Ward",
-              "minutes": 22,
-              "rating": "6.3",
+              "minutes": 97,
+              "rating": "7.3",
               "position": "G",
               "goals": null,
               "assists": null
             },
             {
+              "name": "Neco Williams",
+              "minutes": 87,
+              "rating": "7.3",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
               "name": "Joe Rodon",
-              "minutes": 22,
-              "rating": "6.3",
+              "minutes": 97,
+              "rating": "6.9",
               "position": "D",
               "goals": null,
               "assists": null
             },
             {
               "name": "Ethan Ampadu",
-              "minutes": 22,
-              "rating": "6.9",
+              "minutes": 97,
+              "rating": "6.6",
               "position": "D",
               "goals": null,
               "assists": null
             },
             {
               "name": "Rhys Norrington-Davies",
-              "minutes": 22,
-              "rating": "6.2",
+              "minutes": 61,
+              "rating": "6.3",
               "position": "D",
               "goals": null,
               "assists": null
             },
             {
-              "name": "Neco Williams",
-              "minutes": 22,
-              "rating": "6.9",
-              "position": "M",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Nathan Broadhead",
-              "minutes": 22,
-              "rating": "6.7",
-              "position": "M",
-              "goals": null,
-              "assists": null
-            },
-            {
               "name": "Josh Sheehan",
-              "minutes": 22,
-              "rating": "6.7",
+              "minutes": 97,
+              "rating": "6.9",
               "position": "M",
               "goals": null,
               "assists": null
             },
             {
-              "name": "Daniel James",
-              "minutes": 22,
-              "rating": "6.9",
+              "name": "Kai Andrews",
+              "minutes": 71,
+              "rating": "6.7",
               "position": "M",
               "goals": null,
               "assists": null
             },
             {
               "name": "Brennan Johnson",
-              "minutes": 22,
-              "rating": "6.3",
+              "minutes": 71,
+              "rating": "6.7",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Nathan Broadhead",
+              "minutes": 61,
+              "rating": "6.2",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Daniel James",
+              "minutes": 71,
+              "rating": "7.2",
+              "position": "M",
+              "goals": null,
+              "assists": 1
+            },
+            {
+              "name": "Kieffer Moore",
+              "minutes": 61,
+              "rating": "6.9",
               "position": "F",
               "goals": null,
               "assists": null
             },
             {
-              "name": "Kieffer Moore",
-              "minutes": 22,
+              "name": "Connor Roberts",
+              "minutes": 36,
+              "rating": "7",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "David Brooks",
+              "minutes": 36,
+              "rating": "7.9",
+              "position": "M",
+              "goals": 1,
+              "assists": null
+            },
+            {
+              "name": "Lewis Koumas",
+              "minutes": 36,
+              "rating": "6.9",
+              "position": "F",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Chris Mepham",
+              "minutes": 26,
+              "rating": "6.3",
+              "position": "D",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Sorba Thomas",
+              "minutes": 26,
               "rating": "6.6",
               "position": "F",
               "goals": null,
               "assists": null
             },
             {
-              "name": "Kai Andrews",
-              "minutes": 22,
-              "rating": "6.7",
-              "position": "F",
+              "name": "Cameron Congreve",
+              "minutes": 26,
+              "rating": "6.5",
+              "position": "M",
+              "goals": null,
+              "assists": null
+            },
+            {
+              "name": "Ronan Kpakio",
+              "minutes": 10,
+              "rating": "6.6",
+              "position": "D",
               "goals": null,
               "assists": null
             },
@@ -1837,30 +1884,6 @@
               "minutes": null,
               "rating": null,
               "position": "G",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Chris Mepham",
-              "minutes": null,
-              "rating": null,
-              "position": "D",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Ronan Kpakio",
-              "minutes": null,
-              "rating": null,
-              "position": "D",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Connor Roberts",
-              "minutes": null,
-              "rating": null,
-              "position": "D",
               "goals": null,
               "assists": null
             },
@@ -1889,22 +1912,6 @@
               "assists": null
             },
             {
-              "name": "David Brooks",
-              "minutes": null,
-              "rating": null,
-              "position": "M",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Sorba Thomas",
-              "minutes": null,
-              "rating": null,
-              "position": "F",
-              "goals": null,
-              "assists": null
-            },
-            {
               "name": "Joel Colwill",
               "minutes": null,
               "rating": null,
@@ -1913,23 +1920,7 @@
               "assists": null
             },
             {
-              "name": "Cameron Congreve",
-              "minutes": null,
-              "rating": null,
-              "position": "M",
-              "goals": null,
-              "assists": null
-            },
-            {
               "name": "Isaak Davies",
-              "minutes": null,
-              "rating": null,
-              "position": "F",
-              "goals": null,
-              "assists": null
-            },
-            {
-              "name": "Lewis Koumas",
               "minutes": null,
               "rating": null,
               "position": "F",
@@ -1944,8 +1935,8 @@
       "fixture_id": 1502474,
       "home": "USA",
       "away": "Germany",
-      "status": "NS",
-      "score": "None-None",
+      "status": "FT",
+      "score": "1-2",
       "lineups_count": 2,
       "lineups": [
         {
@@ -1957,27 +1948,27 @@
             "Miles Robinson",
             "Tim Ream",
             "Antonee Robinson",
-            "Weston McKennie",
+            "Malik Tillman",
             "Tyler Adams",
             "Sergiño Dest",
-            "Malik Tillman",
+            "Weston McKennie",
             "Christian Pulišić",
             "Folarin Balogun"
           ],
           "subs": [
-            "Matt Turner",
-            "Chris Brady",
             "Mark McKenzie",
+            "Giovanni Reyna",
+            "Sebastian Berhalter",
             "Auston Trusty",
             "Joe Scally",
-            "Alex Zendejas",
             "Maximilian Arfsten",
             "Brenden Aaronson",
-            "Giovanni Reyna",
             "Tim Weah",
             "Cristian Roldán",
-            "Sebastian Berhalter",
             "Ricardo Pepi",
+            "Matt Turner",
+            "Chris Brady",
+            "Alex Zendejas",
             "Haji Wright"
           ]
         },
@@ -1998,20 +1989,20 @@
             "Kai Havertz"
           ],
           "subs": [
+            "Waldemar Anton",
+            "David Raum",
+            "Deniz Undav",
+            "Jamie Leweling",
+            "Angelo Stiller",
+            "Nadiem Amiri",
+            "Leon Goretzka",
+            "Maximilian Beier",
             "Alexander Nübel",
             "Manuel Neuer",
             "Malick Thiaw",
-            "Waldemar Anton",
-            "David Raum",
             "Antonio Rüdiger",
-            "Angelo Stiller",
-            "Jamie Leweling",
-            "Nadiem Amiri",
-            "Leon Goretzka",
             "Pascal Groß",
-            "Nick Woltemade",
-            "Deniz Undav",
-            "Maximilian Beier"
+            "Nick Woltemade"
           ]
         }
       ],
@@ -2021,8 +2012,8 @@
       "fixture_id": 1542181,
       "home": "Switzerland",
       "away": "Australia",
-      "status": "NS",
-      "score": "None-None",
+      "status": "FT",
+      "score": "1-1",
       "lineups_count": 0,
       "lineups_error": "no response",
       "players_error": "no response"
@@ -2031,8 +2022,8 @@
       "fixture_id": 1544360,
       "home": "Panama",
       "away": "Bosnia & Herzegovina",
-      "status": "NS",
-      "score": "None-None",
+      "status": "FT",
+      "score": "1-1",
       "lineups_count": 0,
       "lineups_error": "no response",
       "players_error": "no response"
@@ -2041,8 +2032,8 @@
       "fixture_id": 1525492,
       "home": "England",
       "away": "New Zealand",
-      "status": "NS",
-      "score": "None-None",
+      "status": "2H",
+      "score": "1-0",
       "lineups_count": 0,
       "lineups_error": "no response",
       "players_error": "no response"
@@ -2051,8 +2042,8 @@
       "fixture_id": 1540949,
       "home": "Bolivia",
       "away": "Scotland",
-      "status": "NS",
-      "score": "None-None",
+      "status": "2H",
+      "score": "0-4",
       "lineups_count": 0,
       "lineups_error": "no response",
       "players_error": "no response"
@@ -2061,8 +2052,8 @@
       "fixture_id": 1544361,
       "home": "Qatar",
       "away": "El Salvador",
-      "status": "NS",
-      "score": "None-None",
+      "status": "2H",
+      "score": "0-0",
       "lineups_count": 0,
       "lineups_error": "no response",
       "players_error": "no response"
@@ -2118,8 +2109,8 @@
       "home": "Portugal",
       "away": "Chile",
       "league": "Friendlies",
-      "status": "1H",
-      "score": "0-0",
+      "status": "FT",
+      "score": "2-1",
       "home_wc": true,
       "away_wc": false
     },
@@ -2128,8 +2119,8 @@
       "home": "Romania",
       "away": "Wales",
       "league": "Friendlies",
-      "status": "1H",
-      "score": "0-0",
+      "status": "FT",
+      "score": "2-1",
       "home_wc": true,
       "away_wc": false
     },
@@ -2138,8 +2129,8 @@
       "home": "USA",
       "away": "Germany",
       "league": "Friendlies",
-      "status": "NS",
-      "score": "None-None",
+      "status": "FT",
+      "score": "1-2",
       "home_wc": true,
       "away_wc": true
     },
@@ -2148,8 +2139,8 @@
       "home": "Switzerland",
       "away": "Australia",
       "league": "Friendlies",
-      "status": "NS",
-      "score": "None-None",
+      "status": "FT",
+      "score": "1-1",
       "home_wc": true,
       "away_wc": true
     },
@@ -2158,8 +2149,8 @@
       "home": "Panama",
       "away": "Bosnia & Herzegovina",
       "league": "Friendlies",
-      "status": "NS",
-      "score": "None-None",
+      "status": "FT",
+      "score": "1-1",
       "home_wc": true,
       "away_wc": false
     },
@@ -2168,8 +2159,8 @@
       "home": "England",
       "away": "New Zealand",
       "league": "Friendlies",
-      "status": "NS",
-      "score": "None-None",
+      "status": "2H",
+      "score": "1-0",
       "home_wc": true,
       "away_wc": true
     },
@@ -2178,8 +2169,8 @@
       "home": "Bolivia",
       "away": "Scotland",
       "league": "Friendlies",
-      "status": "NS",
-      "score": "None-None",
+      "status": "2H",
+      "score": "0-4",
       "home_wc": true,
       "away_wc": true
     },
@@ -2188,8 +2179,8 @@
       "home": "Qatar",
       "away": "El Salvador",
       "league": "Friendlies",
-      "status": "NS",
-      "score": "None-None",
+      "status": "2H",
+      "score": "0-0",
       "home_wc": true,
       "away_wc": false
     },
