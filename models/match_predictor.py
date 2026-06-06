@@ -850,8 +850,8 @@ def predict_match(
 
     _hn = conn.execute("SELECT name FROM teams WHERE id=?", (home_id,)).fetchone()
     _an = conn.execute("SELECT name FROM teams WHERE id=?", (away_id,)).fetchone()
-    home_name = _hn[0] if _hn else home
-    away_name = _an[0] if _an else away
+    home_name = _hn[0] if _hn else str(home_id)
+    away_name = _an[0] if _an else str(away_id)
 
     # Timing profiles (fatiga defensiva/ofensiva por franja de 15 minutos)
     h_timing = _get_timing_factor(home_name, conn)
