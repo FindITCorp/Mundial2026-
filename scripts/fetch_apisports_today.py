@@ -57,8 +57,8 @@ def _is_wc(name):
     return (name or "") in WC_TEAMS
 
 
-def run():
-    today = date.today().isoformat()
+def run(target_date=None):
+    today = target_date or date.today().isoformat()
     output = {
         "date": today,
         "key_configured": bool(KEY),
@@ -188,9 +188,24 @@ def run():
 
 
 if __name__ == "__main__":
-    result = run()
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(result, ensure_ascii=False, indent=2))
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--date", default=None, help="Fecha YYYY-MM-DD (default: hoy)")
+    args = parser.parse_args()
+
+    target_date = args.date  # None = usa date.today() dentro de run()
+    result = run(target_date=target_date)
+
+    # Si se especifica fecha distinta, guardar en archivo separado
+    if target_date and target_date != date.today().isoformat():
+        OUT_DATE = OUT.parent / f"apisports_{target_date}.json"
+        OUT_DATE.parent.mkdir(parents=True, exist_ok=True)
+        OUT_DATE.write_text(json.dumps(result, ensure_ascii=False, indent=2))
+        print(f"\nGuardado en: {OUT_DATE}")
+    else:
+        OUT.parent.mkdir(parents=True, exist_ok=True)
+        OUT.write_text(json.dumps(result, ensure_ascii=False, indent=2))
+
     print(f"\nRequests usados: {result['requests_used']}/100")
     print(f"Fixtures WC encontrados: {result.get('wc_fixtures_count', 0)}")
     print(json.dumps(result, ensure_ascii=False, indent=2)[:3000])

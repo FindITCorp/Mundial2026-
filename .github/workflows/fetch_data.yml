@@ -42,6 +42,11 @@ on:
           - thesportsdb
           - upcoming_friendlies
           - apisports_today
+      fetch_date:
+        description: 'Fecha para apisports_today (YYYY-MM-DD, vacío = hoy)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   update:
@@ -166,8 +171,10 @@ jobs:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+          FETCH_DATE: ${{ github.event.inputs.fetch_date }}
         run: |
           echo "=== Scope: ${{ steps.scope.outputs.scope }} ==="
+          echo "=== Fecha: ${{ github.event.inputs.fetch_date || 'hoy' }} ==="
           python pipelines/full_update.py --scope "${{ steps.scope.outputs.scope }}"
 
       - name: Actualizar señales de predicción

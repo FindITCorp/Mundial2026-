@@ -474,8 +474,12 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
     # ── Scope: apisports_today (player data vía api-sports.io FREE por fecha) ────
     if scope == "apisports_today":
         def _apisports_today():
-            import subprocess
-            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "fetch_apisports_today.py")], check=False)
+            import subprocess, os
+            fetch_date = os.getenv("FETCH_DATE", "").strip()
+            cmd = [sys.executable, str(BASE_DIR / "scripts" / "fetch_apisports_today.py")]
+            if fetch_date:
+                cmd += ["--date", fetch_date]
+            subprocess.run(cmd, check=False)
             subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "store_apisports_today.py")], check=False)
         _step("Fetch + Store Today Player Data (api-sports.io FREE)", _apisports_today)
         return True
