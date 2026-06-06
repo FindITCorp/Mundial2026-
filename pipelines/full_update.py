@@ -476,7 +476,8 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
         def _apisports_today():
             import subprocess
             subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "fetch_apisports_today.py")], check=False)
-        _step("Fetch Today Player Data (api-sports.io FREE)", _apisports_today)
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "store_apisports_today.py")], check=False)
+        _step("Fetch + Store Today Player Data (api-sports.io FREE)", _apisports_today)
         return True
 
     # ── Scope: today_fixtures (listar amistosos WC de hoy para predecir) ────────
