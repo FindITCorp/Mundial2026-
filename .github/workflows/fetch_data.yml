@@ -44,6 +44,7 @@ on:
           - apisports_today
           - sofascore_today
           - sofascore_range
+          - apisports_range
       fetch_date:
         description: 'Fecha para apisports_today / sofascore_today (YYYY-MM-DD, vacío = hoy)'
         required: false
