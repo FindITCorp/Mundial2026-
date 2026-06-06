@@ -220,6 +220,10 @@ def run(target_date=None):
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_file.write_text(json.dumps(output, ensure_ascii=False, indent=2))
 
+    output["events_processed"] = total_events
+    output["total_lineups"]    = total_lu
+    output["total_nat_stats"]  = total_ns
+
     print(f"\n{'='*55}")
     print(f"SOFASCORE — {day}")
     print(f"  Eventos WC procesados: {total_events}")

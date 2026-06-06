@@ -29,7 +29,7 @@ DB_PATH  = BASE_DIR / "data" / "mundial2026.db"
 LOGS_DIR = BASE_DIR / "data" / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "diagnose", "today_fixtures", "predict_pairs", "thesportsdb", "upcoming_friendlies", "apisports_today", "sofascore_today")
+VALID_SCOPES = ("all", "squads", "stats", "form", "lineups", "wc", "historical", "lineups_friendlies", "probe", "diagnose", "today_fixtures", "predict_pairs", "thesportsdb", "upcoming_friendlies", "apisports_today", "sofascore_today", "sofascore_range")
 
 
 def _setup_logger() -> logging.Logger:
@@ -494,6 +494,23 @@ def run(scope: str = "all", teams=None, quick: bool = False) -> bool:
                 cmd += ["--date", fetch_date]
             subprocess.run(cmd, check=False)
         _step("Fetch Player Data via Sofascore (sin API key, cobertura total)", _sofascore_today)
+        return True
+
+    # ── Scope: sofascore_range (datos de jugadores para rango de fechas WC) ─────
+    if scope == "sofascore_range":
+        def _sofascore_range():
+            import subprocess, os
+            from_date = os.getenv("FETCH_FROM", "").strip()
+            to_date   = os.getenv("FETCH_TO",   "").strip()
+            fetch_dates = os.getenv("FETCH_DATES", "").strip()
+            cmd = [sys.executable, str(BASE_DIR / "scripts" / "fetch_sofascore_range.py")]
+            if fetch_dates:
+                cmd += ["--dates", fetch_dates]
+            elif from_date and to_date:
+                cmd += ["--from", from_date, "--to", to_date]
+            # sin argumentos: usa las fechas WC mayo-junio por defecto
+            subprocess.run(cmd, check=False)
+        _step("Fetch Player Data Sofascore — Rango Fechas WC", _sofascore_range)
         return True
 
     # ── Scope: today_fixtures (listar amistosos WC de hoy para predecir) ────────

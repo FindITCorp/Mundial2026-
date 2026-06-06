@@ -43,8 +43,24 @@ on:
           - upcoming_friendlies
           - apisports_today
           - sofascore_today
+          - sofascore_range
       fetch_date:
-        description: 'Fecha para apisports_today (YYYY-MM-DD, vacío = hoy)'
+        description: 'Fecha para apisports_today / sofascore_today (YYYY-MM-DD, vacío = hoy)'
+        required: false
+        default: ''
+        type: string
+      fetch_from:
+        description: 'Fecha inicio para sofascore_range (YYYY-MM-DD)'
+        required: false
+        default: ''
+        type: string
+      fetch_to:
+        description: 'Fecha fin para sofascore_range (YYYY-MM-DD)'
+        required: false
+        default: ''
+        type: string
+      fetch_dates:
+        description: 'Fechas específicas para sofascore_range (YYYY-MM-DD,YYYY-MM-DD,...)'
         required: false
         default: ''
         type: string
@@ -172,10 +188,14 @@ jobs:
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
           APIFOOT: ${{ secrets.APIFOOT }}
           APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
-          FETCH_DATE: ${{ github.event.inputs.fetch_date }}
+          FETCH_DATE:  ${{ github.event.inputs.fetch_date }}
+          FETCH_FROM:  ${{ github.event.inputs.fetch_from }}
+          FETCH_TO:    ${{ github.event.inputs.fetch_to }}
+          FETCH_DATES: ${{ github.event.inputs.fetch_dates }}
         run: |
           echo "=== Scope: ${{ steps.scope.outputs.scope }} ==="
           echo "=== Fecha: ${{ github.event.inputs.fetch_date || 'hoy' }} ==="
+          echo "=== Rango: ${{ github.event.inputs.fetch_from }} → ${{ github.event.inputs.fetch_to }} ==="
           python pipelines/full_update.py --scope "${{ steps.scope.outputs.scope }}"
 
       - name: Actualizar señales de predicción
