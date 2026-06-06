@@ -18,8 +18,12 @@ OUT_DIR  = BASE_DIR / "data" / "lineups"
 
 BASE = "https://api.sofascore.com/api/v1"
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
-    "Accept": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.sofascore.com/",
+    "Origin": "https://www.sofascore.com",
+    "Cache-Control": "no-cache",
 }
 
 WC_TEAMS = {
@@ -94,7 +98,7 @@ def fetch_day(target_date=None):
 
     data = _get(f"/sport/football/scheduled-events/{day}")
     if not data:
-        print("  Sin respuesta de Sofascore"); return []
+        print("  Sin respuesta de Sofascore"); return [], day
 
     events = data.get("events", [])
     print(f"  {len(events)} eventos totales en Sofascore")
@@ -119,6 +123,8 @@ def fetch_day(target_date=None):
         print(f"  ★ {home} vs {away} [{status}] {score.get('current','?')}-{score_a.get('current','?')} (id={ev_id})")
 
     return wc_events, day
+
+
 
 def fetch_lineups(ev_id):
     data = _get(f"/event/{ev_id}/lineups")
