@@ -222,6 +222,38 @@ LEAGUE_QUALITY: dict[str, float] = {
 _DEFAULT_LEAGUE_QUALITY = 0.70
 
 # ---------------------------------------------------------------------------
+# Opponent quality weight for national team match stats.
+#
+# Same stats (goals, tackles, passes) are worth more against a stronger rival.
+# Based on FIFA ranking: rank 1 (France) ≈ 1.30x, rank 50 ≈ 1.00x, rank 120+ ≈ 0.70x
+#
+# Formula: 1.0 + (REF_RANK - opp_rank) * 0.005, clamped to [0.70, 1.35]
+# REF_RANK = 50 (median WC qualifier strength)
+# ---------------------------------------------------------------------------
+_OPP_REF_RANK = 50
+_OPP_SCALE    = 0.005
+_OPP_MIN      = 0.70
+_OPP_MAX      = 1.35
+
+
+def opponent_quality_factor(opponent_name: str, conn: sqlite3.Connection) -> float:
+    """
+    Returns a weight [0.70, 1.35] based on the opponent team's FIFA ranking.
+    Stronger opponent → higher factor → stats in that match are worth more.
+    """
+    if not opponent_name:
+        return 1.00
+    row = conn.execute(
+        "SELECT fifa_ranking FROM teams WHERE name=? OR LOWER(name)=LOWER(?)",
+        (opponent_name, opponent_name)
+    ).fetchone()
+    if not row or not row[0]:
+        return 1.00
+    rank = row[0]
+    factor = 1.0 + (_OPP_REF_RANK - rank) * _OPP_SCALE
+    return round(max(_OPP_MIN, min(_OPP_MAX, factor)), 3)
+
+# ---------------------------------------------------------------------------
 # National team performance normalization by position
 # Reference goals-per-cap ratios in WC-level competition
 # ---------------------------------------------------------------------------
@@ -702,22 +734,28 @@ class PlayerRatingEngine:
         # Use nat stats
         if not nat_ratings:
             nat_stats = cur.execute("""
-                SELECT goals, assists, minutes, rating FROM player_nat_stats
+                SELECT goals, assists, minutes, rating, opponent
+                FROM player_nat_stats
                 WHERE player_id=?
                 ORDER BY rowid DESC LIMIT 10
             """, (player_id,)).fetchall()
             for ns in nat_stats:
+                opp_w = opponent_quality_factor(ns["opponent"] or "", conn)
                 if ns["rating"]:
-                    nat_ratings.append(ns["rating"])
+                    # Sofascore rating: adjust bonus above neutral baseline (6.5)
+                    base_line = 6.5
+                    adjusted = base_line + (ns["rating"] - base_line) * opp_w
+                    nat_ratings.append(round(max(1.0, min(10.0, adjusted)), 2))
                 else:
-                    # synthesize quick rating
                     ms = ClubMatchStats(
                         goals=ns["goals"],
                         assists=ns["assists"],
                         minutes=ns["minutes"]
                     )
                     rc = compute_player_rating(ms, player["position"], "nat")
-                    nat_ratings.append(rc.final_rating)
+                    # Apply opponent quality to bonus above base (6.0)
+                    adjusted = 6.0 + (rc.final_rating - 6.0) * opp_w
+                    nat_ratings.append(round(max(1.0, min(10.0, adjusted)), 2))
 
         club_form = compute_form_rating(club_ratings)
         nat_form = compute_form_rating(nat_ratings) if nat_ratings else club_form
@@ -830,22 +868,37 @@ class PlayerRatingEngine:
         try:
             conn_form = self._conn()
             nat_rows = conn_form.execute("""
-                SELECT rating FROM player_nat_stats
-                WHERE player_id=? AND rating IS NOT NULL
-                ORDER BY match_date DESC, rowid DESC
+                SELECT pns.rating, pns.goals, pns.assists, pns.minutes, pns.opponent
+                FROM player_nat_stats pns
+                WHERE pns.player_id=?
+                ORDER BY pns.match_date DESC, pns.rowid DESC
                 LIMIT 5
             """, (player_row["id"],)).fetchall()
             conn_form.close()
 
             if nat_rows:
-                # Exponential decay: most recent match has most weight
-                weights = [0.5 ** i for i in range(len(nat_rows))]
+                pos = (player_row["position"] or "MID").upper()
+                adj_ratings = []
+                for r in nat_rows:
+                    opp_w = opponent_quality_factor(r["opponent"] or "", self._conn())
+                    if r["rating"] is not None:
+                        base_line = 6.5
+                        adj = base_line + (r["rating"] - base_line) * opp_w
+                    else:
+                        ms = ClubMatchStats(
+                            goals=r["goals"] or 0,
+                            assists=r["assists"] or 0,
+                            minutes=r["minutes"] or 0,
+                        )
+                        rc = compute_player_rating(ms, pos, "nat")
+                        adj = 6.0 + (rc.final_rating - 6.0) * opp_w
+                    adj_ratings.append(round(max(1.0, min(10.0, adj)), 2))
+
+                weights = [0.5 ** i for i in range(len(adj_ratings))]
                 w_sum = sum(weights)
-                nat_form_avg = sum(r["rating"] * w for r, w in zip(nat_rows, weights)) / w_sum
-                # Blend: 85% structural, 15% nat-form signal
-                # Clamp adjustment to [-0.3, +0.3] to prevent over-correction
-                nat_adj = (nat_form_avg - final) * 0.15
-                nat_adj = max(-0.30, min(0.30, nat_adj))
+                nat_form_avg = sum(v * w for v, w in zip(adj_ratings, weights)) / w_sum
+                # Blend: 85% structural, 15% nat-form signal, clamped ±0.3
+                nat_adj = max(-0.30, min(0.30, (nat_form_avg - final) * 0.15))
                 final = round(final + nat_adj, 2)
         except Exception:
             pass  # form data is non-critical
