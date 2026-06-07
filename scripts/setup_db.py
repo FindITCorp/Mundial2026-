@@ -125,7 +125,8 @@ def create_tables(conn: sqlite3.Connection):
         player_id   INTEGER NOT NULL REFERENCES players(id),
         match_id    INTEGER REFERENCES team_matches(id),
         match_date  TEXT,
-        opponent    TEXT,
+        opponent        TEXT,
+        opponent_rank   INTEGER,  -- FIFA ranking of opponent (quality weight)
         minutes     INTEGER DEFAULT 0,
         goals       INTEGER DEFAULT 0,
         assists     INTEGER DEFAULT 0,

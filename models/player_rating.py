@@ -235,21 +235,102 @@ _OPP_SCALE    = 0.005
 _OPP_MIN      = 0.70
 _OPP_MAX      = 1.35
 
+# FIFA rankings for opponents not in the 48-team WC table (April 2026 reference)
+_EXTRA_OPP_RANKS: dict[str, int] = {
+    "Wales": 47, "Scotland": 29, "Finland": 55, "Hungary": 31,
+    "Sweden": 38, "Norway": 31, "Denmark": 22, "Austria": 23,
+    "Switzerland": 17, "Belgium": 9, "Netherlands": 7, "Italy": 9,
+    "Portugal": 5, "Spain": 2, "France": 1, "Germany": 10,
+    "England": 4, "Croatia": 13, "Serbia": 33, "Romania": 46,
+    "Czechia": 41, "Czech Republic": 41, "Slovakia": 45,
+    "Poland": 27, "Slovenia": 57, "Greece": 49,
+    "Turkey": 24, "Ukraine": 22, "Russia": 35,
+    "Republic of Ireland": 62, "Ireland": 62,
+    "Northern Ireland": 72, "Iceland": 63, "Albania": 66,
+    "Bulgaria": 78, "North Macedonia": 67, "Bosnia and Herzegovina": 65,
+    "Montenegro": 74, "Kosovo": 112, "Armenia": 88,
+    "Georgia": 52, "Azerbaijan": 108, "Moldova": 130,
+    "Belarus": 90, "Estonia": 100, "Latvia": 118, "Lithuania": 125,
+    "Kazakhstan": 115, "Kyrgyzstan": 105, "Tajikistan": 110,
+    "Turkmenistan": 120, "Uzbekistan": 50,
+    "Japan": 12, "South Korea": 18, "Australia": 27,
+    "China PR": 87, "Iran": 21, "Saudi Arabia": 26,
+    "Iraq": 25, "Jordan": 49, "Syria": 96, "Palestine": 98,
+    "Kuwait": 146, "Bahrain": 86, "Oman": 82, "Lebanon": 107,
+    "India": 125, "Vietnam": 116, "Thailand": 97, "Malaysia": 130,
+    "Indonesia": 130, "Philippines": 140, "Singapore": 160,
+    "North Korea": 110,
+    "Morocco": 8, "Senegal": 20, "Ghana": 32, "Algeria": 28,
+    "Ivory Coast": 34, "Nigeria": 38, "Cameroon": 51, "Egypt": 35,
+    "Tunisia": 44, "DR Congo": 47, "Cape Verde": 69,
+    "South Africa": 60, "Burkina Faso": 66, "Mali": 56,
+    "Benin": 71, "Uganda": 85, "Angola": 92, "Zambia": 97,
+    "Tanzania": 120, "Mozambique": 115, "Rwanda": 130,
+    "Gambia": 88, "Mauritania": 75, "Ethiopia": 140,
+    "Zimbabwe": 110, "Kenya": 105, "Guinea": 78,
+    "Equatorial Guinea": 95, "Sudan": 145, "Libya": 140,
+    "Madagascar": 150, "Central African Republic": 160,
+    "Chad": 165, "Niger": 168, "Malawi": 125, "Togo": 125,
+    "Gabon": 85, "Eswatini": 140, "Botswana": 130,
+    "Namibia": 120, "Lesotho": 155, "Comoros": 102,
+    "Somalia": 190, "São Tomé and Príncipe": 195, "Djibouti": 200,
+    "Mexico": 15, "USA": 11, "United States": 11, "Canada": 48,
+    "Costa Rica": 64, "Panama": 44, "Honduras": 85, "Jamaica": 50,
+    "Haiti": 83, "El Salvador": 77, "Guatemala": 96, "Nicaragua": 135,
+    "Cuba": 145, "Dominican Republic": 152, "Trinidad and Tobago": 105,
+    "Guadeloupe": 999, "Martinique": 999, "Puerto Rico": 150,
+    "Curacao": 82, "Curaçao": 82, "Aruba": 175, "Bermuda": 165,
+    "Saint Kitts and Nevis": 180, "Saint Lucia": 185,
+    "Suriname": 145, "Grenada": 155, "Guyana": 165, "Barbados": 175,
+    "Saint Martin": 190, "Montserrat": 195, "Belize": 185,
+    "Argentina": 3, "Brazil": 6, "Colombia": 14, "Uruguay": 16,
+    "Ecuador": 19, "Chile": 36, "Paraguay": 30, "Venezuela": 55,
+    "Bolivia": 92, "Peru": 68,
+    "New Zealand": 85, "Australia": 27, "Fiji": 160,
+    "Solomon Islands": 165, "Vanuatu": 170, "Tahiti": 175,
+    "New Caledonia": 170, "Samoa": 180,
+    "Qatar": 55, "United Arab Emirates": 68, "Kuwait": 146,
+    "Bahrain": 86, "Oman": 82,
+    "Israel": 86, "Hong Kong": 147, "Bangladesh": 188, "Myanmar": 155,
+    "Afghanistan": 206, "Pakistan": 200, "Seychelles": 195,
+    "Mauritius": 172, "Liberia": 160, "Bahamas": 190,
+    "Guadeloupe": 120, "Martinique": 120,
+    "Liechtenstein": 200, "Andorra": 205, "San Marino": 210,
+    "Gibraltar": 208, "Faroe Islands": 115, "Malta": 175,
+    "Luxembourg": 95, "Cyprus": 92,
+}
+
+
+def get_opponent_rank(opponent_name: str, conn: sqlite3.Connection) -> int:
+    """Look up FIFA ranking for an opponent by name. Returns rank integer."""
+    if not opponent_name:
+        return _OPP_REF_RANK
+    # 1. WC teams table
+    row = conn.execute(
+        "SELECT fifa_ranking FROM teams WHERE name=? OR LOWER(name)=LOWER(?)",
+        (opponent_name, opponent_name)
+    ).fetchone()
+    if row and row[0] and row[0] < 999:
+        return row[0]
+    # 2. Extended dict
+    rank = _EXTRA_OPP_RANKS.get(opponent_name) or _EXTRA_OPP_RANKS.get(opponent_name.title())
+    if rank and rank < 999:
+        return rank
+    # 3. Partial match in dict (e.g. "Republic of Ireland" vs "Ireland")
+    opp_lower = opponent_name.lower()
+    for key, r in _EXTRA_OPP_RANKS.items():
+        if key.lower() in opp_lower or opp_lower in key.lower():
+            if r < 999:
+                return r
+    return 85  # default: treat unknown as a mid-tier team
+
 
 def opponent_quality_factor(opponent_name: str, conn: sqlite3.Connection) -> float:
     """
     Returns a weight [0.70, 1.35] based on the opponent team's FIFA ranking.
     Stronger opponent → higher factor → stats in that match are worth more.
     """
-    if not opponent_name:
-        return 1.00
-    row = conn.execute(
-        "SELECT fifa_ranking FROM teams WHERE name=? OR LOWER(name)=LOWER(?)",
-        (opponent_name, opponent_name)
-    ).fetchone()
-    if not row or not row[0]:
-        return 1.00
-    rank = row[0]
+    rank = get_opponent_rank(opponent_name, conn)
     factor = 1.0 + (_OPP_REF_RANK - rank) * _OPP_SCALE
     return round(max(_OPP_MIN, min(_OPP_MAX, factor)), 3)
 
@@ -1024,3 +1105,27 @@ if __name__ == "__main__":
             for p in players:
                 print(f"    {p['name']:<28} {p['rating']:>4.1f}  {p['club']} ({p['league']})")
     print()
+
+
+def fill_opponent_ranks(db_path=None) -> int:
+    """
+    Populate opponent_rank for all player_nat_stats rows where it is NULL.
+    Looks up FIFA ranking from teams table + _EXTRA_OPP_RANKS dict.
+    Returns number of rows updated.
+    """
+    path = str(db_path or DB_PATH)
+    conn = sqlite3.connect(path)
+    opponents = conn.execute(
+        "SELECT DISTINCT opponent FROM player_nat_stats WHERE opponent IS NOT NULL AND opponent_rank IS NULL"
+    ).fetchall()
+    updated = 0
+    for (opp,) in opponents:
+        rank = get_opponent_rank(opp, conn)
+        n = conn.execute(
+            "UPDATE player_nat_stats SET opponent_rank=? WHERE opponent=? AND opponent_rank IS NULL",
+            (rank, opp)
+        ).rowcount
+        updated += n
+    conn.commit()
+    conn.close()
+    return updated
