@@ -1,10 +1,10 @@
 # MUNDIAL 2026 — SISTEMA DE PREDICCION AVANZADO
 
 ## ESTADO DEL PROYECTO
-**Ultima actualizacion:** 23 de mayo de 2026
+**Ultima actualizacion:** 7 de junio de 2026
 **Proposito:** Sistema completo de prediccion y analisis del Mundial 2026
 **Stack:** Python 3.11 · SQLite · requests · scipy · StatsBomb open data
-**Estado:** 🟢 DATOS CARGADOS · WORKFLOWS PASANDO · SIMULADOR FUNCIONAL · EXPERT ANALYSIS LISTO
+**Estado:** 🟢 DATOS CARGADOS · WORKFLOWS PASANDO · SIMULADOR FUNCIONAL · EXPERT ANALYSIS LISTO · PARTIDOS AMISTOSOS JUN 2026 CARGADOS
 
 ---
 
@@ -37,21 +37,21 @@ git -c commit.gpgsign=false commit -m "mensaje"
 
 ---
 
-## ESTADO DE LA BASE DE DATOS (22 mayo 2026)
+## ESTADO DE LA BASE DE DATOS (7 junio 2026)
 
 | Tabla | Registros | Fuente |
 |-------|-----------|--------|
 | teams | 48 | Estatico JSON |
-| players | 2,131 | martj42 CSV + Wikipedia + manual (32-68 por equipo) |
-| team_matches | 11,015 | martj42 CSV (hasta marzo 2026) |
+| players | ~2,700+ | martj42 + Wikipedia + manual + nuevos jugadores amistosos |
+| team_matches | ~11,035+ | martj42 CSV + 20 partidos Ukraine manuales |
 | player_club_stats | 724 | Solo jugadores originales seeded |
-| player_nat_stats | 1,437 | StatsBomb WC2022 |
-| player_ratings | 2,855 | Computados (club+nat context) |
+| player_nat_stats | ~33,000+ | StatsBomb WC2022 + amistosos jun 2026 Sofascore |
+| player_ratings | ~3,000+ | Computados (club+nat context) |
 | squad_selections | 2,131 | Todos los jugadores |
 | match_players | 3,782 | StatsBomb WC2022 (1992) + WC2018 (1790) |
-| wc_matches | 72 | Calendario WC2026 estatico |
+| wc_matches | 95 | Calendario WC2026 + 23 amistosos cargados |
 | wc_history | 192 | Historial WC 2014/2018/2022 |
-| match_lineups | 0 | Se llenara durante el torneo |
+| match_lineups | ~360+ | Partidos amistosos jun 2026 |
 
 **Jugadores por equipo:** min=32, max=68, promedio=44.4
 
@@ -271,6 +271,69 @@ Brazil vs Argentina (10,000 sim):
   Marcador mas probable: 1-1 (12.5%)
   xG: Brazil 1.27 - Argentina 1.37
 ```
+
+---
+
+## PARTIDOS AMISTOSOS CARGADOS (Sofascore, junio 2026)
+
+| match_id | Partido | Resultado | Fecha | Jugadores |
+|----------|---------|-----------|-------|-----------|
+| 87 | Austria vs Tunisia | 1-0 | 2026-06-01 | ~22 |
+| 88 | Colombia vs Costa Rica | 3-1 | 2026-06-01 | ~26 |
+| 89 | Canada vs Uzbekistan | 2-0 | 2026-06-01 | ~39 |
+| 90 | Belgium vs Croatia | 2-0 | 2026-06-02 | 40 |
+| 91 | Wales vs Ghana | 1-1 | 2026-06-02 | 39 |
+| 92 | Morocco vs Madagascar | 4-0 | 2026-06-02 | 41 |
+| 93 | Netherlands vs Algeria | 0-1 | 2026-06-03 | 41 |
+| 94 | Sweden vs Greece | 2-2 | 2026-06-04 | 42 |
+| 95 | Spain vs Iraq | 1-1 | 2026-06-04 | 44 |
+
+### Formato Sofascore para cargar partidos:
+Al pegar estadisticas de Sofascore, el orden de columnas es:
+**G** (siempre) | **A** (si >0) | **T/tackles** (si >0) | **Pases acc/tot** | **Duelos** | **Duelos suelo** | **Duelos aereos** | **Minutos** | **Posicion**
+
+- Si G=0 aparece "0", A solo aparece si >0, T solo aparece si >0
+- El goleador se identifica por el "1" (o mas) en primera posicion
+- Asistencias maximas = goles del equipo (el resto de "1"s son tackles)
+- `opponent_rank` se calcula automaticamente con `get_opponent_rank()` del modelo
+
+### Script tipo para insertar un partido nuevo:
+```python
+# Ver match_id=90 (Belgium vs Croatia) como referencia en esta sesion
+# Los IDs de equipos: conn.execute("SELECT id FROM teams WHERE name='X'")
+# wc_matches usa columnas: id, date, home_team_id, away_team_id, home_team_name, away_team_name, stage, score_home, score_away, played
+# match_lineups usa: match_id, team_id, player_id, position, starter
+# player_nat_stats usa: player_id, match_id, match_date, opponent, opponent_rank, minutes, goals, assists, rating, was_starter, tackles, passes_accurate, passes_total, duels_won, duels_total, ground_duels_won, ground_duels_total, aerial_won, aerial_total
+```
+
+---
+
+## MEJORAS IMPLEMENTADAS (sesion 7 jun 2026)
+
+### 1. opponent_quality_factor en player_rating.py
+- **Columna nueva:** `opponent_rank INTEGER` en `player_nat_stats`
+- **Formula:** `factor = 1.0 + (50 - rank) * 0.005`, clamped [0.70, 1.35]
+- **Referencia:** rank=50 (mediana clasificados WC) → factor=1.0
+- **Ejemplos:** Francia(#1)→×1.245, Alemania(#10)→×1.200, Uzbekistan(~#50)→×1.000, Bolivia(#92)→×0.790
+- **Funcion:** `get_opponent_rank(name, conn)` busca en teams, luego `_EXTRA_OPP_RANKS` (150+ selecciones), luego partial match, default=85
+- **Backfill:** `fill_opponent_ranks()` en player_rating.py actualiza filas con opponent_rank=NULL
+- **Aplicado a:** todos los registros existentes (22K+ filas) + todos los nuevos inserts
+
+### 2. Ukraine fix (antes rank=999, Elo=1498 → rank=25, Elo=1650)
+- Ranking FIFA corregido a #25
+- Elo corregido a 1650 en tabla `team_elo` (consistente con Iraq/Scotland en rank similar)
+- 25 jugadores creados: Trubin, Zabarnyi, Zinchenko, Mudryk, Dovbyk, Yaremchuk, Tsygankov, Sudakov, etc.
+- 20 partidos historicos en `team_matches` con `opponent_id` vinculado (WCQ 2025-2026, EURO 2024)
+- nat_stats historicas para goleadores clave (Dovbyk 10 caps/7G, Mudryk 6 caps/4G, Yaremchuk 7 caps/5G)
+- **Resultado:** Denmark 48.5% - Empate 25.4% - Ukraine 26.1% (antes era 67%-13% irrealista)
+
+### 3. Nuevos equipos con jugadores creados
+- **Wales** (team_id=192): 18 jugadores nuevos creados (Neco Williams, Joe Rodon, Ethan Ampadu, Kieffer Moore, etc.)
+- **Madagascar** (team_id=135): 19+ jugadores nuevos
+- **Greece** (team_id=110): 21 jugadores nuevos (Tzolakis, Mavropanos, Koulierakis, Tsimikas, Pavlidis, etc.)
+- **Algeria**: jugadores Luca Zidane, Zineddine Belaid, Rayan Aït-Nouri, Ibrahim Maza, etc.
+- **Sweden**: Viktor Gyökeres, Gabriel Gudmundsson, Kristoffer Nordfeldt, etc.
+- **Iraq**: Merchas Doski, Zidane Iqbal, Akam Hashem, Ali Jasim, etc.
 
 ---
 
