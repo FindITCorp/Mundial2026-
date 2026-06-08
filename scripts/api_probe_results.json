@@ -1,121 +1,100 @@
 {
-  "mbd_date": {
+  "mbd_CL42": {
     "status": 200,
     "data": {
       "status": "failed",
       "message": "Request Failed Please try Again"
     }
   },
-  "mbd_matchDate": {
+  "mbd_CL42_nodt": {
     "status": 200,
     "data": {
       "status": "failed",
       "message": "Request Failed Please try Again"
     }
   },
-  "mbd_leagueId": {
+  "mbd_noparams": {
     "status": 200,
     "data": {
       "status": "failed",
       "message": "Request Failed Please try Again"
     }
   },
-  "mbd_id77_date": {
+  "mbd_yesterday_fr": {
     "status": 200,
     "data": {
       "status": "failed",
       "message": "Request Failed Please try Again"
     }
   },
-  "mbd_id114": {
-    "status": 200,
-    "data": {
-      "status": "failed",
-      "message": "Request Failed Please try Again"
-    }
-  },
-  "mbd_id114_date": {
-    "status": 200,
-    "data": {
-      "status": "failed",
-      "message": "Request Failed Please try Again"
-    }
-  },
-  "wc_season_fix": {
+  "all_matches": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-current-season-fixtures-scores-by-league-id' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-all-matches-by-date' does not exist\"}"
     }
   },
-  "fr_season_fix": {
+  "scores_date": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-current-season-fixtures-scores-by-league-id' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-scores-by-league-date' does not exist\"}"
     }
   },
-  "wc_season_fix2": {
-    "status": 404,
-    "data": {
-      "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-season-fixtures-by-league-id' does not exist\"}"
-    }
-  },
-  "fr_season_fix2": {
-    "status": 404,
-    "data": {
-      "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-season-fixtures-by-league-id' does not exist\"}"
-    }
-  },
-  "wc_league_fix": {
-    "status": 404,
-    "data": {
-      "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-league-fixtures' does not exist\"}"
-    }
-  },
-  "fr_league_fix": {
-    "status": 404,
-    "data": {
-      "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-league-fixtures' does not exist\"}"
-    }
-  },
-  "wc_league_matches": {
-    "status": 404,
-    "data": {
-      "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-league-matches' does not exist\"}"
-    }
-  },
-  "fr_league_matches": {
-    "status": 404,
-    "data": {
-      "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-league-matches' does not exist\"}"
-    }
-  },
-  "match_detail_1": {
+  "match_1000": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
       "body": "{\"message\":\"Endpoint '\\/football-get-match-details' does not exist\"}"
     }
   },
-  "match_info_1": {
+  "match_str": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-match-info' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-match-details' does not exist\"}"
     }
   },
-  "match_id_1": {
+  "search_team1": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-match' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-search-team' does not exist\"}"
+    }
+  },
+  "search_team2": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-team' does not exist\"}"
+    }
+  },
+  "search_team3": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-teams' does not exist\"}"
+    }
+  },
+  "team_stats": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-team-statistics' does not exist\"}"
+    }
+  },
+  "standings77": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-league-standings' does not exist\"}"
+    }
+  },
+  "standings114": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-league-standings' does not exist\"}"
     }
   }
 }
