@@ -151,16 +151,16 @@ def evaluate(db_path=DB, verbose=True) -> dict:
 
     # ── Persistir ────────────────────────────────────────────────────────────
     # Limpiar log anterior y reinsertar (para tener siempre el estado más fresco)
-    conn.execute("DELETE FROM model_evaluation_log")
+    # INSERT OR REPLACE — preserva historial, solo actualiza partidos ya evaluados
     conn.executemany("""
-        INSERT INTO model_evaluation_log
+        INSERT OR REPLACE INTO model_evaluation_log
           (evaluated_at, match_id, home_name, away_name,
            real_home_goals, real_away_goals, pred_home_goals, pred_away_goals,
            real_winner, pred_winner, correct_winner, brier_score, error_notes)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, log_entries)
 
-    conn.execute("DELETE FROM model_bias")
+    # model_bias: acumula historial, no borra — el predictor lee siempre el último
     notes_str = []
     if draw_missed / n > 0.40:
         notes_str.append("modelo subestima empates")
@@ -192,6 +192,22 @@ def evaluate(db_path=DB, verbose=True) -> dict:
     # Marcar predicciones como evaluadas
     conn.execute("UPDATE match_predictions SET evaluated=1 WHERE match_id IN "
                  "(SELECT match_id FROM model_evaluation_log)")
+
+    # Snapshot diario — nunca se borra, acumula el progreso del modelo
+    today_snap = now[:10]
+    existing_snap = conn.execute(
+        "SELECT id FROM model_calibration_history WHERE snapshot_date=?", (today_snap,)
+    ).fetchone()
+    if not existing_snap:
+        conn.execute("""
+            INSERT INTO model_calibration_history
+              (snapshot_date, n_matches, accuracy, avg_brier, avg_log_loss,
+               lambda_scale, home_bias, away_bias, draw_miss_rate, upset_miss_rate, notes)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        """, (today_snap, n, round(accuracy, 3), round(avg_brier, 4), round(avg_ll, 4),
+              round(lambda_scale, 4), round(home_bias, 3), round(away_bias, 3),
+              round(draw_missed / n, 3), round(upset_missed / n, 3),
+              "; ".join(notes_str) if notes_str else "sin sesgos detectados"))
 
     conn.commit()
 

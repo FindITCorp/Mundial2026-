@@ -119,11 +119,16 @@ jobs:
           cd $GITHUB_WORKSPACE
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/mundial2026.db scripts/predict_upcoming.py scripts/evaluate_model.py
+          git config commit.gpgsign false
+          git add data/mundial2026.db
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit --no-gpg-sign -m "daily: recalibrate + evaluate model $(date -u +%Y-%m-%d)"
-            git push origin main
+            git commit -m "daily: recalibrate + evaluate model $(date -u +%Y-%m-%d)"
+            # Pull rebase para no pisar commits concurrentes de fetch_data.yml
+            git pull --rebase origin main || git rebase --abort
+            git push -u origin main
             echo "DB pushed to main."
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
