@@ -884,88 +884,102 @@
       }
     }
   },
-  "fix_by_date": {
-    "status": 404,
+  "fix_football-get-matches-by-date": {
+    "status": 200,
     "data": {
-      "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-fixtures-scores-by-date' does not exist\"}"
+      "status": "failed",
+      "message": "Request Failed Please try Again"
     }
   },
-  "fix_by_date2": {
+  "fix_football-get-matches": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-fixtures-by-date' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-matches' does not exist\"}"
     }
   },
-  "fix_scores_date": {
+  "fix_football-matches-by-date": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-scores-by-date' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-matches-by-date' does not exist\"}"
     }
   },
-  "fixtures_date": {
+  "fix_football-get-results": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/get-fixtures-by-date' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-results' does not exist\"}"
     }
   },
-  "livescores1": {
+  "fix_football-get-results-by-date": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-livescores' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-results-by-date' does not exist\"}"
     }
   },
-  "livescores2": {
+  "fix_football-get-fixtures": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-livescores' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-fixtures' does not exist\"}"
     }
   },
-  "livescores3": {
+  "fix_get-matches": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/get-livescores' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/get-matches' does not exist\"}"
     }
   },
-  "league1_fix": {
+  "fix_matches": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-current-season-fixtures-scores-by-league-id' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/matches' does not exist\"}"
     }
   },
-  "league39_fix": {
+  "league_73": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-current-season-fixtures-scores-by-league-id' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-season-fixtures-by-league-id' does not exist\"}"
     }
   },
-  "team_search": {
+  "league_73_v2": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-team-info' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-league-fixtures' does not exist\"}"
     }
   },
-  "search_teams": {
+  "league_9841": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-search-teams' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-season-fixtures-by-league-id' does not exist\"}"
     }
   },
-  "search_players": {
+  "league_9841_v2": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-search-players' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-league-fixtures' does not exist\"}"
+    }
+  },
+  "league_9571": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-season-fixtures-by-league-id' does not exist\"}"
+    }
+  },
+  "league_9571_v2": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-league-fixtures' does not exist\"}"
     }
   }
 }
