@@ -164,5 +164,48 @@ def refresh(db_path=DB):
     return updated
 
 
+def rebuild_timing_and_performance(db_path=DB):
+    """
+    Reconstruye team_goal_timing y team_performance_profile a partir de
+    los datos actuales (martj42 CSV + match_events locales).
+    Se llama automáticamente después de refresh() para mantener perfiles al día.
+    """
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    try:
+        from scripts.build_goal_timing import (
+            build_timing_profile,
+            merge_from_match_events,
+            save_to_db,
+            build_team_performance_profile,
+        )
+        import sqlite3
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+
+        print("[rebuild_timing] Reconstruyendo team_goal_timing …")
+        profiles = build_timing_profile(since_year=2018)
+        if profiles:
+            profiles = merge_from_match_events(profiles, conn)
+            save_to_db(profiles, conn)
+        else:
+            print("  [rebuild_timing] Sin datos del CSV — solo merge local")
+            from collections import defaultdict
+            profiles = defaultdict(lambda: {
+                "scored": defaultdict(int), "conceded": defaultdict(int),
+                "penalties_scored": 0, "penalties_conceded": 0, "matches": 0,
+            })
+            profiles = merge_from_match_events(dict(profiles), conn)
+            if profiles:
+                save_to_db(profiles, conn)
+
+        print("[rebuild_timing] Reconstruyendo team_performance_profile …")
+        build_team_performance_profile(conn)
+        conn.close()
+    except Exception as e:
+        print(f"[rebuild_timing] Error (no crítico): {e}")
+
+
 if __name__ == "__main__":
     refresh()
+    rebuild_timing_and_performance()

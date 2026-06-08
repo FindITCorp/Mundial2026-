@@ -164,6 +164,14 @@ BASE_GOALS = 1.22         # referencia goles/partido neutral — calibrado 2026-
 _TIMING_MAX_BOOST = 0.10   # boost máximo al λ rival cuando equipo colapsa tarde
 
 
+_TIMING_PERIOD_COLS = [
+    "scored_1_15", "scored_16_30", "scored_31_45",
+    "scored_46_60", "scored_61_75", "scored_76_90",
+    "conceded_1_15", "conceded_16_30", "conceded_31_45",
+    "conceded_46_60", "conceded_61_75", "conceded_76_90",
+]
+
+
 def _get_timing_factor(team_name: str, conn: sqlite3.Connection) -> dict:
     """Retorna fatigue_conceded y fatigue_scored del equipo desde team_goal_timing."""
     row = conn.execute(
@@ -174,6 +182,73 @@ def _get_timing_factor(team_name: str, conn: sqlite3.Connection) -> dict:
         return {"fatigue_conceded": row[0], "fatigue_scored": row[1], "late_collapse": bool(row[2])}
     # Sin datos: neutral
     return {"fatigue_conceded": 1.0, "fatigue_scored": 1.0, "late_collapse": False}
+
+
+def _get_team_timing_profile(team_name: str, conn: sqlite3.Connection) -> dict | None:
+    """
+    Retorna perfil completo de timing por franja (6 períodos scored + conceded).
+    Retorna None si no hay datos.
+    """
+    row = conn.execute(
+        """SELECT scored_1_15, scored_16_30, scored_31_45, scored_46_60, scored_61_75, scored_76_90,
+                  conceded_1_15, conceded_16_30, conceded_31_45, conceded_46_60, conceded_61_75, conceded_76_90,
+                  fatigue_scored, fatigue_conceded, late_collapse
+           FROM team_goal_timing WHERE team_name=?""",
+        (team_name,)
+    ).fetchone()
+    if not row:
+        return None
+    return {
+        "scored":   [row[0], row[1], row[2], row[3], row[4], row[5]],
+        "conceded": [row[6], row[7], row[8], row[9], row[10], row[11]],
+        "fatigue_scored":   row[12],
+        "fatigue_conceded": row[13],
+        "late_collapse":    bool(row[14]),
+    }
+
+
+def _timing_xg_modifier(attacker_timing: dict | None, defender_timing: dict | None) -> float:
+    """
+    Calcula modificador de xG basado en períodos de máxima/mínima fortaleza.
+
+    - Encuentra el período MÁS VULNERABLE del defensor (mayor conceded_*)
+    - Encuentra el período MÁS FUERTE del atacante (mayor scored_*)
+    - Si coinciden → boost hasta +5%
+    - Si defensor tiene late_collapse=1 Y atacante tiene fatigue_scored > 1.2 → +3% extra
+    Retorna multiplicador en [0.97, 1.08]
+    """
+    if attacker_timing is None or defender_timing is None:
+        return 1.0
+
+    att_scored   = attacker_timing["scored"]
+    def_conceded = defender_timing["conceded"]
+
+    if not att_scored or not def_conceded:
+        return 1.0
+
+    # Período de mayor peligro del defensor (índice 0-5)
+    max_def_idx = max(range(6), key=lambda i: def_conceded[i])
+    # Período más productivo del atacante
+    max_att_idx = max(range(6), key=lambda i: att_scored[i])
+
+    modifier = 1.0
+
+    # Overlap boost: si el período más fuerte del atacante coincide con el más vulnerable del defensor
+    if max_att_idx == max_def_idx:
+        # Intensidad: cuánto supera el promedio
+        avg_conc = sum(def_conceded) / 6 if sum(def_conceded) > 0 else 1.0
+        avg_att  = sum(att_scored) / 6   if sum(att_scored)   > 0 else 1.0
+        vuln_ratio  = def_conceded[max_def_idx] / avg_conc if avg_conc > 0 else 1.0
+        str_ratio   = att_scored[max_att_idx]   / avg_att   if avg_att  > 0 else 1.0
+        boost = min(0.05, (vuln_ratio - 1.0) * 0.03 + (str_ratio - 1.0) * 0.02)
+        modifier += max(0.0, boost)
+
+    # Late collapse + fatigue_scored extra boost
+    if (defender_timing.get("late_collapse") and
+            attacker_timing.get("fatigue_scored", 1.0) > 1.2):
+        modifier += 0.03
+
+    return round(min(1.08, max(0.97, modifier)), 4)
 
 
 def _timing_lambda_boost(defender_timing: dict) -> float:
@@ -923,6 +998,39 @@ def _tactical_matchup(att: dict, def_: dict) -> float:
     return max(0.80, min(1.20, m))
 
 
+def _get_performance_profile(team_name: str, conn: sqlite3.Connection) -> dict | None:
+    """
+    Lee team_performance_profile para el equipo.
+    Retorna dict con avg_xg_for, avg_xg_against, press_intensity, aerial_dominance, etc.
+    Retorna None si no hay datos o tabla no existe.
+    """
+    try:
+        row = conn.execute("""
+            SELECT avg_xg_for, avg_xg_against, avg_shots_for, avg_shots_on_target_for,
+                   avg_possession, avg_corners_for, avg_fouls_committed, avg_yellow_cards,
+                   press_intensity, aerial_dominance, set_piece_threat, matches_analyzed
+            FROM team_performance_profile WHERE team_name=?
+        """, (team_name,)).fetchone()
+    except Exception:
+        return None
+    if not row:
+        return None
+    return {
+        "avg_xg_for":       row[0],
+        "avg_xg_against":   row[1],
+        "avg_shots_for":    row[2],
+        "avg_sot_for":      row[3],
+        "avg_possession":   row[4],
+        "avg_corners":      row[5],
+        "avg_fouls":        row[6],
+        "avg_yellows":      row[7],
+        "press_intensity":  row[8],
+        "aerial_dominance": row[9],
+        "set_piece_threat": row[10],
+        "matches":          row[11],
+    }
+
+
 def _get_h2h(conn, tid1: int, tid2: int, n: int = 8) -> dict:
     # Solo últimos 6 años: el squad cambia completamente. H2H de 2015 no es útil para 2026.
     rows = conn.execute("""
@@ -992,6 +1100,12 @@ def predict_match(
     # Timing profiles (fatiga defensiva/ofensiva por franja de 15 minutos)
     h_timing = _get_timing_factor(home_name, conn)
     a_timing = _get_timing_factor(away_name, conn)
+    # Full period profiles (6 franjas scored + conceded) for xG period modifier
+    h_timing_full = _get_team_timing_profile(home_name, conn)
+    a_timing_full = _get_team_timing_profile(away_name, conn)
+    # Performance profiles from match_team_stats (xG, press, aerial)
+    h_perf = _get_performance_profile(home_name, conn)
+    a_perf = _get_performance_profile(away_name, conn)
     # conn stays open — needed later for match_team_stats queries
 
     # ── 2. Factor Elo (30%) ───────────────────────────────────────────────
@@ -1065,6 +1179,15 @@ def predict_match(
         w_real = min(0.50, 0.20 + n_a_stats * 0.05)
         a_xg_blend = (1 - w_real) * a_xg_blend + w_real * (a_real_xg * SEASON_REF_XG)
 
+    # ── 3c. Blend with team_performance_profile avg_xg (secondary signal) ─
+    # avg_xg_for from match_team_stats aggregate; weight 15% when ≥3 matches.
+    if h_perf and h_perf.get("avg_xg_for") and h_perf["matches"] >= 3:
+        w_perf = min(0.15, 0.05 + h_perf["matches"] * 0.02)
+        h_xg_blend = (1 - w_perf) * h_xg_blend + w_perf * (h_perf["avg_xg_for"] * SEASON_REF_XG)
+    if a_perf and a_perf.get("avg_xg_for") and a_perf["matches"] >= 3:
+        w_perf = min(0.15, 0.05 + a_perf["matches"] * 0.02)
+        a_xg_blend = (1 - w_perf) * a_xg_blend + w_perf * (a_perf["avg_xg_for"] * SEASON_REF_XG)
+
     # Mediana WC-qualified teams = 22.9. Cap ±15%: diferencia elite de promedio,
     # no intenta separar Argentina de España (eso lo hacen Elo + HAS/AAS).
     # Fix clave: España pasa de 0.88 (penalizado) a 1.15 (elite) gracias al blend.
@@ -1100,6 +1223,40 @@ def predict_match(
     h_press_f  = 1.0 + press_diff * 0.04
     a_press_f  = 1.0 - press_diff * 0.04
 
+    # ── 6b. Performance profile modifiers (press_intensity + aerial_dominance) ─
+    # press_intensity: tackles/match. High-press team boosts lambda slightly
+    # vs a low-possession opponent. Uses opponent avg_possession as proxy.
+    # aerial_dominance: aerial_won/total ratio — team strong in the air gains
+    # small set-piece edge (applied via h_sp_f / a_sp_f adjustment).
+    _PERF_PRESS_SCALE = 0.015   # max ±1.5% from press differential
+    _PERF_AERIAL_SCALE = 0.015  # max ±1.5% from aerial dominance
+    h_perf_press_f = 1.0
+    a_perf_press_f = 1.0
+    h_perf_aerial_f = 1.0
+    a_perf_aerial_f = 1.0
+
+    if h_perf and a_perf:
+        # Press: attacker press_intensity vs opponent low possession
+        h_pi = h_perf.get("press_intensity") or 0.0
+        a_pi = a_perf.get("press_intensity") or 0.0
+        # Normalize around typical value of 15 tackles/match
+        press_norm_ref = 15.0
+        h_press_edge = (h_pi - press_norm_ref) / press_norm_ref
+        a_press_edge = (a_pi - press_norm_ref) / press_norm_ref
+        # High-press team gains slightly when opponent has low possession
+        h_opp_poss = a_perf.get("avg_possession") or 50.0
+        a_opp_poss = h_perf.get("avg_possession") or 50.0
+        h_perf_press_f = max(0.985, min(1.015,
+            1.0 + h_press_edge * _PERF_PRESS_SCALE * max(0, (50 - h_opp_poss) / 50)))
+        a_perf_press_f = max(0.985, min(1.015,
+            1.0 + a_press_edge * _PERF_PRESS_SCALE * max(0, (50 - a_opp_poss) / 50)))
+
+        # Aerial: team with high aerial_dominance gets set-piece edge
+        h_aer = h_perf.get("aerial_dominance") or 0.5
+        a_aer = a_perf.get("aerial_dominance") or 0.5
+        h_perf_aerial_f = max(0.985, min(1.015, 1.0 + (h_aer - 0.5) * _PERF_AERIAL_SCALE * 2))
+        a_perf_aerial_f = max(0.985, min(1.015, 1.0 + (a_aer - 0.5) * _PERF_AERIAL_SCALE * 2))
+
     # ── 7. H2H ────────────────────────────────────────────────────────────
     h2h_hf = 1.0; h2h_af = 1.0
     if h2h["gp"] >= 4:
@@ -1132,6 +1289,8 @@ def predict_match(
         * h2h_hf
         * venue_h
         * (1 - home_absence)
+        * h_perf_press_f                             # high-press vs low-possession bonus
+        * h_perf_aerial_f                            # aerial dominance set-piece edge
     )
     la_raw = (
         BASE_GOALS
@@ -1149,6 +1308,8 @@ def predict_match(
         * (1.0 / max(0.88, h_def_xi["combined"]) if h_def_xi["has_data"] else 1.0)
         * h2h_af
         * venue_a
+        * a_perf_press_f                             # high-press vs low-possession bonus
+        * a_perf_aerial_f                            # aerial dominance set-piece edge
         * (1 - away_absence)
     )
 
@@ -1157,6 +1318,11 @@ def predict_match(
     # que indican forma + Elo solos → convierte "2-0 probable" en "2-1 probable"
     h_timing_boost = _timing_lambda_boost(a_timing)   # local ataca vs defensa visitante
     a_timing_boost = _timing_lambda_boost(h_timing)   # visitante ataca vs defensa local
+    # Modificador por coincidencia de períodos fuertes/vulnerables (±5%)
+    h_period_mod = _timing_xg_modifier(h_timing_full, a_timing_full)
+    a_period_mod = _timing_xg_modifier(a_timing_full, h_timing_full)
+    h_timing_boost *= h_period_mod
+    a_timing_boost *= a_period_mod
     # Amistosos: descuento al favorito dominante (evidencia 5-6 jun: Spain/France/Panama)
     # Solo aplica si competition es amistoso — inferido por ausencia de wc_match activo
     _lambda_cap = FRIENDLY_LAMBDA_CAP

@@ -130,6 +130,179 @@ def build_timing_profile(since_year: int = 2018) -> dict:
     return dict(profiles)
 
 
+def merge_from_match_events(profiles: dict, conn: sqlite3.Connection) -> dict:
+    """
+    Incorpora goles de la tabla match_events (partidos 2026 con minutos exactos)
+    al dict de perfiles ya construido desde el CSV de martj42.
+    También añade métricas agregadas de match_team_stats si disponibles.
+    """
+    rows = conn.execute("""
+        SELECT me.match_date, me.home_team_id, me.away_team_id,
+               me.team_id, me.event_type, me.minute, me.minute_extra,
+               th.name AS home_name, ta.name AS away_name, t.name AS team_name
+        FROM match_events me
+        JOIN teams t  ON t.id  = me.team_id
+        JOIN teams th ON th.id = me.home_team_id
+        JOIN teams ta ON ta.id = me.away_team_id
+        WHERE me.event_type IN ('goal', 'penalty_goal', 'own_goal')
+          AND me.minute IS NOT NULL AND me.minute > 0
+    """).fetchall()
+
+    # Track matches seen in match_events to count them for each team
+    me_matches = defaultdict(set)   # team_name -> set of (date, home_id, away_id)
+
+    for r in rows:
+        minute    = r[5] + (r[6] or 0)   # minute + minute_extra
+        minute    = min(120, max(1, minute))
+        franja    = get_franja(minute)
+        is_own    = r[4] == "own_goal"
+        is_pen    = r[4] == "penalty_goal"
+        team_name = r[9]
+        home_name = r[7]
+        away_name = r[8]
+        match_key = (r[0], r[2], r[3])   # (date, home_team_id, away_team_id)
+
+        # Determine scoring/conceding team (own goal flips beneficiary)
+        if is_own:
+            scoring_team   = away_name if team_name == home_name else home_name
+            conceding_team = team_name
+        else:
+            scoring_team   = team_name
+            conceding_team = away_name if team_name == home_name else home_name
+
+        if scoring_team not in profiles:
+            profiles[scoring_team] = {
+                "scored": defaultdict(int), "conceded": defaultdict(int),
+                "penalties_scored": 0, "penalties_conceded": 0, "matches": 0,
+            }
+        if conceding_team not in profiles:
+            profiles[conceding_team] = {
+                "scored": defaultdict(int), "conceded": defaultdict(int),
+                "penalties_scored": 0, "penalties_conceded": 0, "matches": 0,
+            }
+
+        profiles[scoring_team]["scored"][franja]     += 1
+        profiles[conceding_team]["conceded"][franja] += 1
+        if is_pen:
+            profiles[scoring_team]["penalties_scored"]      += 1
+            profiles[conceding_team]["penalties_conceded"]  += 1
+
+        me_matches[scoring_team].add(match_key)
+        me_matches[conceding_team].add(match_key)
+
+    # Add newly seen matches to match counts (don't double-count)
+    for team, match_keys in me_matches.items():
+        if team in profiles:
+            profiles[team]["matches"] = profiles[team].get("matches", 0) + len(match_keys)
+
+    print(f"  merge_from_match_events: {len(rows)} goles de match_events incorporados "
+          f"({len(me_matches)} equipos actualizados)")
+    return profiles
+
+
+def build_team_performance_profile(conn: sqlite3.Connection):
+    """
+    Construye la tabla team_performance_profile desde match_team_stats + teams.
+    Agregados ponderados por partido: xg, shots, possession, corners, fouls,
+    press intensity (tackles/match), aerial dominance, set piece threat.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS team_performance_profile (
+            team_name               TEXT PRIMARY KEY,
+            matches_analyzed        INTEGER,
+            avg_xg_for              REAL,
+            avg_xg_against          REAL,
+            avg_shots_for           REAL,
+            avg_shots_on_target_for REAL,
+            avg_possession          REAL,
+            avg_corners_for         REAL,
+            avg_fouls_committed     REAL,
+            avg_yellow_cards        REAL,
+            press_intensity         REAL,
+            aerial_dominance        REAL,
+            set_piece_threat        REAL,
+            updated_at              TEXT
+        )
+    """)
+
+    # Get all teams with match_team_stats data
+    team_rows = conn.execute("""
+        SELECT DISTINCT t.id, t.name
+        FROM match_team_stats mts
+        JOIN teams t ON t.id = mts.team_id
+    """).fetchall()
+
+    inserted = 0
+    for (tid, tname) in team_rows:
+        # Stats for this team
+        stats = conn.execute("""
+            SELECT mts.possession, mts.xg,
+                   mts.shots_total, mts.shots_on_target,
+                   mts.corners, mts.fouls, mts.yellow_cards,
+                   mts.tackles_total, mts.aerial_total, mts.aerial_won,
+                   mts.free_kicks,
+                   -- opponent xg_against: get opponent's row in same match
+                   opp.xg AS opp_xg
+            FROM match_team_stats mts
+            LEFT JOIN match_team_stats opp
+                   ON opp.match_id = mts.match_id AND opp.team_id != mts.team_id
+            WHERE mts.team_id = ?
+        """, (tid,)).fetchall()
+
+        if not stats:
+            continue
+
+        m = len(stats)
+        def _avg(idx):
+            vals = [r[idx] for r in stats if r[idx] is not None]
+            return sum(vals) / len(vals) if vals else None
+
+        avg_poss     = _avg(0)
+        avg_xg_for   = _avg(1)
+        avg_shots    = _avg(2)
+        avg_sot      = _avg(3)
+        avg_corners  = _avg(4)
+        avg_fouls    = _avg(5)
+        avg_yellows  = _avg(6)
+        # press_intensity = tackles_total per match
+        press_int    = _avg(7)
+        # aerial_dominance = aerial_won / aerial_total (ratio)
+        aer_total_vals = [(r[8], r[9]) for r in stats if r[8] and r[9] and r[8] > 0]
+        aerial_dom = (sum(r[1] for r in aer_total_vals) / sum(r[0] for r in aer_total_vals)
+                      if aer_total_vals else None)
+        # set_piece_threat = (corners + free_kicks) per match
+        sp_threat_vals = [(r[4] or 0) + (r[10] or 0) for r in stats]
+        set_piece_threat = sum(sp_threat_vals) / m if m else None
+        # xg_against from opponent rows
+        avg_xg_against = _avg(11)
+
+        from datetime import datetime
+        now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+
+        conn.execute("""
+            INSERT OR REPLACE INTO team_performance_profile VALUES
+            (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            tname, m,
+            round(avg_xg_for,    3) if avg_xg_for    is not None else None,
+            round(avg_xg_against,3) if avg_xg_against is not None else None,
+            round(avg_shots,     2) if avg_shots      is not None else None,
+            round(avg_sot,       2) if avg_sot        is not None else None,
+            round(avg_poss,      1) if avg_poss       is not None else None,
+            round(avg_corners,   2) if avg_corners     is not None else None,
+            round(avg_fouls,     2) if avg_fouls       is not None else None,
+            round(avg_yellows,   2) if avg_yellows     is not None else None,
+            round(press_int,     2) if press_int       is not None else None,
+            round(aerial_dom,    3) if aerial_dom      is not None else None,
+            round(set_piece_threat, 2) if set_piece_threat is not None else None,
+            now,
+        ))
+        inserted += 1
+
+    conn.commit()
+    print(f"  {inserted} equipos guardados en team_performance_profile")
+
+
 def save_to_db(profiles: dict, conn: sqlite3.Connection):
     """Guarda perfiles en team_goal_timing."""
     conn.execute("DROP TABLE IF EXISTS team_goal_timing")
@@ -281,7 +454,11 @@ def main():
     if not exists or args.rebuild:
         profiles = build_timing_profile(since_year=args.since)
         if profiles:
+            # Merge goals from local match_events (2026 friendlies with exact minutes)
+            profiles = merge_from_match_events(profiles, conn)
             save_to_db(profiles, conn)
+        # Always rebuild team_performance_profile
+        build_team_performance_profile(conn)
     else:
         n = conn.execute("SELECT COUNT(*) FROM team_goal_timing").fetchone()[0]
         print(f"  Tabla team_goal_timing ya existe ({n} equipos) — usa --rebuild para regenerar")
