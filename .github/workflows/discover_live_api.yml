@@ -1,0 +1,127 @@
+name: Discover Live Football API Data
+
+on:
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Probe API and save results to repo
+        run: |
+          python3 - <<'PYEOF'
+          import os, json, urllib.request, urllib.parse, time
+          from datetime import datetime, timedelta
+          from pathlib import Path
+
+          KEY  = os.environ.get("APIFOOT", "")
+          HOST = "free-api-live-football-data.p.rapidapi.com"
+          HDRS = {"x-rapidapi-host": HOST, "x-rapidapi-key": KEY}
+
+          def get(path, params=None):
+              url = f"https://{HOST}{path}"
+              if params:
+                  url += "?" + urllib.parse.urlencode(params)
+              try:
+                  req = urllib.request.Request(url, headers=HDRS)
+                  with urllib.request.urlopen(req, timeout=15) as r:
+                      return r.status, json.loads(r.read().decode())
+              except Exception as e:
+                  return 0, {"error": str(e)}
+
+          # WC2026 national teams to probe
+          teams_to_search = ["Brazil", "Argentina", "France", "Spain", "Mexico",
+                             "USA", "Morocco", "Portugal", "Germany", "Japan"]
+          today = datetime.utcnow().strftime("%Y-%m-%d")
+          yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+          results = {}
+
+          # 1. All leagues catalog
+          s, d = get("/football-get-all-leagues")
+          results["all_leagues"] = {"status": s, "data": d}
+          time.sleep(0.5)
+
+          # 2. Livescores right now
+          s, d = get("/football-get-all-livescores")
+          results["livescores_now"] = {"status": s, "data": d}
+          time.sleep(0.5)
+
+          # 3. Fixtures for today
+          s, d = get("/football-get-fixtures-scores-by-date", {"date": today})
+          results[f"fixtures_{today}"] = {"status": s, "data": d}
+          time.sleep(0.5)
+
+          # 4. Fixtures for yesterday (should have results)
+          s, d = get("/football-get-fixtures-scores-by-date", {"date": yesterday})
+          results[f"fixtures_{yesterday}"] = {"status": s, "data": d}
+          time.sleep(0.5)
+
+          # 5. Search a few national teams
+          for team in teams_to_search[:4]:
+              s, d = get("/football-search-teams", {"searchQuery": team})
+              results[f"team_search_{team}"] = {"status": s, "data": d}
+              time.sleep(0.3)
+
+          # 6. Search players
+          s, d = get("/football-search-players", {"searchQuery": "Mbappe"})
+          results["player_search_mbappe"] = {"status": s, "data": d}
+          time.sleep(0.3)
+
+          # 7. Try to get current season fixtures for FIFA/international leagues
+          # First find relevant league IDs from the leagues list
+          leagues_data = results.get("all_leagues", {}).get("data", {})
+          league_list = []
+          for key in ("response", "data", "leagues", "result"):
+              if isinstance(leagues_data.get(key), list):
+                  league_list = leagues_data[key]
+                  break
+          if isinstance(leagues_data, list):
+              league_list = leagues_data
+
+          # Look for international/national team leagues
+          intl_leagues = []
+          for lg in league_list[:200]:
+              name = str(lg.get("LeagueName","") or lg.get("name","") or lg.get("league_name","")).lower()
+              lid  = lg.get("LeagueID") or lg.get("id") or lg.get("league_id")
+              if any(k in name for k in ["world","fifa","conmebol","euro","nation","concacaf","copa","qualifier","friendly"]):
+                  intl_leagues.append({"name": name, "id": lid, "raw": lg})
+
+          results["international_leagues_found"] = intl_leagues[:30]
+
+          # Probe top 3 intl leagues for fixtures
+          for lg in intl_leagues[:3]:
+              lid = lg["id"]
+              if lid:
+                  s, d = get("/football-get-current-season-fixtures-scores-by-league-id",
+                             {"LeagueID": str(lid)})
+                  results[f"league_fixtures_{lg['name'][:30]}_{lid}"] = {"status": s, "data": d}
+                  time.sleep(0.4)
+
+          # Save to file
+          out = Path("data/api_discovery_live_football.json")
+          out.parent.mkdir(exist_ok=True)
+          out.write_text(json.dumps(results, indent=2, ensure_ascii=False))
+          print(f"Saved {len(results)} probe results to {out}")
+          print(f"Endpoints probed: {list(results.keys())}")
+          PYEOF
+        env:
+          APIFOOT: ${{ secrets.APIFOOT }}
+
+      - name: Commit discovery results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config commit.gpgsign false
+          git add data/api_discovery_live_football.json
+          git diff --cached --quiet && echo "No data written" && exit 0
+          git commit -m "chore: API discovery results - Free API Live Football Data"
+          git push -u origin main
