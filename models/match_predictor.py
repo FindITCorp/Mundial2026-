@@ -1244,8 +1244,15 @@ def predict_match(
     elif elo_gap > 200 and lambda_ratio > 0.40:
         draw_boost += 0.008
 
-    # Cap: máximo boost de +4.5pp (subido desde 3.5pp por evidencia amistosos)
-    draw_boost = min(draw_boost, 0.045)
+    # Cap: máximo boost de +7pp (evidencia: 0/14 empates predichos — modelo muy decisivo)
+    draw_boost = min(draw_boost, 0.07)
+
+    # Boost adicional cuando los equipos son de nivel similar (elo_diff < 100)
+    # — esto captura empates que el modelo ignora por ser tan agresivo en elegir ganador
+    elo_diff_abs = abs(home_elo - away_elo)
+    if elo_diff_abs < 100:
+        similarity_boost = 0.04 * (1 - elo_diff_abs / 100)
+        draw_boost = min(0.10, draw_boost + similarity_boost)
 
     # Redistribuir proporcionalmente de p_home y p_away
     if draw_boost > 0.001:
