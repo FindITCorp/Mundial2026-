@@ -42,23 +42,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # ── FASE 0a: Free API Live Football Data — scores + fixtures ────────
-      - name: Fetch live football data (fixtures, scores, livescores)
-        run: |
-          cd $GITHUB_WORKSPACE
-          python3 -c "
-          import sys
-          sys.path.insert(0, '.')
-          try:
-              from pipelines.fetch_live_football_data import run
-              run(days_ahead=2)
-          except Exception as e:
-              print(f'fetch_live_football_data skipped: {e}')
-          "
-        env:
-          APIFOOT: ${{ secrets.APIFOOT }}
-
-      # ── FASE 0b: Football Prediction API — señal de mercado externa ──────
+      # ── FASE 0: Football Prediction API — señal de mercado externa ──────
       - name: Fetch external predictions (Football Prediction API / RapidAPI)
         run: |
           cd $GITHUB_WORKSPACE
@@ -118,6 +102,23 @@ jobs:
           except Exception as e:
               print(f'evaluate_model skipped: {e}')
           "
+
+      # ── FASE 2b: Capturar amistosos recientes de selecciones WC ─────────
+      - name: Fetch recent WC team friendlies (api-sports.io)
+        run: |
+          cd $GITHUB_WORKSPACE
+          python3 -c "
+          import sys
+          sys.path.insert(0, '.')
+          try:
+              from pipelines.update_wc import fetch_recent_friendlies
+              n = fetch_recent_friendlies(days_back=14)
+              print(f'Amistosos guardados: {n}')
+          except Exception as e:
+              print(f'fetch_recent_friendlies skipped: {e}')
+          "
+        env:
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
 
       # ── FASE 3: Recalibrar team averages con modelo de calidad rival ─────
       - name: Refresh team averages (opponent-quality weighting)

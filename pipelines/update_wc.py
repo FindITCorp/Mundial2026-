@@ -35,7 +35,8 @@ def _af_headers() -> dict:
     if APISPORTS_KEY:
         return {"x-apisports-key": APISPORTS_KEY}
     return {"x-rapidapi-host": "v3.football.api-sports.io", "x-rapidapi-key": AF_KEY}
-WC2026_AF_LEAGUE_ID = 1  # Update with actual ID when tournament starts
+WC2026_AF_LEAGUE_ID = 1  # FIFA World Cup — ID 1 in api-sports.io, season 2026
+FRIENDLIES_AF_LEAGUE_ID = 10  # International friendlies in api-sports.io
 
 
 def get_connection() -> sqlite3.Connection:
@@ -195,6 +196,104 @@ def auto_update_from_api() -> int:
     conn.commit()
     conn.close()
     return updated
+
+
+def fetch_recent_friendlies(days_back=14) -> int:
+    """
+    Fetch recent international friendlies from api-sports.io and store
+    in team_matches to keep form data fresh for WC2026 teams.
+    Returns number of new matches saved.
+    """
+    if not (APISPORTS_KEY or AF_KEY):
+        return 0
+
+    headers = _af_headers()
+    from datetime import timedelta
+    today = datetime.utcnow()
+    date_from = (today - timedelta(days=days_back)).strftime("%Y-%m-%d")
+    date_to   = today.strftime("%Y-%m-%d")
+
+    # Fetch friendlies (league 10 = international friendlies in api-sports)
+    results = []
+    for league_id in [10, 1]:  # friendlies + WC qualifier
+        cache_key = f"friendlies_{league_id}_{date_from}"
+        cache_file = CACHE_DIR / f"{cache_key}.json"
+        if cache_file.exists():
+            with open(cache_file) as f:
+                results += json.load(f)
+            continue
+        try:
+            r = requests.get(
+                f"{AF_BASE}/fixtures",
+                headers=headers,
+                params={"league": league_id, "season": 2026,
+                        "from": date_from, "to": date_to},
+                timeout=10
+            )
+            if r.status_code == 200:
+                data = r.json().get("response", [])
+                with open(cache_file, "w") as f:
+                    json.dump(data, f)
+                results += data
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"  [friendlies] {e}")
+
+    if not results:
+        return 0
+
+    conn = get_connection()
+    # Get WC team names for filtering
+    wc_teams = {r[0].lower() for r in conn.execute(
+        "SELECT name FROM teams"
+    ).fetchall()}
+    saved = 0
+    for fix in results:
+        teams = fix.get("teams", {})
+        home_name = teams.get("home", {}).get("name", "")
+        away_name = teams.get("away", {}).get("name", "")
+        # Only save if at least one team is a WC participant
+        if not any(n.lower() in wc_teams or
+                   any(w in n.lower() for w in wc_teams)
+                   for n in [home_name, away_name]):
+            continue
+        goals = fix.get("goals", {})
+        gh = goals.get("home")
+        ga = goals.get("away")
+        date = fix.get("fixture", {}).get("date", "")[:10]
+        status = fix.get("fixture", {}).get("status", {}).get("short", "")
+        if gh is None or ga is None or status not in ("FT", "AET", "PEN"):
+            continue
+        # Find team IDs
+        for side, name, gf, gc in [("home", home_name, gh, ga),
+                                     ("away", away_name, ga, gh)]:
+            team_row = conn.execute(
+                "SELECT id FROM teams WHERE name LIKE ? OR name LIKE ?",
+                (f"%{name[:8]}%", f"%{name.split()[0]}%")
+            ).fetchone()
+            if not team_row:
+                continue
+            try:
+                conn.execute("""
+                    INSERT OR IGNORE INTO team_matches
+                      (team_id, date, opponent, goals_for, goals_against,
+                       result, competition, home_away, source)
+                    VALUES (?,?,?,?,?,?,?,?,?)
+                """, (
+                    team_row[0], date,
+                    away_name if side == "home" else home_name,
+                    gf, gc,
+                    "W" if gf > gc else ("D" if gf == gc else "L"),
+                    "Friendly", side, "api-sports"
+                ))
+                if conn.execute("SELECT changes()").fetchone()[0]:
+                    saved += 1
+            except Exception:
+                pass
+    conn.commit()
+    conn.close()
+    print(f"  [friendlies] {saved} nuevos partidos guardados en team_matches")
+    return saved
 
 
 def recompute_player_ratings_after_match(match_id: int) -> int:
