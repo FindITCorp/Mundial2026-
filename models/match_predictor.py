@@ -1168,6 +1168,16 @@ def predict_match(
     lh = min(max(lh_raw * h_timing_boost, 0.20), _lambda_cap)
     la = min(max(la_raw * a_timing_boost, 0.20), _lambda_cap)
 
+    # ── 9b. Aplicar ajuste aprendido de model_bias ────────────────────────
+    try:
+        from scripts.evaluate_model import load_model_bias
+        _bias = load_model_bias(db_path)
+        _scale = _bias.get("lambda_scale", 1.0)
+        lh = max(0.20, lh * _scale - _bias.get("home_lambda_bias", 0.0))
+        la = max(0.20, la * _scale - _bias.get("away_lambda_bias", 0.0))
+    except Exception:
+        pass
+
     # ── 10. Distribución Poisson ──────────────────────────────────────────
     probs = {}
     ph = pd = pa = 0.0

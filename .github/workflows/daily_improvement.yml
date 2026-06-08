@@ -1,9 +1,26 @@
 name: Daily Model Recalibration
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Ciclo de mejora continua diaria:
+#   1. Predecir los próximos partidos (guardar en match_predictions)
+#   2. Evaluar predicciones previas vs resultados reales → detectar sesgos
+#   3. Recalibrar team_avgs con peso por calidad de rival
+#   4. Actualizar Elo con resultados WC reales
+#   5. Refrescar ratings de jugadores
+#   6. Commitar DB actualizada
+# ─────────────────────────────────────────────────────────────────────────────
+
 on:
   schedule:
     - cron: '0 8 * * *'   # 8am UTC diario
-  workflow_dispatch:       # También manual
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Mostrar reporte detallado de evaluación'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
 
 jobs:
   recalibrate:
@@ -24,22 +41,54 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Download latest DB from release/artifact
+      # ── FASE 1: Predecir partidos de los próximos 3 días ─────────────────
+      - name: Predict upcoming matches
         run: |
-          # Descarga la DB mas reciente guardada en Actions artifacts
-          # Si no existe, usa la del repo (puede estar desactualizada)
-          echo "Using DB from repo checkout"
+          cd $GITHUB_WORKSPACE
+          python3 -c "
+          import sys
+          sys.path.insert(0, '.')
+          try:
+              from scripts.predict_upcoming import store_predictions
+              store_predictions(days_ahead=3)
+          except Exception as e:
+              print(f'predict_upcoming skipped: {e}')
+          "
 
+      # ── FASE 2: Evaluar predicciones anteriores vs resultados reales ─────
+      - name: Evaluate model — predictions vs real results
+        run: |
+          cd $GITHUB_WORKSPACE
+          python3 -c "
+          import sys
+          sys.path.insert(0, '.')
+          try:
+              from scripts.evaluate_model import evaluate
+              summary = evaluate(verbose=True)
+              if summary:
+                  acc = summary.get('accuracy', 0) * 100
+                  brier = summary.get('avg_brier', 0)
+                  scale = summary.get('lambda_scale', 1.0)
+                  notes = summary.get('notes', [])
+                  print(f'Accuracy: {acc:.1f}% | Brier: {brier:.4f} | λ-scale: {scale:.3f}')
+                  if notes:
+                      print('Patrones:', ' | '.join(notes))
+          except Exception as e:
+              print(f'evaluate_model skipped: {e}')
+          "
+
+      # ── FASE 3: Recalibrar team averages con modelo de calidad rival ─────
       - name: Refresh team averages (opponent-quality weighting)
         run: |
           cd $GITHUB_WORKSPACE
           python3 scripts/refresh_team_avgs.py
 
+      # ── FASE 4: Actualizar Elo con resultados WC ─────────────────────────
       - name: Auto-calibrate Elo from WC results
         run: |
           cd $GITHUB_WORKSPACE
           python3 -c "
-          import sys, os
+          import sys
           sys.path.insert(0, '.')
           try:
               from scripts.auto_calibrate_wc import calibrate
@@ -48,6 +97,7 @@ jobs:
               print(f'auto_calibrate_wc skipped: {e}')
           "
 
+      # ── FASE 5: Refrescar ratings de jugadores ───────────────────────────
       - name: Refresh player ratings
         run: |
           cd $GITHUB_WORKSPACE
@@ -63,16 +113,17 @@ jobs:
               print(f'player_rating skipped: {e}')
           "
 
-      - name: Commit DB changes
+      # ── FASE 6: Commitar DB actualizada ──────────────────────────────────
+      - name: Commit DB and scripts changes
         run: |
           cd $GITHUB_WORKSPACE
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/mundial2026.db
+          git add data/mundial2026.db scripts/predict_upcoming.py scripts/evaluate_model.py
           if git diff --cached --quiet; then
-            echo "No DB changes to commit."
+            echo "No changes to commit."
           else
-            git commit --no-gpg-sign -m "daily: recalibrate model $(date -u +%Y-%m-%d)"
+            git commit --no-gpg-sign -m "daily: recalibrate + evaluate model $(date -u +%Y-%m-%d)"
             git push origin main
             echo "DB pushed to main."
           fi
