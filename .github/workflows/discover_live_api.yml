@@ -15,18 +15,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Probe API and save responses
+      - name: Probe API and push results via GitHub API
         run: python3 scripts/probe_live_api.py
         env:
           APIFOOT: ${{ secrets.APIFOOT }}
-
-      - name: Commit results
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config commit.gpgsign false
-          ls -lh scripts/api_probe_results.json 2>/dev/null || echo "WARNING: probe file not created"
-          git add -f scripts/api_probe_results.json
-          git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "chore: API probe $(date -u +%Y-%m-%d)"
-          git pull --rebase origin main && git push -u origin main || true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
