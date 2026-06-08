@@ -2,6 +2,7 @@ name: Daily Model Recalibration
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Ciclo de mejora continua diaria:
+#   0. Obtener predicciones externas (Football Prediction API / RapidAPI)
 #   1. Predecir los próximos partidos (guardar en match_predictions)
 #   2. Evaluar predicciones previas vs resultados reales → detectar sesgos
 #   3. Recalibrar team_avgs con peso por calidad de rival
@@ -40,6 +41,31 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      # ── FASE 0: Football Prediction API — señal de mercado externa ──────
+      - name: Fetch external predictions (Football Prediction API / RapidAPI)
+        run: |
+          cd $GITHUB_WORKSPACE
+          python3 -c "
+          import sys, os
+          sys.path.insert(0, '.')
+          try:
+              from pipelines.fetch_predictions import fetch_predictions_by_date, save_predictions_to_db
+              from datetime import datetime, timedelta
+              today = datetime.utcnow()
+              saved_total = 0
+              for days_ahead in range(0, 5):
+                  iso = (today + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
+                  for fed in ['FIFA', 'UEFA', 'CONMEBOL', 'CAF', 'AFC']:
+                      preds = fetch_predictions_by_date(iso, fed)
+                      if preds:
+                          saved_total += save_predictions_to_db(preds)
+              print(f'External predictions guardadas: {saved_total}')
+          except Exception as e:
+              print(f'fetch_predictions skipped: {e}')
+          "
+        env:
+          APIFOOT: ${{ secrets.APIFOOT }}
 
       # ── FASE 1: Predecir partidos de los próximos 3 días ─────────────────
       - name: Predict upcoming matches

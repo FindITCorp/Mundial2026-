@@ -1440,8 +1440,31 @@ def predict_match(
         "form_home":       home_form["last5"],
         "form_away":       away_form["last5"],
         "h2h":             h2h,
+        # Señal de mercado externo (Football Prediction API) si está disponible
+        "external_pred":   _get_external_pred(home_name, away_name, db_path),
     }
     conn.close()
+
+
+def _get_external_pred(home_name: str, away_name: str, db_path) -> dict | None:
+    """Lee predicción de mercado externo (Football Prediction API) si existe en DB."""
+    try:
+        conn = sqlite3.connect(str(db_path))
+        row = conn.execute("""
+            SELECT home_win_pct, draw_pct, away_win_pct, prediction, match_date
+            FROM external_predictions
+            WHERE (home_team LIKE ? AND away_team LIKE ?)
+               OR (home_team LIKE ? AND away_team LIKE ?)
+            ORDER BY match_date DESC LIMIT 1
+        """, (f"%{home_name}%", f"%{away_name}%",
+              f"%{away_name}%", f"%{home_name}%")).fetchone()
+        conn.close()
+        if row and (row[0] or row[1] or row[2]):
+            return {"home_win": row[0], "draw": row[1], "away_win": row[2],
+                    "prediction": row[3], "date": row[4]}
+    except Exception:
+        pass
+    return None
 
 
 def _get_xi_starters(team_name: str, db_path: Path) -> list[dict]:
