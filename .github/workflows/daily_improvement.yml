@@ -1,0 +1,78 @@
+name: Daily Model Recalibration
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 8am UTC diario
+  workflow_dispatch:       # También manual
+
+jobs:
+  recalibrate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download latest DB from release/artifact
+        run: |
+          # Descarga la DB mas reciente guardada en Actions artifacts
+          # Si no existe, usa la del repo (puede estar desactualizada)
+          echo "Using DB from repo checkout"
+
+      - name: Refresh team averages (opponent-quality weighting)
+        run: |
+          cd $GITHUB_WORKSPACE
+          python3 scripts/refresh_team_avgs.py
+
+      - name: Auto-calibrate Elo from WC results
+        run: |
+          cd $GITHUB_WORKSPACE
+          python3 -c "
+          import sys, os
+          sys.path.insert(0, '.')
+          try:
+              from scripts.auto_calibrate_wc import calibrate
+              calibrate()
+          except Exception as e:
+              print(f'auto_calibrate_wc skipped: {e}')
+          "
+
+      - name: Refresh player ratings
+        run: |
+          cd $GITHUB_WORKSPACE
+          python3 -c "
+          import sys
+          sys.path.insert(0, '.')
+          try:
+              from models.player_rating import PlayerRatingEngine
+              engine = PlayerRatingEngine('data/mundial2026.db')
+              engine.compute_all_ratings()
+              print('Player ratings updated.')
+          except Exception as e:
+              print(f'player_rating skipped: {e}')
+          "
+
+      - name: Commit DB changes
+        run: |
+          cd $GITHUB_WORKSPACE
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/mundial2026.db
+          if git diff --cached --quiet; then
+            echo "No DB changes to commit."
+          else
+            git commit --no-gpg-sign -m "daily: recalibrate model $(date -u +%Y-%m-%d)"
+            git push origin main
+            echo "DB pushed to main."
+          fi
