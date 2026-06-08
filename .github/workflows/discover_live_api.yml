@@ -25,9 +25,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config commit.gpgsign false
-          ls scripts/probe_*.json 2>/dev/null && echo "Files found" || echo "NO PROBE FILES CREATED"
-          find scripts/ -name "probe_*.json" -exec git add -f {} \;
-          git status
+          ls -lh scripts/api_probe_results.json 2>/dev/null || echo "WARNING: probe file not created"
+          git add -f scripts/api_probe_results.json
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "chore: API probe $(date -u +%Y-%m-%d)"
           git pull --rebase origin main && git push -u origin main || true

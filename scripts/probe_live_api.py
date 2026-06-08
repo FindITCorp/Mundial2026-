@@ -63,10 +63,11 @@ def probe(name, path, params=None):
     status, data = get(path, params)
     print(f"  HTTP {status}")
     summarize(data)
-    out = BASE_DIR / "scripts" / f"probe_{name}.json"
-    out.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    results[name] = {"status": status, "data": data}
     return status, data
 
+
+results = {}
 
 print(f"Key set: {'YES' if KEY else 'NO'} (len={len(KEY)})")
 print(f"Today={TODAY}  Yesterday={YESTERDAY}")
@@ -86,5 +87,10 @@ time.sleep(0.4)
 probe("player_mbappe", "/football-search-players", {"searchQuery": "Mbappe"})
 time.sleep(0.4)
 probe("player_messi",  "/football-search-players", {"searchQuery": "Messi"})
+
+# Save all results to one file so git commit is simple
+out = BASE_DIR / "scripts" / "api_probe_results.json"
+out.write_text(json.dumps(results, indent=2, ensure_ascii=False))
+print(f"\nSaved to: {out}  (exists={out.exists()}, size={out.stat().st_size}b)")
 
 print("\n\nDone. Probe files in scripts/probe_*.json")
