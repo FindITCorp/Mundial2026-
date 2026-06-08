@@ -454,6 +454,32 @@ def _get_form(conn, team_id: int, n: int = 10) -> dict:
     }
 
 
+def _get_team_xg_from_stats(conn, team_id: int, n: int = 8) -> float | None:
+    """Promedio xG real por partido desde match_team_stats (Sofascore). None si sin datos."""
+    rows = conn.execute("""
+        SELECT mts.xg FROM match_team_stats mts
+        JOIN wc_matches wm ON wm.id = mts.match_id
+        WHERE mts.team_id = ? AND mts.xg IS NOT NULL
+        ORDER BY wm.date DESC LIMIT ?
+    """, (team_id, n)).fetchall()
+    if not rows:
+        return None
+    return sum(r[0] for r in rows) / len(rows)
+
+
+def _get_team_possession_from_stats(conn, team_id: int, n: int = 8) -> float | None:
+    """Posesión media real desde match_team_stats. None si sin datos."""
+    rows = conn.execute("""
+        SELECT mts.possession FROM match_team_stats mts
+        JOIN wc_matches wm ON wm.id = mts.match_id
+        WHERE mts.team_id = ? AND mts.possession IS NOT NULL
+        ORDER BY wm.date DESC LIMIT ?
+    """, (team_id, n)).fetchall()
+    if not rows:
+        return None
+    return sum(r[0] for r in rows) / len(rows)
+
+
 def _get_xi_rating(conn, team_id: int) -> float:
     """
     Puntuación compuesta del XI titular (0–1) — métricas posicionalmente neutras.
@@ -966,7 +992,7 @@ def predict_match(
     # Timing profiles (fatiga defensiva/ofensiva por franja de 15 minutos)
     h_timing = _get_timing_factor(home_name, conn)
     a_timing = _get_timing_factor(away_name, conn)
-    conn.close()
+    # conn stays open — needed later for match_team_stats queries
 
     # ── 2. Factor Elo (30%) ───────────────────────────────────────────────
     elo_diff  = home_elo - away_elo
@@ -1025,6 +1051,19 @@ def predict_match(
 
     h_xg_blend = _blend_xg(home_club["xg"], home_form["avg_gf"])
     a_xg_blend = _blend_xg(away_club["xg"], away_form["avg_gf"])
+
+    # Blend con xG real de match_team_stats (Sofascore) cuando disponible
+    # Peso: 25% xG real (pocos partidos) escalando hasta 50% con 6+ partidos
+    h_real_xg = _get_team_xg_from_stats(conn, home_id)
+    a_real_xg = _get_team_xg_from_stats(conn, away_id)
+    n_h_stats = conn.execute("SELECT COUNT(*) FROM match_team_stats WHERE team_id=?", (home_id,)).fetchone()[0]
+    n_a_stats = conn.execute("SELECT COUNT(*) FROM match_team_stats WHERE team_id=?", (away_id,)).fetchone()[0]
+    if h_real_xg is not None:
+        w_real = min(0.50, 0.20 + n_h_stats * 0.05)
+        h_xg_blend = (1 - w_real) * h_xg_blend + w_real * (h_real_xg * SEASON_REF_XG)
+    if a_real_xg is not None:
+        w_real = min(0.50, 0.20 + n_a_stats * 0.05)
+        a_xg_blend = (1 - w_real) * a_xg_blend + w_real * (a_real_xg * SEASON_REF_XG)
 
     # Mediana WC-qualified teams = 22.9. Cap ±15%: diferencia elite de promedio,
     # no intenta separar Argentina de España (eso lo hacen Elo + HAS/AAS).
@@ -1221,6 +1260,19 @@ def predict_match(
     t_poss = h_poss_raw + a_poss_raw
     h_poss = round(h_poss_raw / t_poss * 100, 1) if t_poss else 50.0
     a_poss = round(100 - h_poss, 1)
+    # Blend con posesión real de match_team_stats cuando disponible
+    h_real_poss = _get_team_possession_from_stats(conn, home_id)
+    a_real_poss = _get_team_possession_from_stats(conn, away_id)
+    if h_real_poss is not None and a_real_poss is not None:
+        w_rp = min(0.50, 0.20 + min(n_h_stats, n_a_stats) * 0.06)
+        h_poss = round((1 - w_rp) * h_poss + w_rp * h_real_poss, 1)
+        a_poss = round(100 - h_poss, 1)
+    elif h_real_poss is not None:
+        h_poss = round(0.75 * h_poss + 0.25 * h_real_poss, 1)
+        a_poss = round(100 - h_poss, 1)
+    elif a_real_poss is not None:
+        a_poss = round(0.75 * a_poss + 0.25 * a_real_poss, 1)
+        h_poss = round(100 - a_poss, 1)
 
     # ── 12. Córners proyectados ───────────────────────────────────────────
     tc = home_club["corners"] + away_club["corners"]
@@ -1354,6 +1406,7 @@ def predict_match(
         "form_away":       away_form["last5"],
         "h2h":             h2h,
     }
+    conn.close()
 
 
 def _get_xi_starters(team_name: str, db_path: Path) -> list[dict]:
