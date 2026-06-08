@@ -114,6 +114,7 @@ def probe(name, path, params=None):
                     if v and isinstance(v[0], dict):
                         print(f"    sample: {json.dumps(v[0], ensure_ascii=False)[:300]}")
     results[name] = {"status": status, "data": data}
+    return status, data
 
 
 # 1. Get full leagues list and find international competition IDs
