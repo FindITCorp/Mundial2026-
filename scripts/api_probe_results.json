@@ -1,0 +1,50 @@
+{
+  "leagues": {
+    "status": 0,
+    "data": {
+      "error": "Invalid header value b'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12dddfjsn039c48b00953'"
+    }
+  },
+  "livescores": {
+    "status": 0,
+    "data": {
+      "error": "Invalid header value b'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12dddfjsn039c48b00953'"
+    }
+  },
+  "today": {
+    "status": 0,
+    "data": {
+      "error": "Invalid header value b'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12dddfjsn039c48b00953'"
+    }
+  },
+  "yesterday": {
+    "status": 0,
+    "data": {
+      "error": "Invalid header value b'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12dddfjsn039c48b00953'"
+    }
+  },
+  "team_brazil": {
+    "status": 0,
+    "data": {
+      "error": "Invalid header value b'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12dddfjsn039c48b00953'"
+    }
+  },
+  "team_france": {
+    "status": 0,
+    "data": {
+      "error": "Invalid header value b'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12dddfjsn039c48b00953'"
+    }
+  },
+  "player_mbappe": {
+    "status": 0,
+    "data": {
+      "error": "Invalid header value b'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12dddfjsn039c48b00953'"
+    }
+  },
+  "player_messi": {
+    "status": 0,
+    "data": {
+      "error": "Invalid header value b'FOOTBALL_DATA_API_KEY = 8b7502413ce14eca89def90fc0be0fc4\\nAPI_FOOTBALL_KEY = 557119c7a1mshdf149ae73f548b9p12dddfjsn039c48b00953'"
+    }
+  }
+}
