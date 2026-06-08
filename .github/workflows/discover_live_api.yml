@@ -11,45 +11,12 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Probe API and save responses
-        shell: bash
-        run: |
-          mkdir -p data
-          KEY="${APIFOOT}"
-          HOST="free-api-live-football-data.p.rapidapi.com"
-          TODAY=$(date -u +%Y-%m-%d)
-          YESTERDAY=$(date -u --date="1 day ago" +%Y-%m-%d)
-          echo "Key length: ${#KEY}  Today: $TODAY"
-
-          probe() {
-            local name="$1" url="$2"
-            echo ""
-            echo "=== $name === URL: $url"
-            CODE=$(curl -s -o "data/probe_${name}.json" -w "%{http_code}" \
-              --max-time 15 \
-              -H "x-rapidapi-host: ${HOST}" \
-              -H "x-rapidapi-key: ${KEY}" \
-              "$url" 2>&1)
-            echo "HTTP: $CODE"
-            cat "data/probe_${name}.json" | head -c 500
-            echo ""
-          }
-
-          probe "leagues"       "https://${HOST}/football-get-all-leagues"
-          sleep 0.3
-          probe "livescores"    "https://${HOST}/football-get-all-livescores"
-          sleep 0.3
-          probe "today"         "https://${HOST}/football-get-fixtures-scores-by-date?date=${TODAY}"
-          sleep 0.3
-          probe "yesterday"     "https://${HOST}/football-get-fixtures-scores-by-date?date=${YESTERDAY}"
-          sleep 0.3
-          probe "team_brazil"   "https://${HOST}/football-search-teams?searchQuery=Brazil"
-          sleep 0.3
-          probe "player_mbappe" "https://${HOST}/football-search-players?searchQuery=Mbappe"
-
-          echo ""
-          echo "Files:"
-          ls -lh data/probe_*.json
+        run: python3 scripts/probe_live_api.py
         env:
           APIFOOT: ${{ secrets.APIFOOT }}
 
