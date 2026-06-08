@@ -116,34 +116,61 @@ def probe(name, path, params=None):
     results[name] = {"status": status, "data": data}
 
 
-probe("leagues",              "/football-get-all-leagues")
+# 1. Get full leagues list and find international competition IDs
+s, leagues_resp = probe("leagues", "/football-get-all-leagues")
 time.sleep(0.4)
-# Fixtures/scores — try different endpoint names
-probe("fix_by_date",          "/football-get-fixtures-scores-by-date",   {"date": TODAY})
-time.sleep(0.3)
-probe("fix_by_date2",         "/football-get-fixtures-by-date",          {"date": TODAY})
-time.sleep(0.3)
-probe("fix_scores_date",      "/football-get-scores-by-date",            {"date": TODAY})
-time.sleep(0.3)
-probe("fixtures_date",        "/get-fixtures-by-date",                   {"date": TODAY})
-time.sleep(0.3)
-probe("livescores1",          "/football-get-livescores")
-time.sleep(0.3)
-probe("livescores2",          "/football-livescores")
-time.sleep(0.3)
-probe("livescores3",          "/get-livescores")
-time.sleep(0.3)
-# National teams / World Cup — probe league ID 1 (common for WC in many APIs)
-probe("league1_fix",          "/football-get-current-season-fixtures-scores-by-league-id", {"LeagueID": "1"})
-time.sleep(0.3)
-probe("league39_fix",         "/football-get-current-season-fixtures-scores-by-league-id", {"LeagueID": "39"})
-time.sleep(0.3)
-# Team search
-probe("team_search",          "/football-get-team-info",  {"TeamID": "1"})
-time.sleep(0.3)
-probe("search_teams",         "/football-search-teams",   {"searchQuery": "Brazil"})
-time.sleep(0.3)
-probe("search_players",       "/football-search-players", {"searchQuery": "Mbappe"})
+
+# Extract league IDs for national team competitions
+league_list = []
+if isinstance(leagues_resp, dict):
+    for k in ("response", "data", "leagues"):
+        val = leagues_resp.get(k)
+        if isinstance(val, list):
+            league_list = val
+            break
+        if isinstance(val, dict):
+            for kk, vv in val.items():
+                if isinstance(vv, list):
+                    league_list = vv
+                    break
+
+intl_ids = []
+print(f"\nTotal leagues: {len(league_list)}")
+print("International/WC leagues found:")
+for lg in league_list:
+    name = str(lg.get("name", "") or lg.get("LeagueName", "")).lower()
+    lid  = lg.get("id") or lg.get("LeagueID") or lg.get("league_id")
+    ccode = str(lg.get("ccode","") or lg.get("country_code",""))
+    if any(k in name for k in ["world", "copa", "qualifier", "friendly", "nation", "concacaf",
+                                 "conmebol", "afcon", "euro", "asia", "inter", "fifa"]):
+        print(f"  id={lid}  name={name}  ccode={ccode}")
+        intl_ids.append(lid)
+time.sleep(0.2)
+
+# 2. Try fixture endpoint variants with a working league ID + date
+fixture_endpoints = [
+    "/football-get-matches-by-date",
+    "/football-get-matches",
+    "/football-matches-by-date",
+    "/football-get-results",
+    "/football-get-results-by-date",
+    "/football-get-fixtures",
+    "/get-matches",
+    "/matches",
+]
+for ep in fixture_endpoints:
+    probe(f"fix_{ep.replace('/','')}",  ep, {"date": TODAY})
+    time.sleep(0.3)
+
+# 3. Try league-based fixture endpoints for top intl leagues
+if intl_ids:
+    for lid in intl_ids[:3]:
+        probe(f"league_{lid}",
+              "/football-get-season-fixtures-by-league-id", {"leagueId": str(lid)})
+        time.sleep(0.3)
+        probe(f"league_{lid}_v2",
+              "/football-get-league-fixtures", {"leagueId": str(lid)})
+        time.sleep(0.3)
 
 # Upload to GitHub via REST API
 content = json.dumps(results, indent=2, ensure_ascii=False)
