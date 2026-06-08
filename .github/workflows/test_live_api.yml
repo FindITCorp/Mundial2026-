@@ -1,0 +1,89 @@
+name: Test Free API Live Football Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date to fetch (YYYY-MM-DD, default: today)'
+        required: false
+        type: string
+      search_player:
+        description: 'Player name to search (optional)'
+        required: false
+        type: string
+
+jobs:
+  test_api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+
+      - name: Discover API endpoints and data structure
+        run: |
+          python3 - <<'EOF'
+          import os, json, time, urllib.request, urllib.parse
+          from datetime import datetime
+
+          API_KEY = os.environ.get("APIFOOT", "")
+          HOST = "free-api-live-football-data.p.rapidapi.com"
+          HEADERS = {"x-rapidapi-host": HOST, "x-rapidapi-key": API_KEY}
+          DATE = os.environ.get("INPUT_DATE") or datetime.utcnow().strftime("%Y-%m-%d")
+          PLAYER = os.environ.get("INPUT_PLAYER", "Messi")
+
+          def get(path, params=None):
+              url = f"https://{HOST}{path}"
+              if params:
+                  url += "?" + urllib.parse.urlencode(params)
+              try:
+                  req = urllib.request.Request(url, headers=HEADERS)
+                  with urllib.request.urlopen(req, timeout=15) as r:
+                      return r.status, json.loads(r.read().decode())
+              except Exception as e:
+                  return None, str(e)
+
+          endpoints = [
+              ("/football-get-all-leagues", None),
+              ("/football-get-all-livescores", None),
+              ("/football-get-fixtures-scores-by-date", {"date": DATE}),
+              ("/football-search-players", {"searchQuery": PLAYER}),
+          ]
+
+          print(f"\n{'='*70}")
+          print(f"  FREE API LIVE FOOTBALL DATA — endpoint discovery ({DATE})")
+          print(f"{'='*70}\n")
+
+          for path, params in endpoints:
+              print(f">> GET {path} {params or ''}")
+              status, data = get(path, params)
+              time.sleep(0.5)
+              if status is None:
+                  print(f"   ERROR: {data}\n")
+                  continue
+              print(f"   HTTP {status}")
+              if isinstance(data, dict):
+                  print(f"   Top-level keys: {list(data.keys())}")
+                  for k, v in data.items():
+                      if isinstance(v, list):
+                          print(f"   [{k}] → list of {len(v)} items")
+                          if v:
+                              first = v[0]
+                              if isinstance(first, dict):
+                                  print(f"     First item keys: {list(first.keys())}")
+                                  print(f"     Sample: {json.dumps(first, ensure_ascii=False)[:300]}")
+                      elif isinstance(v, (str, int, float, bool)):
+                          print(f"   [{k}] = {v}")
+              elif isinstance(data, list):
+                  print(f"   List of {len(data)} items")
+                  if data and isinstance(data[0], dict):
+                      print(f"   First item keys: {list(data[0].keys())}")
+                      print(f"   Sample: {json.dumps(data[0], ensure_ascii=False)[:300]}")
+              print()
+          EOF
+        env:
+          APIFOOT: ${{ secrets.APIFOOT }}
+          INPUT_DATE: ${{ github.event.inputs.date }}
+          INPUT_PLAYER: ${{ github.event.inputs.search_player }}

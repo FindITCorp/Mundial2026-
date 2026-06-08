@@ -42,7 +42,23 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # ── FASE 0: Football Prediction API — señal de mercado externa ──────
+      # ── FASE 0a: Free API Live Football Data — scores + fixtures ────────
+      - name: Fetch live football data (fixtures, scores, livescores)
+        run: |
+          cd $GITHUB_WORKSPACE
+          python3 -c "
+          import sys
+          sys.path.insert(0, '.')
+          try:
+              from pipelines.fetch_live_football_data import run
+              run(days_ahead=2)
+          except Exception as e:
+              print(f'fetch_live_football_data skipped: {e}')
+          "
+        env:
+          APIFOOT: ${{ secrets.APIFOOT }}
+
+      # ── FASE 0b: Football Prediction API — señal de mercado externa ──────
       - name: Fetch external predictions (Football Prediction API / RapidAPI)
         run: |
           cd $GITHUB_WORKSPACE

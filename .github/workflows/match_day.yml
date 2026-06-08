@@ -159,6 +159,18 @@ jobs:
               print(f"Error: {e}")
           EOF
 
+      - name: Fetch live scores (Free API Live Football Data)
+        run: |
+          python - <<'EOF'
+          import sys
+          sys.path.insert(0, '.')
+          try:
+              from pipelines.fetch_live_football_data import run
+              run(days_ahead=1)
+          except Exception as e:
+              print(f'fetch_live_football_data skipped: {e}')
+          EOF
+
       - name: Update WC match results
         run: python pipelines/full_update.py --scope wc || echo "WC update step finished"
 
