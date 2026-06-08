@@ -12,51 +12,27 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Probe API and save responses
+        shell: bash
         run: |
           mkdir -p data
           KEY="${APIFOOT}"
           HOST="free-api-live-football-data.p.rapidapi.com"
           TODAY=$(date -u +%Y-%m-%d)
-          YESTERDAY=$(date -u --date="1 day ago" +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d 2>/dev/null || echo "2026-06-07")
-
-          echo "Key set: $([ -n '$KEY' ] && echo YES || echo NO)"
-          echo "Key length: ${#KEY}"
-          echo "Today=$TODAY Yesterday=$YESTERDAY"
+          YESTERDAY=$(date -u --date="1 day ago" +%Y-%m-%d)
+          echo "Key length: ${#KEY}  Today: $TODAY"
 
           probe() {
-            local name="$1"; local url="$2"
+            local name="$1" url="$2"
             echo ""
-            echo "=== $name ==="
-            echo "URL: $url"
-            RESP=$(curl -s -w "\n__STATUS__:%{http_code}" \
+            echo "=== $name === URL: $url"
+            CODE=$(curl -s -o "data/probe_${name}.json" -w "%{http_code}" \
               --max-time 15 \
               -H "x-rapidapi-host: ${HOST}" \
               -H "x-rapidapi-key: ${KEY}" \
               "$url" 2>&1)
-            CODE=$(echo "$RESP" | grep "__STATUS__:" | cut -d: -f2)
-            BODY=$(echo "$RESP" | grep -v "__STATUS__:")
             echo "HTTP: $CODE"
-            echo "$BODY" | python3 -c "
-          import sys,json
-          raw=sys.stdin.read().strip()
-          try:
-              d=json.loads(raw)
-              if isinstance(d,dict):
-                  print('Top keys:', list(d.keys())[:10])
-                  for k,v in d.items():
-                      if isinstance(v,list):
-                          print(f'  [{k}]: {len(v)} items')
-                          if v: print(f'    first keys: {list(v[0].keys()) if isinstance(v[0],dict) else v[0]}')
-                      elif isinstance(v,(str,int,bool,float)):
-                          print(f'  [{k}]: {str(v)[:120]}')
-              elif isinstance(d,list):
-                  print(f'List: {len(d)} items')
-                  if d: print(f'  first keys: {list(d[0].keys()) if isinstance(d[0],dict) else d[0]}')
-          except:
-              print('RAW:', raw[:300])
-          " 2>/dev/null || echo "$BODY" | head -5
-            # Save full response
-            echo "$BODY" > "data/probe_${name}.json"
+            cat "data/probe_${name}.json" | head -c 500
+            echo ""
           }
 
           probe "leagues"       "https://${HOST}/football-get-all-leagues"
@@ -69,35 +45,24 @@ jobs:
           sleep 0.3
           probe "team_brazil"   "https://${HOST}/football-search-teams?searchQuery=Brazil"
           sleep 0.3
-          probe "team_france"   "https://${HOST}/football-search-teams?searchQuery=France"
-          sleep 0.3
           probe "player_mbappe" "https://${HOST}/football-search-players?searchQuery=Mbappe"
-          sleep 0.3
-          probe "player_messi"  "https://${HOST}/football-search-players?searchQuery=Messi"
 
           echo ""
-          echo "=== Probe files written ==="
-          ls -lh data/probe_*.json 2>/dev/null
+          echo "Files:"
+          ls -lh data/probe_*.json
         env:
           APIFOOT: ${{ secrets.APIFOOT }}
 
-      - name: Commit results (with retry)
+      - name: Commit results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config commit.gpgsign false
-          shopt -s nullglob
-          files=(data/probe_*.json)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No probe files, nothing to commit"
-            exit 0
-          fi
-          git add "${files[@]}"
+          git add data/probe_*.json 2>/dev/null || true
           git diff --cached --quiet && echo "No changes" && exit 0
           git commit -m "chore: API probe $(date -u +%Y-%m-%d)"
-          for attempt in 1 2 3 4; do
-            git pull --rebase origin main && git push -u origin main && echo "Pushed OK" && exit 0
-            echo "Push attempt $attempt failed, retrying in $((attempt*2))s..."
-            sleep $((attempt*2))
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push -u origin main && exit 0
+            sleep $((i*3))
           done
-          echo "All push attempts failed — results are in the job log above"
+          exit 0
