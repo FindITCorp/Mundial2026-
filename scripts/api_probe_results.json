@@ -884,49 +884,84 @@
       }
     }
   },
-  "livescores": {
-    "status": 404,
-    "data": {
-      "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-all-livescores' does not exist\"}"
-    }
-  },
-  "today": {
+  "fix_by_date": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
       "body": "{\"message\":\"Endpoint '\\/football-get-fixtures-scores-by-date' does not exist\"}"
     }
   },
-  "yesterday": {
+  "fix_by_date2": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-get-fixtures-scores-by-date' does not exist\"}"
+      "body": "{\"message\":\"Endpoint '\\/football-get-fixtures-by-date' does not exist\"}"
     }
   },
-  "team_brazil": {
+  "fix_scores_date": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-scores-by-date' does not exist\"}"
+    }
+  },
+  "fixtures_date": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/get-fixtures-by-date' does not exist\"}"
+    }
+  },
+  "livescores1": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-livescores' does not exist\"}"
+    }
+  },
+  "livescores2": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-livescores' does not exist\"}"
+    }
+  },
+  "livescores3": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/get-livescores' does not exist\"}"
+    }
+  },
+  "league1_fix": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-current-season-fixtures-scores-by-league-id' does not exist\"}"
+    }
+  },
+  "league39_fix": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-current-season-fixtures-scores-by-league-id' does not exist\"}"
+    }
+  },
+  "team_search": {
+    "status": 404,
+    "data": {
+      "error": "HTTP 404",
+      "body": "{\"message\":\"Endpoint '\\/football-get-team-info' does not exist\"}"
+    }
+  },
+  "search_teams": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
       "body": "{\"message\":\"Endpoint '\\/football-search-teams' does not exist\"}"
     }
   },
-  "team_france": {
-    "status": 404,
-    "data": {
-      "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-search-teams' does not exist\"}"
-    }
-  },
-  "player_mbappe": {
-    "status": 404,
-    "data": {
-      "error": "HTTP 404",
-      "body": "{\"message\":\"Endpoint '\\/football-search-players' does not exist\"}"
-    }
-  },
-  "player_messi": {
+  "search_players": {
     "status": 404,
     "data": {
       "error": "HTTP 404",
