@@ -63,7 +63,7 @@ def probe(name, path, params=None):
     status, data = get(path, params)
     print(f"  HTTP {status}")
     summarize(data)
-    out = BASE_DIR / "data" / f"probe_{name}.json"
+    out = BASE_DIR / "scripts" / f"probe_{name}.json"
     out.write_text(json.dumps(data, indent=2, ensure_ascii=False))
     return status, data
 
@@ -87,4 +87,4 @@ probe("player_mbappe", "/football-search-players", {"searchQuery": "Mbappe"})
 time.sleep(0.4)
 probe("player_messi",  "/football-search-players", {"searchQuery": "Messi"})
 
-print("\n\nDone. Probe files in data/probe_*.json")
+print("\n\nDone. Probe files in scripts/probe_*.json")
