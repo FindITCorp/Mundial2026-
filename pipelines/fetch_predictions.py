@@ -21,7 +21,14 @@ CACHE_DIR = BASE_DIR / "data" / "cache" / "predictions"
 DB_PATH   = BASE_DIR / "data" / "mundial2026.db"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-RAPIDAPI_KEY  = os.getenv("APIFOOT", "")
+_raw_rapidapi = os.getenv("APIFOOT", "")
+RAPIDAPI_KEY = _raw_rapidapi.strip()
+if "\n" in RAPIDAPI_KEY or "=" in RAPIDAPI_KEY:
+    for _ln in RAPIDAPI_KEY.splitlines():
+        _ln = _ln.strip()
+        if "API_FOOTBALL_KEY" in _ln or "APIFOOT" in _ln:
+            RAPIDAPI_KEY = _ln.split("=", 1)[-1].strip()
+            break
 API_HOST      = "football-prediction-api.p.rapidapi.com"
 BASE_URL      = f"https://{API_HOST}/api/v2"
 

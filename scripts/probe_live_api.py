@@ -11,7 +11,17 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
-KEY   = os.environ.get("APIFOOT", "")
+_raw_key = os.environ.get("APIFOOT", "")
+# Secret may be a multi-line .env file — extract API_FOOTBALL_KEY line if present
+KEY = _raw_key.strip()
+if "\n" in KEY or "=" in KEY:
+    for line in KEY.splitlines():
+        line = line.strip()
+        if "API_FOOTBALL_KEY" in line or "APIFOOT" in line:
+            KEY = line.split("=", 1)[-1].strip()
+            break
+        elif line and "=" not in line:
+            KEY = line  # bare key, use as-is
 HOST  = "free-api-live-football-data.p.rapidapi.com"
 HDRS  = {"x-rapidapi-host": HOST, "x-rapidapi-key": KEY}
 TODAY     = datetime.utcnow().strftime("%Y-%m-%d")

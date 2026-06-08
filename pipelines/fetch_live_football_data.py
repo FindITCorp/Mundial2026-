@@ -24,7 +24,14 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent.parent
 DB = BASE_DIR / "data" / "mundial2026.db"
 
-API_KEY = os.environ.get("APIFOOT", "")
+_raw = os.environ.get("APIFOOT", "")
+API_KEY = _raw.strip()
+if "\n" in API_KEY or "=" in API_KEY:
+    for _line in API_KEY.splitlines():
+        _line = _line.strip()
+        if "API_FOOTBALL_KEY" in _line or "APIFOOT" in _line:
+            API_KEY = _line.split("=", 1)[-1].strip()
+            break
 API_HOST = "free-api-live-football-data.p.rapidapi.com"
 BASE_URL = f"https://{API_HOST}"
 
