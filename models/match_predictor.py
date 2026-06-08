@@ -1299,7 +1299,25 @@ def predict_match(
         winner = home_name
     else:
         winner = away_name
-    pred = top_scores[0][0]
+    # Predicted score: cuando hay ganador claro, evitar que 1-1 (draw) "robe" el top spot
+    # Si winner != DRAW pero el marcador más probable es empate, buscar el mejor W del ganador
+    raw_pred = top_scores[0][0]
+    if winner == "DRAW":
+        pred = raw_pred
+    else:
+        is_home_winner = (winner == home_name)
+        if (is_home_winner and raw_pred[0] <= raw_pred[1]) or \
+           (not is_home_winner and raw_pred[1] <= raw_pred[0]):
+            # Top score contradice al ganador — buscar mejor score consistente con el ganador
+            for (h, a), _p in top_scores:
+                if is_home_winner and h > a:
+                    pred = (h, a); break
+                elif not is_home_winner and a > h:
+                    pred = (h, a); break
+            else:
+                pred = raw_pred  # fallback
+        else:
+            pred = raw_pred
 
     # ── Goleada band: cuando la diferencia Elo es extrema (>350) ─────────────
     # En vez de reportar un solo marcador, se reporta la banda de goleada más probable
