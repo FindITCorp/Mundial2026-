@@ -117,40 +117,43 @@ def probe(name, path, params=None):
     return status, data
 
 
-# Known: WC=77, Friendlies=114, CL=42, Copa America=44, EURO=50
+# Known: WC=77, Friendlies=114, CL=42
 
-# 1. /football-get-matches-by-date — exists but "failed" — try param variants
-probe("mbd_date",      "/football-get-matches-by-date", {"date": TODAY})
+# 1. Test matches-by-date with currently active leagues to verify endpoint works
+probe("mbd_CL42",     "/football-get-matches-by-date", {"leagueId": "42", "date": TODAY})
 time.sleep(0.3)
-probe("mbd_matchDate", "/football-get-matches-by-date", {"matchDate": TODAY})
+probe("mbd_CL42_nodt","/football-get-matches-by-date", {"leagueId": "42"})
 time.sleep(0.3)
-probe("mbd_leagueId",  "/football-get-matches-by-date", {"leagueId": "77"})
+probe("mbd_noparams", "/football-get-matches-by-date", {})
 time.sleep(0.3)
-probe("mbd_id77_date", "/football-get-matches-by-date", {"leagueId": "77", "date": TODAY})
+probe("mbd_yesterday_fr", "/football-get-matches-by-date", {"leagueId": "114", "date": YESTERDAY})
 time.sleep(0.3)
-probe("mbd_id114",     "/football-get-matches-by-date", {"leagueId": "114"})
+# Try alternate endpoint name patterns
+probe("all_matches",  "/football-get-all-matches-by-date", {"date": TODAY})
 time.sleep(0.3)
-probe("mbd_id114_date","/football-get-matches-by-date", {"leagueId": "114", "date": TODAY})
+probe("scores_date",  "/football-get-scores-by-league-date", {"leagueId": "114", "date": YESTERDAY})
 time.sleep(0.3)
 
-# 2. League fixture endpoints with correct ID
-for ep_name, ep in [
-    ("season_fix",  "/football-get-current-season-fixtures-scores-by-league-id"),
-    ("season_fix2", "/football-get-season-fixtures-by-league-id"),
-    ("league_fix",  "/football-get-league-fixtures"),
-    ("league_matches","/football-get-league-matches"),
-]:
-    probe(f"wc_{ep_name}", ep, {"leagueId": "77"})
-    time.sleep(0.3)
-    probe(f"fr_{ep_name}", ep, {"leagueId": "114"})
-    time.sleep(0.3)
+# 2. Match details — try with real match IDs (we don't know them yet)
+probe("match_1000",   "/football-get-match-details", {"matchId": "1000000"})
+time.sleep(0.3)
+probe("match_str",    "/football-get-match-details", {"id": "1000000"})
+time.sleep(0.3)
 
-# 3. Match details endpoint
-probe("match_detail_1",  "/football-get-match-details",   {"matchId": "1"})
+# 3. Search — try team/player search
+probe("search_team1", "/football-search-team",    {"query": "Brazil"})
 time.sleep(0.3)
-probe("match_info_1",    "/football-get-match-info",       {"matchId": "1"})
+probe("search_team2", "/football-get-team",        {"name": "Brazil"})
 time.sleep(0.3)
-probe("match_id_1",      "/football-get-match",            {"id": "1"})
+probe("search_team3", "/football-get-teams",       {"leagueId": "77"})
+time.sleep(0.3)
+probe("team_stats",   "/football-get-team-statistics", {"teamId": "1", "leagueId": "77"})
+time.sleep(0.3)
+
+# 4. Standings
+probe("standings77",  "/football-get-league-standings", {"leagueId": "77"})
+time.sleep(0.3)
+probe("standings114", "/football-get-league-standings", {"leagueId": "114"})
 time.sleep(0.3)
 
 # Upload to GitHub via REST API
