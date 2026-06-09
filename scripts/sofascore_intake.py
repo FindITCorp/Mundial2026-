@@ -123,7 +123,8 @@ def insert_player_stats(conn, date, home_id, away_id, competition, players: list
     for p in players:
         team_name = p.get("team", "")
         team_id = find_team_id(conn, team_name) if team_name else None
-        passes_str = p.get("passes", "")
+        # Accept "passes" or "passes_accurate" field
+        passes_str = p.get("passes") or p.get("passes_accurate", "")
         passes_total, passes_accurate, passes_pct = None, None, None
         if isinstance(passes_str, str) and "/" in passes_str:
             parts = passes_str.split("/")
@@ -155,7 +156,8 @@ def insert_player_stats(conn, date, home_id, away_id, competition, players: list
 
         duels_won, duels_total = parse_duel(p.get("duels"))
         aerial_won, aerial_total = parse_duel(p.get("aerials"))
-        tackles_won, tackles_total = parse_duel(p.get("tackles"))
+        # Accept "tackles" or "tackles_won" field
+        tackles_won, tackles_total = parse_duel(p.get("tackles") or p.get("tackles_won"))
 
         conn.execute("""
             INSERT OR REPLACE INTO match_player_stats
@@ -167,7 +169,7 @@ def insert_player_stats(conn, date, home_id, away_id, competition, players: list
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             date, competition, home_id, away_id, team_id,
-            p.get("player", ""), p.get("position"), p.get("minutes"),
+            p.get("player") or p.get("name", ""), p.get("position"), p.get("minutes"),
             p.get("goals", 0), p.get("assists", 0), p.get("rating"),
             passes_accurate, passes_total, passes_pct,
             tackles_total, tackles_won, duels_total, duels_won,
