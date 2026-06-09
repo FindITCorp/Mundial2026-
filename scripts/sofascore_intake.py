@@ -71,6 +71,10 @@ def find_team_id(conn, name: str) -> int | None:
         "dinamarca": "Denmark",
         "holanda": "Netherlands",
         "bélgica": "Belgium",
+        # French variants
+        "côte d'ivoire": "Ivory Coast",
+        "cote d'ivoire": "Ivory Coast",
+        "costa de marfil": "Ivory Coast",
         # Other common variants
         "sk": "South Korea",
         "korea": "South Korea",
