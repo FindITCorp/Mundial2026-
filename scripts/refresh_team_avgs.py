@@ -1,15 +1,18 @@
 """
-Refresca teams.possession_avg / goals_scored_avg / goals_conceded_avg
-a partir de match_team_stats (stats reales de Sofascore).
+Refresca teams.possession_avg / goals_scored_avg / goals_conceded_avg.
+
+Fuentes (en orden de prioridad):
+1. match_team_stats (Sofascore) — stats directos con xG
+2. team_matches histórico — resultados con competition+opponent weighting
 
 Filosofía:
 - Peso por calidad del rival: ganarle al #1 vale mucho más que ganarle al #150
-- Peso por resultado: win/draw/loss frente al nivel del rival
-  · Ganar vs rival fuerte → goles ofensivos cuentan +60%
-  · Perder vs rival débil → goles recibidos cuentan +60%, goles marcados -40%
+- Peso por competición: WC/Euros/Nations League >> clasificatorias >> amistosos
+  · Clasificatorias CAF/CONMEBOL vs rivales débiles cuentan muy poco
+- Peso por resultado: win vs fuerte cuenta más que win vs débil
 - Decaimiento temporal: partidos recientes pesan más (half-life 90 días)
-- Mínimo 3 partidos para que los goles cambien el historial
-- Peso máximo 55% (los datos reales no reemplazan todo el historial)
+- Mínimo 5 partidos históricos para que los goles cambien el historial
+- Peso máximo histórico 70% para los 48 equipos WC sin Sofascore
 """
 import sqlite3
 from datetime import date, datetime
@@ -18,10 +21,47 @@ import math
 
 DB = Path(__file__).parent.parent / "data" / "mundial2026.db"
 
-MAX_BLEND_GOALS = 0.55
-MAX_BLEND_POSS  = 0.65
+MAX_BLEND_GOALS   = 0.55
+MAX_BLEND_POSS    = 0.65
 MIN_MATCHES_GOALS = 3
-RECENCY_HALFLIFE_DAYS = 90  # partidos de hace 90 días valen la mitad
+RECENCY_HALFLIFE_DAYS = 90
+
+# Peso por competición — partidos vs rivales débiles en clasificatorias valen poco
+_COMP_QUALITY = {
+    "fifa world cup": 1.50,
+    "world cup": 1.50,
+    "copa america": 1.40,
+    "copa americana": 1.40,
+    "uefa euro": 1.40,
+    "african cup of nations": 1.30,
+    "africa cup of nations": 1.30,
+    "afc asian cup": 1.25,
+    "gold cup": 1.20,
+    "concacaf gold cup": 1.20,
+    "uefa nations league": 1.15,
+    "nations league": 1.15,
+    "concacaf nations league": 1.15,
+    "world cup qualification": 0.90,
+    "wcq": 0.90,
+    "uefa euro qualification": 0.95,
+    "african cup of nations qualification": 0.70,
+    "africa cup of nations qualification": 0.70,
+    "copa america qualification": 0.75,
+    "fifa world cup qualification": 0.80,
+    "afc asian cup qualification": 0.75,
+    "friendly": 0.70,
+    "international friendly": 0.70,
+    "int. friendly": 0.70,
+}
+
+def _comp_weight(competition: str) -> float:
+    if not competition:
+        return 0.75
+    c = competition.lower()
+    for key, w in _COMP_QUALITY.items():
+        if key in c:
+            return w
+    return 0.85  # torneo desconocido → peso neutro-bajo
 
 
 def _recency_weight(match_date_str: str) -> float:
@@ -224,6 +264,87 @@ def rebuild_timing_and_performance(db_path=DB):
         print(f"[rebuild_timing] Error (no crítico): {e}")
 
 
+def refresh_from_history(db_path=DB):
+    """
+    Calcula goals_scored_avg / goals_conceded_avg para los 48 equipos WC
+    usando team_matches histórico con competition + opponent quality weighting.
+    Se ejecuta para todos los equipos, complementando refresh() que solo toca
+    los que tienen datos Sofascore.
+    """
+    conn = sqlite3.connect(db_path)
+    updated = []
+
+    wc_teams = conn.execute(
+        "SELECT id, name, fifa_ranking FROM teams WHERE wc_group IS NOT NULL OR id IN "
+        "(SELECT DISTINCT team_id FROM team_matches WHERE date>='2023-01-01')"
+    ).fetchall()
+
+    for tid, tname, t_rank in wc_teams:
+        rows = conn.execute("""
+            SELECT tm.date, tm.goals_for, tm.goals_against,
+                   tm.competition, opp.fifa_ranking
+            FROM team_matches tm
+            LEFT JOIN teams opp ON opp.id = tm.opponent_id
+            WHERE tm.team_id = ?
+              AND tm.date >= '2022-01-01'
+            ORDER BY tm.date DESC
+            LIMIT 40
+        """, (tid,)).fetchall()
+
+        if len(rows) < 5:
+            continue
+
+        gf_num = ga_num = g_den = 0.0
+        for match_date, gf, ga, competition, opp_rank in rows:
+            opp_r = opp_rank or 80
+            opp_w = _opp_weight(opp_r)
+            rec_w = _recency_weight(match_date)
+            comp_w = _comp_weight(competition or "")
+            att_f, def_f = _result_factors(gf or 0, ga or 0, opp_r)
+
+            # Descuento extra: clasificatorias vs rivales muy débiles
+            # son infladores artificiales (ej: Senegal 5-0 vs #180)
+            if opp_r > 120 and comp_w < 0.85:
+                comp_w *= 0.60  # clasificatoria vs rival muy débil → casi irrelevante
+
+            base_w = opp_w * rec_w * comp_w
+            gf_num += (gf or 0) * base_w * att_f
+            ga_num += (ga or 0) * base_w * def_f
+            g_den  += base_w
+
+        if g_den < 1.0:
+            continue
+
+        avg_gf = round(gf_num / g_den, 2)
+        avg_ga = round(ga_num / g_den, 2)
+
+        # Ancla con ranking FIFA: top 10 nunca bajan de 1.3 xG, bottom 48 nunca suben de 1.8
+        rank = t_rank or 50
+        rank_floor_gf = max(0.8, 1.8 - rank * 0.010)   # #1→1.79  #50→1.30  #100→0.80
+        rank_ceil_ga  = min(1.8, 0.5 + rank * 0.012)   # #1→0.51  #50→1.10  #100→1.70
+
+        avg_gf = max(avg_gf, rank_floor_gf * 0.70)  # suelo flexible
+        avg_ga = min(avg_ga, rank_ceil_ga  * 1.30)  # techo flexible
+
+        # Limites de sentido
+        avg_gf = round(max(0.6, min(3.5, avg_gf)), 2)
+        avg_ga = round(max(0.4, min(2.5, avg_ga)), 2)
+
+        conn.execute(
+            "UPDATE teams SET goals_scored_avg=?, goals_conceded_avg=? WHERE id=?",
+            (avg_gf, avg_ga, tid)
+        )
+        updated.append((tname, avg_gf, avg_ga, len(rows)))
+
+    conn.commit()
+    conn.close()
+    print(f"[refresh_from_history] {len(updated)} equipos actualizados desde team_matches:")
+    for name, gf, ga, n in sorted(updated, key=lambda x: x[1], reverse=True)[:20]:
+        print(f"  {name:<22} GF={gf:.2f}  GA={ga:.2f}  (n={n})")
+    return updated
+
+
 if __name__ == "__main__":
-    refresh()
+    refresh_from_history()  # primero: histórico para todos los 48 equipos
+    refresh()               # segundo: Sofascore encima (datos más recientes y exactos)
     rebuild_timing_and_performance()

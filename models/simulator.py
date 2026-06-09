@@ -134,7 +134,18 @@ def compute_xg(
         attacking_team.key_players_available,
     )
 
-    xg = _LEAGUE_AVG_GOALS * attack_strength * defense_weakness * quality_factor * missing_factor
+    xg_data = _LEAGUE_AVG_GOALS * attack_strength * defense_weakness * quality_factor * missing_factor
+
+    # Ancla FIFA ranking: blendea el xG basado en datos con uno basado en ranking.
+    # Evita que equipos top tengan xG bajísimo por seeds de datos incorrectos,
+    # y que equipos débiles con clasificatorias fáciles aparezcan como elite.
+    att_rank = getattr(attacking_team, 'ranking_fifa', 50) or 50
+    def_rank = getattr(defending_team, 'ranking_fifa', 50) or 50
+    # xG esperado solo por ranking relativo (top#1 vs #50 → ~1.55, #50 vs #50 → ~1.32)
+    xg_rank = _LEAGUE_AVG_GOALS * max(0.5, (1.0 + (def_rank - att_rank) / 150.0))
+    xg_rank = float(np.clip(xg_rank, 0.5, 2.5))
+    # Blend: 75% datos históricos, 25% ranking — reduce outliers sin ignorar los datos
+    xg = 0.75 * xg_data + 0.25 * xg_rank
 
     # Set piece bonus: teams with high set_piece_index generate more threats
     # Bonus ranges from -0.05 (0.0 index) to +0.12 (0.45 index)
