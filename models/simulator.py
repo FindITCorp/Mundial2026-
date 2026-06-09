@@ -193,17 +193,16 @@ def _get_team_context(db_path, team_name: str) -> dict:
                 if ratings:
                     ctx["fwd_mid_rating"] = sum(ratings) / len(ratings)
 
-        # ── 4. match_player_stats (Sofascore) → solo convocados confirmados ─────
-        # Solo jugadores con confirmed=1 en squad_selections (los 26 del Mundial)
+        # ── 4. match_player_stats (Sofascore) → todos los jugadores con datos ───
+        # SIN filtro confirmed — se usa todo hasta que se pasen las listas oficiales
+        # Cuando el usuario pase la convocatoria oficial de 26, se marcará confirmed=1
+        # y entonces se puede filtrar. Por ahora se usa todo dato disponible.
         player_rows = conn.execute("""
             SELECT mps.player_name, mps.position, mps.minutes, mps.rating,
                    mps.goals, mps.assists, mps.tackles_won, mps.duels_won, mps.duels_total,
                    mps.match_date
             FROM match_player_stats mps
             JOIN teams t ON t.id = mps.team_id
-            JOIN players p ON p.name = mps.player_name
-            JOIN squad_selections ss ON ss.player_id = p.id AND ss.team_id = t.id
-                AND ss.confirmed = 1
             WHERE t.name = ?
               AND mps.minutes IS NOT NULL AND mps.minutes > 20
             ORDER BY mps.match_date DESC
