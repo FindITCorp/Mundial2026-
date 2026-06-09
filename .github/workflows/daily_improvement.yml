@@ -163,14 +163,22 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config commit.gpgsign false
+          # Guardar DB recalibrada antes de sincronizar con remoto
+          cp data/mundial2026.db /tmp/recalibrated.db
+
+          # Sincronizar con remoto (evita conflictos de archivo binario)
+          git fetch origin main
+          git reset --hard origin/main
+
+          # Aplicar DB recalibrada encima del remoto actualizado
+          cp /tmp/recalibrated.db data/mundial2026.db
           git add data/mundial2026.db
+
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
             git commit -m "daily: recalibrate + evaluate model $(date -u +%Y-%m-%d)"
-            # Pull rebase para no pisar commits concurrentes de fetch_data.yml
-            git pull --rebase origin main || git rebase --abort
-            git push -u origin main
+            git push origin main
             echo "DB pushed to main."
           fi
         env:
