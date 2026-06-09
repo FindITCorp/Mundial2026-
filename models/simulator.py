@@ -117,7 +117,8 @@ def _get_team_context(db_path, team_name: str) -> dict:
         "late_collapse":        False,
         "strong_start":         False,
         # XI quality
-        "fwd_mid_rating":       None,  # calculado desde projected_lineups
+        "fwd_mid_rating":       None,  # blend projected_lineups + Sofascore ratings
+        "avg_sub_minute":       72.0,  # minuto promedio de sustituciones
     }
     if not db_path:
         return ctx
@@ -176,7 +177,6 @@ def _get_team_context(db_path, team_name: str) -> dict:
             if ratings:
                 ctx["fwd_mid_rating"] = sum(ratings) / len(ratings)
 
-        # Si no hay nat, intentar club
         if ctx["fwd_mid_rating"] is None:
             rows = conn.execute("""
                 SELECT pr.rating, p.position
@@ -192,6 +192,65 @@ def _get_team_context(db_path, team_name: str) -> dict:
                 ratings = [float(r["rating"]) for r in rows if r["rating"] is not None]
                 if ratings:
                     ctx["fwd_mid_rating"] = sum(ratings) / len(ratings)
+
+        # ── 4. match_player_stats (Sofascore) → calidad real reciente ────────
+        # Ratings Sofascore de los últimos partidos: más fiables que player_ratings estáticos
+        player_rows = conn.execute("""
+            SELECT mps.player_name, mps.position, mps.minutes, mps.rating,
+                   mps.goals, mps.assists, mps.tackles_won, mps.duels_won, mps.duels_total,
+                   mps.match_date
+            FROM match_player_stats mps
+            JOIN teams t ON t.id = mps.team_id
+            WHERE t.name = ?
+              AND mps.rating IS NOT NULL
+              AND mps.minutes IS NOT NULL AND mps.minutes > 30
+            ORDER BY mps.match_date DESC
+            LIMIT 120
+        """, (team_name,)).fetchall()
+
+        if player_rows:
+            # Rating promedio de atacantes/mediocampistas según Sofascore
+            att_mid_positions = {'FWD','MID','ATT','WING','CAM','FW','MF','AM','CF','ST','LW','RW','SS'}
+            att_mid_ratings = [
+                float(r["rating"]) for r in player_rows
+                if r["position"] and r["position"].upper() in att_mid_positions
+            ]
+            def_positions = {'DEF','CB','LB','RB','WB','DEF','D'}
+            def_ratings = [
+                float(r["rating"]) for r in player_rows
+                if r["position"] and r["position"].upper() in def_positions
+            ]
+            # Blendear con projected_lineups rating (Sofascore pesa 60% si hay ≥5 jugadores)
+            if len(att_mid_ratings) >= 5:
+                sofa_att = sum(att_mid_ratings) / len(att_mid_ratings)
+                if ctx["fwd_mid_rating"] is not None:
+                    ctx["fwd_mid_rating"] = 0.40 * ctx["fwd_mid_rating"] + 0.60 * sofa_att
+                else:
+                    ctx["fwd_mid_rating"] = sofa_att
+
+            # Calidad defensiva Sofascore → modifica timing_mod_def
+            if len(def_ratings) >= 4:
+                sofa_def = sum(def_ratings) / len(def_ratings)
+                # Rating 7.5+ → defensa sólida → reduce xGa rival
+                # Rating <6.5 → defensa débil → aumenta xGa rival
+                def_quality_mod = (sofa_def - 7.0) / 10.0  # ±0.05 rango típico
+                ctx["timing_mod_def"] = float(np.clip(
+                    ctx["timing_mod_def"] + def_quality_mod, 0.90, 1.10
+                ))
+
+            # Patrones de sustitución: minuto promedio de salida
+            sub_minutes = [r["minutes"] for r in player_rows if r["minutes"] < 88]
+            if sub_minutes:
+                avg_sub_min = sum(sub_minutes) / len(sub_minutes)
+                # Equipo que sustituye pronto (<70') → más fresco al final → menos fatiga
+                # Equipo que aguanta titulares (>75') → más fatiga pero cohesión
+                ctx["avg_sub_minute"] = float(avg_sub_min)
+                if avg_sub_min < 68:
+                    # Sustituciones tempranas → equipo que hace cambios tácticos → timing_att sube al final
+                    ctx["timing_mod_att"] = float(np.clip(ctx["timing_mod_att"] + 0.03, 0.95, 1.08))
+                elif avg_sub_min > 78:
+                    # Sustituciones tardías → mayor fatiga al final
+                    ctx["timing_mod_def"] = float(np.clip(ctx["timing_mod_def"] - 0.02, 0.90, 1.06))
 
         conn.close()
     except Exception:
