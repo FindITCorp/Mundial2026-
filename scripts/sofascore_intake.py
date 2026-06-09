@@ -59,14 +59,40 @@ DB_PATH = ROOT / "data" / "mundial2026.db"
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def find_team_id(conn, name: str) -> int | None:
-    # Exact match first
-    row = conn.execute("SELECT id FROM teams WHERE name=?", (name,)).fetchone()
+    # Aliases: map alternate names/languages to canonical names
+    aliases = {
+        # Spanish variants
+        "corea del sur": "South Korea",
+        "corea sul": "South Korea",
+        "corea": "South Korea",
+        "españa": "Spain",
+        "alemania": "Germany",
+        "italia": "Italy",
+        "dinamarca": "Denmark",
+        "holanda": "Netherlands",
+        "bélgica": "Belgium",
+        # Other common variants
+        "sk": "South Korea",
+        "korea": "South Korea",
+        "us": "USA",
+    }
+
+    # Normalize input
+    search_name = name.strip().lower()
+
+    # Check aliases first and convert to lowercase
+    if search_name in aliases:
+        search_name = aliases[search_name].lower()
+
+    # Exact match (case-insensitive)
+    row = conn.execute("SELECT id FROM teams WHERE LOWER(name)=?", (search_name,)).fetchone()
     if row:
         return row[0]
-    # Fallback to LIKE search
+
+    # Fallback to LIKE search (case-insensitive)
     row = conn.execute(
-        "SELECT id FROM teams WHERE name LIKE ? OR name LIKE ?",
-        (f"%{name}%", f"{name[:6]}%")
+        "SELECT id FROM teams WHERE LOWER(name) LIKE ? OR LOWER(name) LIKE ?",
+        (f"%{search_name}%", f"{search_name[:6]}%")
     ).fetchone()
     return row[0] if row else None
 
