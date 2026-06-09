@@ -94,6 +94,111 @@ def _rank_to_elo(fifa_rank: int) -> float:
     return 1900 - 200 * math.log10(max(1, fifa_rank or 50))
 
 
+def _get_team_context(db_path, team_name: str) -> dict:
+    """
+    Carga datos enriquecidos de las tablas auxiliares para un equipo:
+      - team_performance_profile  → xG histórico, pressing, aéreos, set pieces
+      - team_goal_timing          → fatiga, colapso tardío, solidez inicial
+      - projected_lineups + player_ratings → calidad real del XI titular
+      - player_nat_stats          → goles/partidos en selección de titulares
+
+    Devuelve un dict con modificadores pre-calculados para compute_xg / simulate_match.
+    """
+    ctx = {
+        "profile_xg_for":       None,  # xG ofensivo histórico (Sofascore)
+        "profile_xg_against":   None,  # xG defensivo histórico
+        "profile_n_matches":    0,
+        "press_intensity":      None,
+        "aerial_dominance":     None,
+        "set_piece_threat":     None,
+        # timing
+        "timing_mod_att":       1.0,   # fatiga / solidez temporalidad
+        "timing_mod_def":       1.0,
+        "late_collapse":        False,
+        "strong_start":         False,
+        # XI quality
+        "fwd_mid_rating":       None,  # calculado desde projected_lineups
+    }
+    if not db_path:
+        return ctx
+    try:
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+
+        # ── 1. performance_profile ─────────────────────────────────────────
+        row = conn.execute("""
+            SELECT avg_xg_for, avg_xg_against, press_intensity,
+                   aerial_dominance, set_piece_threat, matches_analyzed
+            FROM team_performance_profile
+            WHERE team_name = ?
+        """, (team_name,)).fetchone()
+        if row and row["avg_xg_for"] is not None:
+            ctx["profile_xg_for"]     = float(row["avg_xg_for"])
+            ctx["profile_xg_against"] = float(row["avg_xg_against"]) if row["avg_xg_against"] else None
+            ctx["press_intensity"]    = float(row["press_intensity"]) if row["press_intensity"] else None
+            ctx["aerial_dominance"]   = float(row["aerial_dominance"]) if row["aerial_dominance"] else None
+            ctx["set_piece_threat"]   = float(row["set_piece_threat"]) if row["set_piece_threat"] else None
+            ctx["profile_n_matches"]  = int(row["matches_analyzed"]) if row["matches_analyzed"] else 0
+
+        # ── 2. goal_timing ────────────────────────────────────────────────
+        row = conn.execute("""
+            SELECT fatigue_scored, fatigue_conceded, late_collapse, strong_start,
+                   scored_76_90, conceded_76_90, scored_1_15, conceded_1_15
+            FROM team_goal_timing
+            WHERE team_name = ?
+        """, (team_name,)).fetchone()
+        if row:
+            # fatigue_scored > 1.0 → marca más tarde (positivo en general)
+            fat_s = float(row["fatigue_scored"]) if row["fatigue_scored"] else 1.0
+            fat_c = float(row["fatigue_conceded"]) if row["fatigue_conceded"] else 1.0
+            # Defensive timing: si late_collapse = 1 → defensa frágil al final
+            ctx["late_collapse"]  = bool(row["late_collapse"])
+            ctx["strong_start"]   = bool(row["strong_start"])
+            # timing_mod_att: equipos que mejoran con el cansancio contrario
+            ctx["timing_mod_att"] = float(np.clip(1.0 + (fat_s - 1.0) * 0.05, 0.95, 1.05))
+            # timing_mod_def: colapso tardío → penaliza defensa
+            collapse_pen = 0.04 if ctx["late_collapse"] else 0.0
+            ctx["timing_mod_def"] = float(np.clip(1.0 - collapse_pen - (fat_c - 1.0) * 0.04, 0.92, 1.04))
+
+        # ── 3. XI titular → fwd_mid_rating ───────────────────────────────
+        rows = conn.execute("""
+            SELECT pr.rating, p.position
+            FROM projected_lineups pl
+            JOIN teams t ON t.id = pl.team_id
+            JOIN players p ON p.id = pl.player_id
+            JOIN player_ratings pr ON pr.player_id = pl.player_id
+            WHERE t.name = ? AND pl.is_starter = 1
+              AND UPPER(p.position) IN ('FW','MF','AM','CM','CF','ST','LW','RW','LM','RM','SS','FWD','MID','ATT','WING','CAM','CDM')
+              AND pr.context = 'nat'
+        """, (team_name,)).fetchall()
+        if rows:
+            ratings = [float(r["rating"]) for r in rows if r["rating"] is not None]
+            if ratings:
+                ctx["fwd_mid_rating"] = sum(ratings) / len(ratings)
+
+        # Si no hay nat, intentar club
+        if ctx["fwd_mid_rating"] is None:
+            rows = conn.execute("""
+                SELECT pr.rating, p.position
+                FROM projected_lineups pl
+                JOIN teams t ON t.id = pl.team_id
+                JOIN players p ON p.id = pl.player_id
+                JOIN player_ratings pr ON pr.player_id = pl.player_id
+                WHERE t.name = ? AND pl.is_starter = 1
+                  AND UPPER(p.position) IN ('FW','MF','AM','CM','CF','ST','LW','RW','LM','RM','SS','FWD','MID','ATT','WING','CAM','CDM')
+                  AND pr.context = 'club'
+            """, (team_name,)).fetchall()
+            if rows:
+                ratings = [float(r["rating"]) for r in rows if r["rating"] is not None]
+                if ratings:
+                    ctx["fwd_mid_rating"] = sum(ratings) / len(ratings)
+
+        conn.close()
+    except Exception:
+        pass
+    return ctx
+
+
 def _form_factor(recent_form) -> float:
     """Convierte lista de resultados recientes en modificador ±15%."""
     if not recent_form:
@@ -229,6 +334,16 @@ def simulate_match(
     if all_teams is None:
         all_teams = [home, away]
 
+    # --- Cargar contexto enriquecido (performance_profile, goal_timing, XI) ---
+    home_ctx = _get_team_context(db_path, home.name)
+    away_ctx = _get_team_context(db_path, away.name)
+
+    # Usar fwd_mid_rating del XI proyectado si el caller no lo proveyó
+    if home_fwd_mid_rating is None:
+        home_fwd_mid_rating = home_ctx.get("fwd_mid_rating")
+    if away_fwd_mid_rating is None:
+        away_fwd_mid_rating = away_ctx.get("fwd_mid_rating")
+
     # --- Cargar Elo y set piece indices desde DB ---
     home_spi = getattr(home, 'set_piece_index', 0.18) or 0.18
     away_spi = getattr(away, 'set_piece_index', 0.18) or 0.18
@@ -272,6 +387,36 @@ def simulate_match(
                          set_piece_index=home_spi, elo_att=elo_home, elo_def=elo_away)
     xg_away = compute_xg(away, home, all_teams, away_fwd_mid_rating,
                          set_piece_index=away_spi, elo_att=elo_away, elo_def=elo_home)
+
+    # --- Blend con xG histórico de Sofascore (team_performance_profile) ---
+    # Solo cuando hay >= 3 partidos Sofascore: mezcla 40% Sofascore + 60% Elo-xG
+    _PROFILE_BLEND = 0.40
+    _PROFILE_MIN_MATCHES = 3
+    if (home_ctx["profile_xg_for"] is not None
+            and home_ctx["profile_n_matches"] >= _PROFILE_MIN_MATCHES):
+        xg_home = (1 - _PROFILE_BLEND) * xg_home + _PROFILE_BLEND * home_ctx["profile_xg_for"]
+    if (away_ctx["profile_xg_for"] is not None
+            and away_ctx["profile_n_matches"] >= _PROFILE_MIN_MATCHES):
+        xg_away = (1 - _PROFILE_BLEND) * xg_away + _PROFILE_BLEND * away_ctx["profile_xg_for"]
+
+    # Defensa: si el rival tiene xG concedido bajo → reduce xG atacante
+    if (away_ctx["profile_xg_against"] is not None
+            and away_ctx["profile_n_matches"] >= _PROFILE_MIN_MATCHES):
+        def_ratio = away_ctx["profile_xg_against"] / _LEAGUE_AVG_GOALS  # <1 = def sólida
+        xg_home = float(np.clip(xg_home * float(np.clip(def_ratio, 0.70, 1.30)), 0.2, 4.0))
+    if (home_ctx["profile_xg_against"] is not None
+            and home_ctx["profile_n_matches"] >= _PROFILE_MIN_MATCHES):
+        def_ratio = home_ctx["profile_xg_against"] / _LEAGUE_AVG_GOALS
+        xg_away = float(np.clip(xg_away * float(np.clip(def_ratio, 0.70, 1.30)), 0.2, 4.0))
+
+    # --- Timing modifiers (fatiga, colapso tardío) ---
+    xg_home = float(np.clip(xg_home * home_ctx["timing_mod_att"], 0.2, 4.0))
+    xg_away = float(np.clip(xg_away * away_ctx["timing_mod_att"], 0.2, 4.0))
+    # away team benefits if home defense has late_collapse tendency
+    if home_ctx["late_collapse"]:
+        xg_away = float(np.clip(xg_away * 1.03, 0.2, 4.0))
+    if away_ctx["late_collapse"]:
+        xg_home = float(np.clip(xg_home * 1.03, 0.2, 4.0))
 
     # --- Altitude penalty/bonus based on venue ---
     try:
