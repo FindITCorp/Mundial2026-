@@ -83,7 +83,8 @@ def refresh(db_path=DB):
     updated = []
 
     for (tid,) in conn.execute("SELECT DISTINCT team_id FROM match_team_stats").fetchall():
-        rows = conn.execute("""
+        # Leer de wc_matches (partidos WC oficial)
+        rows_wc = conn.execute("""
             SELECT mts.possession, mts.xg, wm.score_home, wm.score_away,
                    mts.is_home, mts.team_id, wm.date,
                    CASE WHEN mts.is_home=1 THEN ht_away.fifa_ranking
@@ -95,6 +96,23 @@ def refresh(db_path=DB):
             WHERE mts.team_id = ?
             ORDER BY wm.date DESC LIMIT 10
         """, (tid,)).fetchall()
+        # Leer de team_matches (amistosos Sofascore cargados manualmente)
+        rows_tm = conn.execute("""
+            SELECT mts.possession, mts.xg,
+                   CASE WHEN mts.is_home=1 THEN tm.goals_for  ELSE tm.goals_against END,
+                   CASE WHEN mts.is_home=1 THEN tm.goals_against ELSE tm.goals_for  END,
+                   mts.is_home, mts.team_id, tm.date,
+                   opp.fifa_ranking AS opp_rank
+            FROM match_team_stats mts
+            JOIN team_matches tm ON tm.id = mts.match_id
+            JOIN teams opp ON opp.id = tm.opponent_id
+            WHERE mts.team_id = ?
+              AND NOT EXISTS (SELECT 1 FROM wc_matches wm2 WHERE wm2.id = mts.match_id)
+            ORDER BY tm.date DESC LIMIT 10
+        """, (tid,)).fetchall()
+        rows = (rows_wc + rows_tm)[:10]  # máx 10, recientes primero
+        rows.sort(key=lambda r: r[6] or "0000-00-00", reverse=True)
+        rows = rows[:10]
         if not rows:
             continue
 

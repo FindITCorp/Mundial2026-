@@ -40,6 +40,22 @@ _DEFAULT_FWD_MID_RATING = 78.0   # rating promedio mundial de campo
 _RATING_SCALE_MAX = 95.0         # rating del mejor jugador del mundo
 _RATING_SCALE_MIN = 60.0         # minimo representativo de la competicion
 
+# ---------------------------------------------------------------------------
+# Calibracion WC2026 neutral venue (derivada de 12 partidos Sofascore)
+# Sesgo detectado: modelo sobreestima xG local +0.35, subestima visitante -0.10
+# Equipos sede (USA, Mexico, Canada) conservan pequeña ventaja real
+# ---------------------------------------------------------------------------
+_WC_HOST_TEAMS = {"USA", "United States", "Mexico", "Canada"}
+# Factor de escala: reduce sobreestimacion del "local" en cancha neutral
+_NEUTRAL_SCALE_HOME = 0.88   # elimina ventaja local en cancha neutral WC
+_NEUTRAL_SCALE_AWAY = 1.00   # visita no tiene penalización en WC neutral
+# Equipos sede: ventaja real pero reducida vs liga local
+_HOST_SCALE_HOME    = 0.93
+_HOST_SCALE_AWAY    = 1.00
+# Boost de empate cuando el partido es cerrado (calibrado con Sofascore)
+_DRAW_BOOST_THRESHOLD = 0.45  # |xG_h - xG_a| < este valor → partido parejo
+_DRAW_BOOST_FACTOR    = 0.06  # +6% a prob de empate, redistribuido proporcionalmente
+
 
 # ---------------------------------------------------------------------------
 # Helpers de normalizacion
@@ -250,6 +266,21 @@ def simulate_match(
         except Exception:
             pass  # formation factor is non-critical; simulation still runs
 
+    # --- Calibracion venue neutral WC2026 ---
+    # En un Mundial en cancha neutral no hay ventaja local real salvo para las sedes.
+    # Corrige el sesgo detectado (+0.35 local, -0.10 visitante) en 12 partidos Sofascore.
+    _is_host_home = home.name in _WC_HOST_TEAMS
+    _is_host_away = away.name in _WC_HOST_TEAMS
+    if _is_host_home:
+        xg_home = float(np.clip(xg_home * _HOST_SCALE_HOME, 0.2, 5.0))
+        xg_away = float(np.clip(xg_away * _HOST_SCALE_AWAY, 0.2, 5.0))
+    elif _is_host_away:
+        xg_home = float(np.clip(xg_home * _NEUTRAL_SCALE_HOME, 0.2, 5.0))
+        xg_away = float(np.clip(xg_away * _HOST_SCALE_HOME,    0.2, 5.0))
+    else:
+        xg_home = float(np.clip(xg_home * _NEUTRAL_SCALE_HOME, 0.2, 5.0))
+        xg_away = float(np.clip(xg_away * _NEUTRAL_SCALE_AWAY, 0.2, 5.0))
+
     # --- Simulacion ---
     rng = np.random.default_rng(rng_seed)
     home_goals_sim = rng.poisson(xg_home, size=n)
@@ -263,6 +294,19 @@ def simulate_match(
     home_wins_pct = round(home_wins / n * 100, 1)
     draws_pct     = round(draws     / n * 100, 1)
     away_wins_pct = round(away_wins / n * 100, 1)
+
+    # --- Boost de empate en partidos parejos ---
+    # Cuando |xG_h - xG_a| < umbral el modelo Poisson subestima empates.
+    # Redistribuimos +_DRAW_BOOST_FACTOR desde victorias proporcional a sus probs.
+    if abs(xg_home - xg_away) < _DRAW_BOOST_THRESHOLD:
+        boost = _DRAW_BOOST_FACTOR * 100  # en puntos porcentuales
+        total_wins = home_wins_pct + away_wins_pct
+        if total_wins > 0:
+            h_cut = boost * (home_wins_pct / total_wins)
+            a_cut = boost * (away_wins_pct / total_wins)
+            home_wins_pct = round(max(0, home_wins_pct - h_cut), 1)
+            away_wins_pct = round(max(0, away_wins_pct - a_cut), 1)
+            draws_pct     = round(min(100, draws_pct + boost), 1)
 
     # --- Marcadores ---
     scorelines = Counter(zip(home_goals_sim.tolist(), away_goals_sim.tolist()))
