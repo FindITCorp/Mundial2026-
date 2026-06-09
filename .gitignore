@@ -11,3 +11,5 @@ venv/
 data/cache/
 data/logs/
 node_modules/
+data/*.db-shm
+data/*.db-wal
