@@ -193,17 +193,19 @@ def _get_team_context(db_path, team_name: str) -> dict:
                 if ratings:
                     ctx["fwd_mid_rating"] = sum(ratings) / len(ratings)
 
-        # ── 4. match_player_stats (Sofascore) → calidad real reciente ────────
-        # Ratings Sofascore de los últimos partidos: más fiables que player_ratings estáticos
+        # ── 4. match_player_stats (Sofascore) → solo convocados confirmados ─────
+        # Solo jugadores con confirmed=1 en squad_selections (los 26 del Mundial)
         player_rows = conn.execute("""
             SELECT mps.player_name, mps.position, mps.minutes, mps.rating,
                    mps.goals, mps.assists, mps.tackles_won, mps.duels_won, mps.duels_total,
                    mps.match_date
             FROM match_player_stats mps
             JOIN teams t ON t.id = mps.team_id
+            JOIN players p ON p.name = mps.player_name
+            JOIN squad_selections ss ON ss.player_id = p.id AND ss.team_id = t.id
+                AND ss.confirmed = 1
             WHERE t.name = ?
-              AND mps.rating IS NOT NULL
-              AND mps.minutes IS NOT NULL AND mps.minutes > 30
+              AND mps.minutes IS NOT NULL AND mps.minutes > 20
             ORDER BY mps.match_date DESC
             LIMIT 120
         """, (team_name,)).fetchall()
@@ -213,12 +215,14 @@ def _get_team_context(db_path, team_name: str) -> dict:
             att_mid_positions = {'FWD','MID','ATT','WING','CAM','FW','MF','AM','CF','ST','LW','RW','SS'}
             att_mid_ratings = [
                 float(r["rating"]) for r in player_rows
-                if r["position"] and r["position"].upper() in att_mid_positions
+                if r["rating"] is not None and r["position"]
+                and r["position"].upper() in att_mid_positions
             ]
-            def_positions = {'DEF','CB','LB','RB','WB','DEF','D'}
+            def_positions = {'DEF','CB','LB','RB','WB','D'}
             def_ratings = [
                 float(r["rating"]) for r in player_rows
-                if r["position"] and r["position"].upper() in def_positions
+                if r["rating"] is not None and r["position"]
+                and r["position"].upper() in def_positions
             ]
             # Blendear con projected_lineups rating (Sofascore pesa 60% si hay ≥5 jugadores)
             if len(att_mid_ratings) >= 5:
