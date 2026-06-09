@@ -59,9 +59,14 @@ DB_PATH = ROOT / "data" / "mundial2026.db"
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def find_team_id(conn, name: str) -> int | None:
+    # Exact match first
+    row = conn.execute("SELECT id FROM teams WHERE name=?", (name,)).fetchone()
+    if row:
+        return row[0]
+    # Fallback to LIKE search
     row = conn.execute(
-        "SELECT id FROM teams WHERE name=? OR name LIKE ? OR name LIKE ?",
-        (name, f"%{name}%", f"{name[:6]}%")
+        "SELECT id FROM teams WHERE name LIKE ? OR name LIKE ?",
+        (f"%{name}%", f"{name[:6]}%")
     ).fetchone()
     return row[0] if row else None
 
@@ -92,10 +97,13 @@ def upsert_team_match(conn, team_id, date, opponent_id, opponent_name,
            goals_for, goals_against, result, venue)
         VALUES (?,?,?,?,?,?,?,?,?)
     """, (team_id, opponent_id, opponent_name, date, competition, gf, ga, result, venue))
-    return conn.execute(
+    row = conn.execute(
         "SELECT id FROM team_matches WHERE team_id=? AND date=? AND opponent_id=?",
         (team_id, date, opponent_id)
-    ).fetchone()[0]
+    ).fetchone()
+    if row:
+        return row[0]
+    return None
 
 
 def insert_stats(conn, match_id, team_id, is_home, stats: dict):
