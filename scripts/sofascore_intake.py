@@ -110,6 +110,63 @@ def insert_stats(conn, match_id, team_id, is_home, stats: dict):
     """, [match_id, team_id, int(is_home)] + vals)
 
 
+def insert_player_stats(conn, date, home_id, away_id, competition, players: list):
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    for p in players:
+        team_name = p.get("team", "")
+        team_id = find_team_id(conn, team_name) if team_name else None
+        passes_str = p.get("passes", "")
+        passes_total, passes_accurate, passes_pct = None, None, None
+        if isinstance(passes_str, str) and "/" in passes_str:
+            parts = passes_str.split("/")
+            try:
+                passes_accurate = int(parts[0])
+                rest = parts[1].split("(")
+                passes_total = int(rest[0].strip())
+                if len(rest) > 1:
+                    passes_pct = float(rest[1].replace("%)", "").strip())
+            except Exception:
+                pass
+        elif isinstance(passes_str, dict):
+            passes_accurate = passes_str.get("accurate")
+            passes_total = passes_str.get("total")
+            passes_pct = passes_str.get("pct")
+
+        def parse_duel(val):
+            if val is None:
+                return None, None
+            if isinstance(val, str) and "/" in val:
+                try:
+                    w, t = val.split("/")
+                    return int(w.strip()), int(t.strip())
+                except Exception:
+                    return None, None
+            if isinstance(val, dict):
+                return val.get("won"), val.get("total")
+            return None, None
+
+        duels_won, duels_total = parse_duel(p.get("duels"))
+        aerial_won, aerial_total = parse_duel(p.get("aerials"))
+        tackles_won, tackles_total = parse_duel(p.get("tackles"))
+
+        conn.execute("""
+            INSERT OR REPLACE INTO match_player_stats
+              (match_date, competition, home_team_id, away_team_id, team_id,
+               player_name, position, minutes, goals, assists, rating,
+               passes_accurate, passes_total, passes_pct,
+               tackles_total, tackles_won, duels_total, duels_won,
+               aerial_total, aerial_won, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            date, competition, home_id, away_id, team_id,
+            p.get("player", ""), p.get("position"), p.get("minutes"),
+            p.get("goals", 0), p.get("assists", 0), p.get("rating"),
+            passes_accurate, passes_total, passes_pct,
+            tackles_total, tackles_won, duels_total, duels_won,
+            aerial_total, aerial_won, now
+        ))
+
+
 def insert_events(conn, date, home_id, away_id, competition, events: list):
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
     for ev in events:
@@ -182,6 +239,12 @@ def load_match(data: dict, db_path=DB_PATH) -> bool:
     if away_stats:
         insert_stats(conn, am_id, away_id, False, away_stats)
         print(f"  ✓ Stats {away_name}: xG={away_stats.get('xg')} shots={away_stats.get('shots_total')} poss={away_stats.get('possession')}%")
+
+    # Actuaciones de jugadores
+    players = data.get("players", [])
+    if players:
+        insert_player_stats(conn, date, home_id, away_id, competition, players)
+        print(f"  ✓ Jugadores: {len(players)} actuaciones cargadas")
 
     # Eventos (goles, tarjetas)
     if events:
