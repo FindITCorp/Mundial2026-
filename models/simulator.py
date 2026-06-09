@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from collections import Counter
 from typing import Optional
+import math
+import sqlite3
 
 import numpy as np
 from scipy.stats import poisson
@@ -29,142 +31,144 @@ from models.formation_engine import formation_matchup_factor, get_team_tactics
 # Constantes de calibracion
 # ---------------------------------------------------------------------------
 
-# Goals-per-game promedio en Mundiales (historico: ~2.64 goles/partido)
-_LEAGUE_AVG_GOALS = 1.32       # promedio por equipo por partido
-_MAX_GOALS_DISPLAY = 5         # goles maximos que mostramos en top marcadores
-N_SIMULATIONS = 10_000
+_LEAGUE_AVG_GOALS   = 1.32   # goles/equipo/partido en WC historico
+_MAX_GOALS_DISPLAY  = 5
+N_SIMULATIONS       = 10_000
+_DEFAULT_FWD_MID_RATING = 78.0
+_RATING_SCALE_MAX   = 95.0
+_RATING_SCALE_MIN   = 60.0
 
-# Ratings promedio por posicion (escala 0-100).
-# Valores de referencia para normalizar el ajuste de calidad.
-_DEFAULT_FWD_MID_RATING = 78.0   # rating promedio mundial de campo
-_RATING_SCALE_MAX = 95.0         # rating del mejor jugador del mundo
-_RATING_SCALE_MIN = 60.0         # minimo representativo de la competicion
-
-# ---------------------------------------------------------------------------
-# Calibracion WC2026 neutral venue (derivada de 12 partidos Sofascore)
-# Sesgo detectado: modelo sobreestima xG local +0.35, subestima visitante -0.10
-# Equipos sede (USA, Mexico, Canada) conservan pequeña ventaja real
-# ---------------------------------------------------------------------------
+# Equipos sede con ventaja real
 _WC_HOST_TEAMS = {"USA", "United States", "Mexico", "Canada"}
-# Factor de escala: reduce sobreestimacion del "local" en cancha neutral
-_NEUTRAL_SCALE_HOME = 0.88   # elimina ventaja local en cancha neutral WC
-_NEUTRAL_SCALE_AWAY = 1.00   # visita no tiene penalización en WC neutral
-# Equipos sede: ventaja real pero reducida vs liga local
-_HOST_SCALE_HOME    = 0.93
-_HOST_SCALE_AWAY    = 1.00
-# Boost de empate cuando el partido es cerrado (calibrado con Sofascore)
-_DRAW_BOOST_THRESHOLD = 0.45  # |xG_h - xG_a| < este valor → partido parejo
-_DRAW_BOOST_FACTOR    = 0.06  # +6% a prob de empate, redistribuido proporcionalmente
+_HOST_SCALE_HOME    = 0.96   # sede: pequeña ventaja
+_NEUTRAL_SCALE_HOME = 0.90   # neutral: elimina sesgo de "local" en DB
+
+# Boost de empate en partidos parejos
+_DRAW_BOOST_THRESHOLD = 0.40
+_DRAW_BOOST_FACTOR    = 0.05
+
+# Peso del Elo en el xG: 80% Elo, 20% forma/calidad
+_ELO_WEIGHT = 0.80
+_ELO_XG_ALPHA = 0.65   # curvatura: e=0.5→xG=1.32, e=0.75→xG=1.74, e=0.25→xG=1.00
 
 
 # ---------------------------------------------------------------------------
-# Helpers de normalizacion
+# Helpers
 # ---------------------------------------------------------------------------
 
-def _normalize_attack(team: TeamSnapshot, all_teams: list[TeamSnapshot]) -> float:
-    """
-    Fuerza de ataque normalizada.
-    1.0 = promedio. >1.0 = ataca mejor que el promedio.
-    """
-    all_avgs = [t.goals_scored_avg for t in all_teams if t.goals_scored_avg > 0]
-    league_avg = float(np.mean(all_avgs)) if all_avgs else _LEAGUE_AVG_GOALS
-    return team.goals_scored_avg / league_avg if league_avg > 0 else 1.0
-
-
-def _normalize_defense(team: TeamSnapshot, all_teams: list[TeamSnapshot]) -> float:
-    """
-    Debilidad defensiva normalizada del equipo.
-    1.0 = promedio. >1.0 = concede mas goles que el promedio (defensa peor).
-    """
-    all_avgs = [t.goals_conceded_avg for t in all_teams if t.goals_conceded_avg > 0]
-    league_avg = float(np.mean(all_avgs)) if all_avgs else _LEAGUE_AVG_GOALS
-    return team.goals_conceded_avg / league_avg if league_avg > 0 else 1.0
+def _expected_elo(elo_att: float, elo_def: float) -> float:
+    """Probabilidad de que att gane 1v1 (sin empate)."""
+    return 1.0 / (1.0 + 10 ** ((elo_def - elo_att) / 400))
 
 
 def _player_quality_factor(fwd_mid_rating: Optional[float]) -> float:
-    """
-    Convierte el rating promedio FWD/MID (0-100) en un multiplicador de xG.
-    Rating 78 (promedio mundial) -> factor 1.0
-    Rating 90 -> factor ~1.15
-    Rating 65 -> factor ~0.85
-    """
     if fwd_mid_rating is None:
         return 1.0
-    rating = float(fwd_mid_rating)
-    # Normalizamos entre min y max esperados
-    norm = (rating - _DEFAULT_FWD_MID_RATING) / (_RATING_SCALE_MAX - _RATING_SCALE_MIN)
-    # Factor entre 0.75 y 1.25
+    norm = (float(fwd_mid_rating) - _DEFAULT_FWD_MID_RATING) / (_RATING_SCALE_MAX - _RATING_SCALE_MIN)
     return float(np.clip(1.0 + norm * 0.5, 0.75, 1.25))
 
 
 def _missing_key_player_factor(missing: list[str], key_players: list[str]) -> float:
-    """
-    Reduce xG si faltan jugadores clave (top scorer / creador).
-    Cada baja clave resta 5% del xG, con un maximo de 25% de reduccion.
-    """
     if not key_players:
         return 1.0
     missing_key = [p for p in missing if p in key_players]
-    reduction = len(missing_key) * 0.05
-    return max(0.75, 1.0 - reduction)
+    return max(0.75, 1.0 - len(missing_key) * 0.05)
+
+
+def _load_elo(db_path, team_name: str) -> Optional[float]:
+    """Carga Elo desde team_elo. Devuelve None si no existe."""
+    try:
+        conn = sqlite3.connect(str(db_path))
+        row = conn.execute(
+            "SELECT e.elo FROM team_elo e JOIN teams t ON t.id=e.team_id WHERE t.name=?",
+            (team_name,)
+        ).fetchone()
+        conn.close()
+        return float(row[0]) if row else None
+    except Exception:
+        return None
+
+
+def _rank_to_elo(fifa_rank: int) -> float:
+    """Fallback: convierte ranking FIFA a Elo aproximado."""
+    return 1900 - 200 * math.log10(max(1, fifa_rank or 50))
+
+
+def _form_factor(recent_form) -> float:
+    """Convierte lista de resultados recientes en modificador ±15%."""
+    if not recent_form:
+        return 1.0
+    scores = []
+    for m in recent_form:
+        if isinstance(m, dict):
+            r = m.get('result', '')
+            scores.append(1.0 if r == 'W' else (0.5 if r == 'D' else 0.0))
+        else:
+            scores.append(float(m))
+    if not scores:
+        return 1.0
+    score = sum(scores) / len(scores)
+    return 1.0 + (score - 0.5) * 0.30
 
 
 # ---------------------------------------------------------------------------
-# Calculo de xG
+# Calculo de xG — Elo como driver principal
 # ---------------------------------------------------------------------------
 
 def compute_xg(
     attacking_team: TeamSnapshot,
     defending_team: TeamSnapshot,
-    all_teams: list[TeamSnapshot],
+    all_teams: list[TeamSnapshot],       # mantenido por compatibilidad
     fwd_mid_rating: Optional[float] = None,
     set_piece_index: float = 0.18,
+    elo_att: Optional[float] = None,
+    elo_def: Optional[float] = None,
 ) -> float:
     """
-    Calcula los expected goals (xG) del equipo atacante contra el equipo
-    defensor, dado el contexto de todos los equipos del torneo.
+    xG = Elo_base * form_mod * quality_mod * missing_mod * set_piece_mod
 
-    xG = base * ataque_norm * defensa_rival_norm * factor_calidad * factor_bajas * factor_set_piece
+    Driver principal: Elo rating relativo (80% del xG).
+    Modificadores secundarios: forma reciente, calidad jugadores, bajas, set pieces.
     """
-    attack_strength  = _normalize_attack(attacking_team, all_teams)
-    defense_weakness = _normalize_defense(defending_team, all_teams)
-    quality_factor   = _player_quality_factor(fwd_mid_rating)
-    missing_factor   = _missing_key_player_factor(
+    # ── 1. Base xG desde Elo ───────────────────────────────────────────────
+    if elo_att is not None and elo_def is not None:
+        e = _expected_elo(elo_att, elo_def)
+    else:
+        # Fallback a ranking FIFA si no hay Elo
+        r_att = getattr(attacking_team, 'ranking_fifa', 50) or 50
+        r_def = getattr(defending_team, 'ranking_fifa', 50) or 50
+        e = _expected_elo(_rank_to_elo(r_att), _rank_to_elo(r_def))
+
+    xg_elo = _LEAGUE_AVG_GOALS * (e / 0.5) ** _ELO_XG_ALPHA
+
+    # ── 2. Modificadores secundarios (max ±20% total) ──────────────────────
+    form_mod    = _form_factor(getattr(attacking_team, 'recent_form', []))
+    quality_mod = _player_quality_factor(fwd_mid_rating)
+    missing_mod = _missing_key_player_factor(
         attacking_team.key_players_missing,
         attacking_team.key_players_available,
     )
+    # Clamp modificadores para que no dominen sobre el Elo
+    form_mod    = np.clip(form_mod,    0.88, 1.12)
+    quality_mod = np.clip(quality_mod, 0.92, 1.08)
 
-    xg_data = _LEAGUE_AVG_GOALS * attack_strength * defense_weakness * quality_factor * missing_factor
+    xg = xg_elo * form_mod * quality_mod * missing_mod
 
-    # Ancla FIFA ranking: blendea el xG basado en datos con uno basado en ranking.
-    # Evita que equipos top tengan xG bajísimo por seeds de datos incorrectos,
-    # y que equipos débiles con clasificatorias fáciles aparezcan como elite.
-    att_rank = getattr(attacking_team, 'ranking_fifa', 50) or 50
-    def_rank = getattr(defending_team, 'ranking_fifa', 50) or 50
-    # xG esperado solo por ranking relativo (top#1 vs #50 → ~1.55, #50 vs #50 → ~1.32)
-    xg_rank = _LEAGUE_AVG_GOALS * max(0.5, (1.0 + (def_rank - att_rank) / 150.0))
-    xg_rank = float(np.clip(xg_rank, 0.5, 2.5))
-    # Blend: 75% datos históricos, 25% ranking — reduce outliers sin ignorar los datos
-    xg = 0.75 * xg_data + 0.25 * xg_rank
+    # ── 3. Set pieces (±4%) ───────────────────────────────────────────────
+    set_piece_bonus = (set_piece_index - 0.18) * 0.67
+    xg = xg * (1.0 + set_piece_bonus * 0.20)
 
-    # Set piece bonus: teams with high set_piece_index generate more threats
-    # Bonus ranges from -0.05 (0.0 index) to +0.12 (0.45 index)
-    set_piece_bonus = (set_piece_index - 0.18) * 0.67  # normalized around league avg
-    xg = xg * (1.0 + set_piece_bonus * 0.20)  # max ±4% effect on total xG
-
-    # DNA matchup factor: adjusts xG based on team identity vs opponent
+    # ── 4. DNA matchup (non-critical) ─────────────────────────────────────
     try:
         from models.team_dna import get_team_dna, matchup_xg_factor as dna_xg_factor
         att_dna = get_team_dna(attacking_team.name)
         def_dna = get_team_dna(defending_team.name)
         if att_dna and def_dna:
-            dna_factor = dna_xg_factor(att_dna, def_dna)
-            xg = xg * dna_factor
+            xg = xg * np.clip(dna_xg_factor(att_dna, def_dna), 0.92, 1.08)
     except Exception:
-        pass  # DNA factor is non-critical
+        pass
 
-    # Limitamos a un rango razonable
-    return float(np.clip(xg, 0.2, 5.0))
+    return float(np.clip(xg, 0.25, 4.0))
 
 
 # ---------------------------------------------------------------------------
@@ -225,28 +229,49 @@ def simulate_match(
     if all_teams is None:
         all_teams = [home, away]
 
-    # --- Load set piece indices from DB if available ---
+    # --- Cargar Elo y set piece indices desde DB ---
     home_spi = getattr(home, 'set_piece_index', 0.18) or 0.18
     away_spi = getattr(away, 'set_piece_index', 0.18) or 0.18
+    elo_home = elo_away = None
 
-    # If db_path provided, try loading from teams table
     if db_path:
         try:
-            import sqlite3
-            conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(str(db_path))
+            # Set piece indices
             row = conn.execute("SELECT set_piece_index FROM teams WHERE name=?", (home.name,)).fetchone()
             if row and row[0] is not None:
                 home_spi = float(row[0])
             row = conn.execute("SELECT set_piece_index FROM teams WHERE name=?", (away.name,)).fetchone()
             if row and row[0] is not None:
                 away_spi = float(row[0])
+            # Elo ratings desde team_elo
+            row = conn.execute(
+                "SELECT e.elo FROM team_elo e JOIN teams t ON t.id=e.team_id WHERE t.name=?",
+                (home.name,)
+            ).fetchone()
+            if row:
+                elo_home = float(row[0])
+            row = conn.execute(
+                "SELECT e.elo FROM team_elo e JOIN teams t ON t.id=e.team_id WHERE t.name=?",
+                (away.name,)
+            ).fetchone()
+            if row:
+                elo_away = float(row[0])
             conn.close()
         except Exception:
             pass
 
-    # --- Expected goals ---
-    xg_home = compute_xg(home, away, all_teams, home_fwd_mid_rating, set_piece_index=home_spi)
-    xg_away = compute_xg(away, home, all_teams, away_fwd_mid_rating, set_piece_index=away_spi)
+    # Fallback a ranking FIFA si no hay Elo en DB
+    if elo_home is None:
+        elo_home = _rank_to_elo(getattr(home, 'ranking_fifa', 50) or 50)
+    if elo_away is None:
+        elo_away = _rank_to_elo(getattr(away, 'ranking_fifa', 50) or 50)
+
+    # --- Expected goals (Elo como driver principal) ---
+    xg_home = compute_xg(home, away, all_teams, home_fwd_mid_rating,
+                         set_piece_index=home_spi, elo_att=elo_home, elo_def=elo_away)
+    xg_away = compute_xg(away, home, all_teams, away_fwd_mid_rating,
+                         set_piece_index=away_spi, elo_att=elo_away, elo_def=elo_home)
 
     # --- Altitude penalty/bonus based on venue ---
     try:
@@ -280,17 +305,12 @@ def simulate_match(
     # --- Calibracion venue neutral WC2026 ---
     # En un Mundial en cancha neutral no hay ventaja local real salvo para las sedes.
     # Corrige el sesgo detectado (+0.35 local, -0.10 visitante) en 12 partidos Sofascore.
-    _is_host_home = home.name in _WC_HOST_TEAMS
-    _is_host_away = away.name in _WC_HOST_TEAMS
-    if _is_host_home:
-        xg_home = float(np.clip(xg_home * _HOST_SCALE_HOME, 0.2, 5.0))
-        xg_away = float(np.clip(xg_away * _HOST_SCALE_AWAY, 0.2, 5.0))
-    elif _is_host_away:
-        xg_home = float(np.clip(xg_home * _NEUTRAL_SCALE_HOME, 0.2, 5.0))
-        xg_away = float(np.clip(xg_away * _HOST_SCALE_HOME,    0.2, 5.0))
+    # Cancha neutral: reduce sesgo de "local" en DB. Sede conserva pequeña ventaja.
+    if home.name not in _WC_HOST_TEAMS:
+        xg_home = float(np.clip(xg_home * _NEUTRAL_SCALE_HOME, 0.2, 4.0))
     else:
-        xg_home = float(np.clip(xg_home * _NEUTRAL_SCALE_HOME, 0.2, 5.0))
-        xg_away = float(np.clip(xg_away * _NEUTRAL_SCALE_AWAY, 0.2, 5.0))
+        xg_home = float(np.clip(xg_home * _HOST_SCALE_HOME,    0.2, 4.0))
+    xg_away = float(np.clip(xg_away, 0.2, 4.0))
 
     # --- Simulacion ---
     rng = np.random.default_rng(rng_seed)
