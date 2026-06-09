@@ -220,25 +220,43 @@ def form_score(matches: list[dict], team_name: str = "", decay: float = 0.88) ->
         score = 0.0
         for i, m in enumerate(match_list):
             result = m.get("result", "D")
-            outcome_pts = {"W": 1.0, "D": 0.5, "L": 0.0}.get(result, 0.5)
             gf = m.get("goals_for", 0) or 0
             ga = m.get("goals_against", 0) or 0
             dominance_ratio = gf / (gf + ga) if (gf + ga) > 0 else 0.5
+
+            # Opponent strength weight: rival FIFA #1 → 1.40, #40 → 1.00, #100 → 0.65
+            opp_ranking = m.get("opp_ranking")
+            if opp_ranking and opp_ranking < 900:
+                opp_w = 1.0 + (40 - opp_ranking) / 90.0
+                opp_w = max(0.60, min(1.45, opp_w))
+            else:
+                opp_w = 1.0
+
+            # Resultado ajustado por calidad del rival:
+            # - Perder vs Brasil (FIFA #6) no debe pesar igual que perder vs Costa Rica
+            # - La derrota "esperada" vs un rival top no destruye la forma
+            if result == "W":
+                outcome_pts = 1.0
+            elif result == "D":
+                # Empate vs rival fuerte = casi una victoria; vs débil = casi una derrota
+                outcome_pts = 0.5
+            else:  # L
+                # Pérdida vs rival top: pena reducida (perder vs Brasil ≠ perder vs Ecuador)
+                # vs FIFA #1  → outcome_pts = 0.24 (casi moral, apenas pena)
+                # vs FIFA #20 → outcome_pts = 0.12
+                # vs FIFA #40 → outcome_pts = 0.0  (derrota esperada/neutra)
+                # vs FIFA #80 → outcome_pts = 0.0  (sin crédito por perder con débil)
+                if opp_ranking and opp_ranking < 40:
+                    outcome_pts = (40 - opp_ranking) / 160.0
+                else:
+                    outcome_pts = 0.0
+
             pts = 0.6 * outcome_pts + 0.4 * dominance_ratio
 
-            # Strength-of-schedule (opponent quality)
-            opp_ranking = m.get("opp_ranking")
-            if opp_ranking:
-                opp_weight = 1.0 + (0.5 - math.log(opp_ranking) / math.log(200)) * 0.3
-                opp_weight = max(0.75, min(1.30, opp_weight))
-            else:
-                opp_weight = 1.0
-
-            # Competition quality multiplier
             comp_w = _competition_weight(m.get("competition", ""))
 
-            score += pts * weights[i] * opp_weight * comp_w
-            total_weight += weights[i] * comp_w
+            score += pts * weights[i] * opp_w * comp_w
+            total_weight += weights[i] * opp_w * comp_w
         return score / total_weight if total_weight > 0 else 0.50
 
     score = _score_matches(matches)
