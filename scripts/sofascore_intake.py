@@ -74,7 +74,10 @@ def find_team_id(conn, name: str) -> int | None:
         # French variants
         "côte d'ivoire": "Ivory Coast",
         "cote d'ivoire": "Ivory Coast",
+        # Spanish variants
         "costa de marfil": "Ivory Coast",
+        "costa marfil": "Ivory Coast",
+        "marfil": "Ivory Coast",
         # Other common variants
         "sk": "South Korea",
         "korea": "South Korea",
