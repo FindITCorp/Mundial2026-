@@ -232,20 +232,28 @@ def build_team_performance_profile(conn: sqlite3.Connection):
         JOIN teams t ON t.id = mts.team_id
     """).fetchall()
 
+    # Ranking mediano FIFA para normalizar pesos
+    all_rankings = conn.execute(
+        "SELECT fifa_ranking FROM teams WHERE fifa_ranking IS NOT NULL"
+    ).fetchall()
+    rank_list = sorted([r[0] for r in all_rankings])
+    median_rank = rank_list[len(rank_list)//2] if rank_list else 40
+
     inserted = 0
     for (tid, tname) in team_rows:
-        # Stats for this team
+        # Incluir el ranking del rival para ponderar cada partido
         stats = conn.execute("""
             SELECT mts.possession, mts.xg,
                    mts.shots_total, mts.shots_on_target,
                    mts.corners, mts.fouls, mts.yellow_cards,
                    mts.tackles_total, mts.aerial_total, mts.aerial_won,
                    mts.free_kicks,
-                   -- opponent xg_against: get opponent's row in same match
-                   opp.xg AS opp_xg
+                   opp.xg AS opp_xg,
+                   t_opp.fifa_ranking AS opp_rank
             FROM match_team_stats mts
             LEFT JOIN match_team_stats opp
                    ON opp.match_id = mts.match_id AND opp.team_id != mts.team_id
+            LEFT JOIN teams t_opp ON t_opp.id = opp.team_id
             WHERE mts.team_id = ?
         """, (tid,)).fetchall()
 
@@ -253,28 +261,47 @@ def build_team_performance_profile(conn: sqlite3.Connection):
             continue
 
         m = len(stats)
-        def _avg(idx):
-            vals = [r[idx] for r in stats if r[idx] is not None]
-            return sum(vals) / len(vals) if vals else None
 
-        avg_poss     = _avg(0)
-        avg_xg_for   = _avg(1)
-        avg_shots    = _avg(2)
-        avg_sot      = _avg(3)
-        avg_corners  = _avg(4)
-        avg_fouls    = _avg(5)
-        avg_yellows  = _avg(6)
-        # press_intensity = tackles_total per match
-        press_int    = _avg(7)
-        # aerial_dominance = aerial_won / aerial_total (ratio)
+        def _opp_weight(opp_rank):
+            """
+            Peso por fortaleza del rival.
+            FIFA #1  → ~1.45  (enfrentarse a los mejores = más mérito)
+            FIFA #40 → ~1.00  (partido estándar)
+            FIFA #100→ ~0.65  (rival débil = menos relevante)
+            Panamá generando xG vs Francia cuenta MÁS que vs Costa Rica.
+            Francia generando xG vs Panamá cuenta MENOS que vs España.
+            """
+            if opp_rank is None:
+                return 1.0
+            w = 1.0 + (median_rank - opp_rank) / (median_rank * 2.2)
+            return max(0.55, min(1.50, w))
+
+        def _wavg(idx, invert_weight=False):
+            """Promedio ponderado por fortaleza del rival."""
+            pairs = [(r[idx], _opp_weight(r[12])) for r in stats if r[idx] is not None]
+            if not pairs:
+                return None
+            if invert_weight:
+                # xGa: conceder vs rival fuerte es esperable → reducir peso
+                pairs = [(v, 1.0 / w) for v, w in pairs]
+            total_w = sum(w for _, w in pairs)
+            return sum(v * w for v, w in pairs) / total_w if total_w > 0 else None
+
+        avg_poss     = _wavg(0)
+        avg_xg_for   = _wavg(1)            # xGf vs rival fuerte pesa MÁS
+        avg_shots    = _wavg(2)
+        avg_sot      = _wavg(3)
+        avg_corners  = _wavg(4)
+        avg_fouls    = _wavg(5)
+        avg_yellows  = _wavg(6)
+        press_int    = _wavg(7)
         aer_total_vals = [(r[8], r[9]) for r in stats if r[8] and r[9] and r[8] > 0]
         aerial_dom = (sum(r[1] for r in aer_total_vals) / sum(r[0] for r in aer_total_vals)
                       if aer_total_vals else None)
-        # set_piece_threat = (corners + free_kicks) per match
         sp_threat_vals = [(r[4] or 0) + (r[10] or 0) for r in stats]
         set_piece_threat = sum(sp_threat_vals) / m if m else None
-        # xg_against from opponent rows
-        avg_xg_against = _avg(11)
+        # xGa vs rival fuerte es esperable → pesa MENOS (invert)
+        avg_xg_against = _wavg(11, invert_weight=True)
 
         from datetime import datetime
         now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
