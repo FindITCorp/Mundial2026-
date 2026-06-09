@@ -66,12 +66,20 @@ def find_team_id(conn, name: str) -> int | None:
     return row[0] if row else None
 
 
-def find_or_create_match_id(conn, date, home_id, away_id, score_home, score_away, competition) -> int:
-    """Busca en team_matches o crea entrada en match_events."""
+def find_wc_match_id(conn, home_id, away_id, date) -> int | None:
+    """Busca el id en wc_matches para usar como match_id canónico."""
     row = conn.execute("""
-        SELECT id FROM team_matches
-        WHERE team_id=? AND date=? AND goals_for=? AND goals_against=?
-    """, (home_id, date, score_home, score_away)).fetchone()
+        SELECT id FROM wc_matches
+        WHERE home_team_id=? AND away_team_id=? AND date=?
+    """, (home_id, away_id, date)).fetchone()
+    if row:
+        return row[0]
+    # Buscar por fecha aproximada (±2 días) por si la fecha difiere
+    row = conn.execute("""
+        SELECT id FROM wc_matches
+        WHERE home_team_id=? AND away_team_id=?
+        ORDER BY ABS(julianday(date) - julianday(?)) LIMIT 1
+    """, (home_id, away_id, date)).fetchone()
     return row[0] if row else None
 
 
@@ -226,25 +234,49 @@ def load_match(data: dict, db_path=DB_PATH) -> bool:
 
     print(f"\n  Cargando: {home_name} {score_home}-{score_away} {away_name}  ({date})")
 
-    # Insertar en team_matches para ambos equipos
-    hm_id = upsert_team_match(conn, home_id, date, away_id, away_name,
-                               score_home, score_away, competition, "home")
-    am_id = upsert_team_match(conn, away_id, date, home_id, home_name,
-                               score_away, score_home, competition, "away")
+    # Insertar en team_matches para ambos equipos (historial de forma)
+    upsert_team_match(conn, home_id, date, away_id, away_name,
+                      score_home, score_away, competition, "home")
+    upsert_team_match(conn, away_id, date, home_id, home_name,
+                      score_away, score_home, competition, "away")
+
+    # ID canónico para match_team_stats = wc_matches.id
+    wc_id = find_wc_match_id(conn, home_id, away_id, date)
+    if wc_id is None:
+        # Partido no está en wc_matches (amistoso pre-torneo) — usar team_matches.id del local
+        wc_id = conn.execute(
+            "SELECT id FROM team_matches WHERE team_id=? AND date=? AND opponent_id=?",
+            (home_id, date, away_id)
+        ).fetchone()
+        wc_id = wc_id[0] if wc_id else None
+        print(f"  ⚠  Partido no en wc_matches — usando team_matches.id={wc_id}")
 
     # Stats de equipo
-    if home_stats:
-        insert_stats(conn, hm_id, home_id, True, home_stats)
+    if home_stats and wc_id:
+        insert_stats(conn, wc_id, home_id, True, home_stats)
         print(f"  ✓ Stats {home_name}: xG={home_stats.get('xg')} shots={home_stats.get('shots_total')} poss={home_stats.get('possession')}%")
-    if away_stats:
-        insert_stats(conn, am_id, away_id, False, away_stats)
+    if away_stats and wc_id:
+        insert_stats(conn, wc_id, away_id, False, away_stats)
         print(f"  ✓ Stats {away_name}: xG={away_stats.get('xg')} shots={away_stats.get('shots_total')} poss={away_stats.get('possession')}%")
 
     # Actuaciones de jugadores
     players = data.get("players", [])
     if players:
+        # Asegurarse que cada jugador tenga el campo "team" correcto
+        home_players = [p for p in players if find_team_id(conn, p.get("team","")) == home_id]
+        away_players = [p for p in players if find_team_id(conn, p.get("team","")) == away_id]
+        if len(home_players) == 0 and len(away_players) == 0:
+            # Sin campo "team": asignar por orden (mitad local, mitad visitante)
+            mid = len(players) // 2
+            for p in players[:mid]:
+                p["team"] = home_name
+            for p in players[mid:]:
+                p["team"] = away_name
+            home_players = players[:mid]
+            away_players = players[mid:]
+
         insert_player_stats(conn, date, home_id, away_id, competition, players)
-        print(f"  ✓ Jugadores: {len(players)} actuaciones cargadas")
+        print(f"  ✓ Jugadores: {len(players)} actuaciones ({home_name}={len(home_players)}, {away_name}={len(away_players)})")
 
     # Eventos (goles, tarjetas)
     if events:
@@ -254,6 +286,29 @@ def load_match(data: dict, db_path=DB_PATH) -> bool:
         print(f"  ✓ Eventos: {len(goals)} goles, {len(cards)} tarjetas")
 
     conn.commit()
+
+    # ── VERIFICACIÓN OBLIGATORIA ─────────────────────────────────────────────
+    # Solo si se enviaron jugadores: ambos equipos deben tener filas guardadas
+    if players:
+        n_home = conn.execute(
+            "SELECT COUNT(*) FROM match_player_stats "
+            "WHERE match_date=? AND home_team_id=? AND away_team_id=? AND team_id=?",
+            (date, home_id, away_id, home_id)
+        ).fetchone()[0]
+        n_away = conn.execute(
+            "SELECT COUNT(*) FROM match_player_stats "
+            "WHERE match_date=? AND home_team_id=? AND away_team_id=? AND team_id=?",
+            (date, home_id, away_id, away_id)
+        ).fetchone()[0]
+
+        if n_home == 0 or n_away == 0:
+            print(f"  ✗ ERROR VERIFICACIÓN: {home_name}={n_home} jugadores, "
+                  f"{away_name}={n_away} jugadores — DATOS INCOMPLETOS")
+            conn.close()
+            return False
+
+        print(f"  ✓ VERIFICADO: {home_name}={n_home} jugadores, {away_name}={n_away} jugadores guardados")
+
     conn.close()
     return True
 
