@@ -447,9 +447,21 @@ def simulate_match(
         except Exception:
             pass  # formation factor is non-critical; simulation still runs
 
+    # --- Aplicar bias aprendido de model_bias (autocalibración) ---
+    if db_path:
+        try:
+            from scripts.evaluate_model import load_model_bias
+            _bias = load_model_bias(db_path)
+            _scale = _bias.get("lambda_scale", 1.0)
+            _hbias = _bias.get("home_lambda_bias", 0.0)
+            _abias = _bias.get("away_lambda_bias", 0.0)
+            xg_home = float(np.clip(xg_home * _scale - _hbias, 0.2, 4.0))
+            xg_away = float(np.clip(xg_away * _scale - _abias, 0.2, 4.0))
+        except Exception:
+            pass
+
     # --- Calibracion venue neutral WC2026 ---
     # En un Mundial en cancha neutral no hay ventaja local real salvo para las sedes.
-    # Corrige el sesgo detectado (+0.35 local, -0.10 visitante) en 12 partidos Sofascore.
     # Cancha neutral: reduce sesgo de "local" en DB. Sede conserva pequeña ventaja.
     if home.name not in _WC_HOST_TEAMS:
         xg_home = float(np.clip(xg_home * _NEUTRAL_SCALE_HOME, 0.2, 4.0))

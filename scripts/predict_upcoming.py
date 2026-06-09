@@ -44,14 +44,6 @@ def store_predictions(db_path=DB, days_ahead=3):
     stored = 0
 
     for match_id, h_id, a_id, h_name, a_name, mdate in upcoming:
-        # Saltar si ya hay predicción
-        exists = conn.execute(
-            "SELECT id FROM match_predictions WHERE match_id=?", (match_id,)
-        ).fetchone()
-        if exists:
-            print(f"  Ya existe predicción para {h_name} vs {a_name} ({mdate})")
-            continue
-
         print(f"  Prediciendo {h_name} vs {a_name} ({mdate})...", end=" ")
         result = _predict_safe(h_id, a_id, db_path)
         if result is None:
@@ -73,11 +65,22 @@ def store_predictions(db_path=DB, days_ahead=3):
 
         scoreline = f"{round(lh)}-{round(la)}"
 
+        # Siempre reemplaza — el modelo mejora cada día con bias actualizado
         conn.execute("""
-            INSERT OR IGNORE INTO match_predictions
+            INSERT INTO match_predictions
               (match_id, predicted_at, home_win_prob, draw_prob, away_win_prob,
                pred_home_goals, pred_away_goals, pred_winner, pred_scoreline)
             VALUES (?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(match_id) DO UPDATE SET
+              predicted_at    = excluded.predicted_at,
+              home_win_prob   = excluded.home_win_prob,
+              draw_prob       = excluded.draw_prob,
+              away_win_prob   = excluded.away_win_prob,
+              pred_home_goals = excluded.pred_home_goals,
+              pred_away_goals = excluded.pred_away_goals,
+              pred_winner     = excluded.pred_winner,
+              pred_scoreline  = excluded.pred_scoreline,
+              evaluated       = 0
         """, (match_id, today_str, hw, dw, aw, lh, la, winner, scoreline))
         stored += 1
         print(f"OK ({winner}, {scoreline})")
