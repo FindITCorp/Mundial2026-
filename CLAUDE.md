@@ -1,421 +1,258 @@
-# MUNDIAL 2026 — SISTEMA DE PREDICCION AVANZADO
+# MUNDIAL 2026 — PROYECTO PRINCIPAL
+# INSTRUCCIONES OBLIGATORIAS PARA CADA NUEVA SESION
 
-## ESTADO DEL PROYECTO
-**Ultima actualizacion:** 7 de junio de 2026
-**Proposito:** Sistema completo de prediccion y analisis del Mundial 2026
-**Stack:** Python 3.11 · SQLite · requests · scipy · StatsBomb open data
-**Estado:** 🟢 DATOS CARGADOS · WORKFLOWS PASANDO · SIMULADOR FUNCIONAL · EXPERT ANALYSIS LISTO · PARTIDOS AMISTOSOS JUN 2026 CARGADOS
+> **ESTE ES EL PROYECTO PRINCIPAL. El otro proyecto en /home/user/logistic
+> es el repo de investigación/IA — trabajar aquí salvo instrucción explícita.**
 
 ---
 
-## INICIO RAPIDO (nueva sesion)
+## PROTOCOLO DE ARRANQUE — SE EJECUTA AUTOMATICAMENTE
+
+El hook SessionStart ya corre `.claude/session_start.sh` al iniciar.
+Si algo falla, ejecutar manualmente:
 
 ```bash
-# 1. Cargar tokens y configurar remote
+bash /home/user/mundial2026/.claude/session_start.sh
+```
+
+O paso a paso:
+```bash
+# 1. Identidad git
+git config user.email "noreply@anthropic.com"
+git config user.name "Claude"
+
+# 2. Token y remote
 source /root/.claude/.tokens 2>/dev/null
-git -C /home/user/mundial2026 remote set-url origin https://${GITHUB_TOKEN}@github.com/FindITCorp/Mundial2026-.git
+git remote set-url origin https://${GITHUB_TOKEN}@github.com/FindITCorp/Mundial2026-.git
 
-# 2. Verificar DB
+# 3. Sincronizar
+git fetch origin main && git reset --hard origin/main
+
+# 4. Verificar DB
 cd /home/user/mundial2026
-python3 -c "import sqlite3; conn=sqlite3.connect('data/mundial2026.db'); print('players:', conn.execute('SELECT COUNT(*) FROM players').fetchone()[0])"
+python3 -c "
+import sqlite3; conn=sqlite3.connect('data/mundial2026.db')
+for t in ['teams','team_matches','match_players','wc26_squad','match_events']:
+    print(t, conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0])
+"
+
+# 5. Test modelo
+python3 -c "
+import sys; sys.path.insert(0,'.')
+from models.match_predictor import predict_match
+import sqlite3
+conn = sqlite3.connect('data/mundial2026.db')
+ids = {r[0]:r[1] for r in conn.execute('SELECT name,id FROM teams').fetchall()}
+r = predict_match(ids['Argentina'], ids['France'], neutral=True)
+print(f'Test OK: {r[\"predicted_score\"]} ({r[\"prob_home_win\"]}%/{r[\"prob_draw\"]}%/{r[\"prob_away_win\"]}%)')
+"
 ```
 
 ---
 
-## REPOSITORIO
+## DIRECTIVA DE MEJORA AUTOMATICA
 
-- **GitHub:** `FindITCorp/Mundial2026-` (con guion al final — es el nombre real)
-- **Rama:** `main` (deploy y commits van aqui)
-- **Ruta local:** `/home/user/mundial2026`
-- **DB local:** `/home/user/mundial2026/data/mundial2026.db`
-- **Token:** en `/root/.claude/.tokens` como `$GITHUB_TOKEN`
+**Mejorar SIN pedir aprobación:**
+- Integrar resultados de partidos cuando el usuario los proporcione
+- Recalibrar BASE_GOALS y parámetros tras cada 10+ partidos WC nuevos
+- Corregir bugs detectados en cualquier módulo
+- Actualizar este CLAUDE.md tras cada cambio importante
+- Commit + push a `main` de cada mejora
 
-### Commits NO usan GPG — siempre usar:
+**Pedir aprobación SOLO para:**
+- Cambiar arquitectura del modelo (reemplazar Poisson)
+- Eliminar tablas de la DB
+- Cambiar nombres de repo o branch
+
+---
+
+## REPOSITORIO Y ACCESO
+
+| Parámetro | Valor |
+|-----------|-------|
+| **GitHub repo** | `FindITCorp/Mundial2026-` (con guion al final) |
+| **Branch** | `main` |
+| **Ruta local** | `/home/user/mundial2026` |
+| **DB local** | `/home/user/mundial2026/data/mundial2026.db` |
+| **Token GitHub** | En `/root/.claude/.tokens` como `$GITHUB_TOKEN` |
+
+> **⚠️ Si GITHUB_TOKEN da 401/403: notificar al usuario inmediatamente.**
+
+### Git — siempre así:
 ```bash
+git config user.email "noreply@anthropic.com"
+git config user.name "Claude"
 git -c commit.gpgsign=false commit -m "mensaje"
+git push origin main
 ```
 
 ---
 
-## ESTADO DE LA BASE DE DATOS (7 junio 2026)
+## CLAVES DE API
 
-| Tabla | Registros | Fuente |
-|-------|-----------|--------|
-| teams | 48 | Estatico JSON |
-| players | ~2,700+ | martj42 + Wikipedia + manual + nuevos jugadores amistosos |
-| team_matches | ~11,035+ | martj42 CSV + 20 partidos Ukraine manuales |
-| player_club_stats | 724 | Solo jugadores originales seeded |
-| player_nat_stats | ~33,000+ | StatsBomb WC2022 + amistosos jun 2026 Sofascore |
-| player_ratings | ~3,000+ | Computados (club+nat context) |
-| squad_selections | 2,131 | Todos los jugadores |
-| match_players | 3,782 | StatsBomb WC2022 (1992) + WC2018 (1790) |
-| wc_matches | 95 | Calendario WC2026 + 23 amistosos cargados |
-| wc_history | 192 | Historial WC 2014/2018/2022 |
-| match_lineups | ~360+ | Partidos amistosos jun 2026 |
+| Clave | Dónde | Estado |
+|-------|-------|--------|
+| `GITHUB_TOKEN` | `/root/.claude/.tokens` | ✅ Activa (puede expirar) |
+| `FOOTBALL_DATA_KEY` | GitHub Secret | ✅ [en GitHub Secrets] |
+| `APIFOOT` | GitHub Secret | ✅ RapidAPI (100 req/día) |
+| `APISPORTS_KEY` | GitHub Secret | ✅ [en GitHub Secrets] |
 
-**Jugadores por equipo:** min=32, max=68, promedio=44.4
+> APIs externas (Sofascore, Opta, ESPN) **bloqueadas por política de red**.
+> Solo funcionan las 3 de arriba, y solo via GitHub Actions.
 
 ---
 
-## GITHUB ACTIONS — ESTADO
+## BASE DE DATOS — ESTADO (10 junio 2026)
 
-| Workflow | Estado | Trigger |
-|----------|--------|---------|
-| `fetch_data.yml` | ✅ PASANDO | Push a main + cron diario 7am UTC |
-| `match_day.yml` | ✅ Configurado | Cada 30min Jun-Jul 2026 |
-| `fetch_players.yml` | ✅ Configurado | Manual |
+**Archivo:** `/home/user/mundial2026/data/mundial2026.db`
 
-### Auto-scope logic en fetch_data:
-- DB vacia → `all` (bootstrap)
-- match_players < 100 → `historical`
-- Junio/Julio → `wc`
-- Lunes → `all`
-- Resto → `form`
-
-### APIs configuradas como GitHub Secrets:
-- `FOOTBALL_DATA_KEY` = `8b7502413ce14eca89def90fc0be0fc4`
-- `APIFOOT` = `557119c7a1mshdf149ae73f548b9p12dddfjsn039c48b00953` (RapidAPI)
-- `APISPORTS_KEY` = `f4bc4a4935ea7cc82677931a55ed6c5c` (100 req/dia)
-
----
-
-## ARQUITECTURA DE ARCHIVOS
-
-```
-mundial2026/
-  CLAUDE.md                        — Este archivo (memoria del proyecto)
-  requirements.txt
-  predict.py                       — CLI clasico (analisis 1 partido, predictor.py)
-  simulate.py                      — ★ CLI INTEGRAL: --match / --tournament / --group
-                                     / --scorers / --referees / --draw
-
-  scripts/
-    setup_db.py                    — Crea/migra BD SQLite
-                                     Incluye migrate_db() para ALTER TABLE seguro
-    populate_match_players.py      — Carga StatsBomb WC2022 → match_players
-    load_statsbomb_wc2018.py       — Carga StatsBomb WC2018 → match_players
-    expand_squads_step1/2/3.py     — Expansion de plantillas a 32+ jugadores
-    seed_tactics.py                — Tabla team_tactics (formacion, pressing, linea)
-    seed_wc_groups.py              — ★ Sorteo valido 12 grupos de 4 (bombos Elo)
-                                     → tabla wc_group_draw (datos de grupos limpios)
-    validate_squads.py             — Validador de integridad de plantillas
-    update_official_squads_may2026.py — Squads oficiales confirmados (10 equipos)
-
-  models/
-    predictor.py                   — Motor prediccion clasico (predict_match, TeamSnapshot)
-    match_predictor.py             — ★ Motor Poisson 6-factores (Elo+xG+forma+XI+BP+pressing)
-                                     con strength-of-schedule, regularizacion y ancla Elo
-    elo.py                         — Sistema Elo dinamico (EloSystem, build_from_history)
-    player_rating.py               — Rating 1-10 (PlayerRatingEngine, compute_all_ratings)
-    simulator.py                   — Simulador Poisson 10,000 iteraciones (simulate_match)
-    team_similarity.py             — Similitud entre equipos (8 dimensiones)
-    team_dna.py / team_scout.py    — Perfiles tacticos e informes de scouting
-    formation_engine.py            — Matchup de formaciones (multiplicadores xG)
-    lineup_estimator.py            — XI estimado por historial del DT
-    venue_model.py                 — Factor altitud sedes WC2026
-    expert_analysis.py             — Analisis narrativo estilo experto
-    ── NUEVOS (simulador integral) ──
-    referee_model.py               — ★ 19 arbitros elite FIFA (tarjetas/penaltis/sesgo)
-                                     + asignacion neutral por confederacion
-    goal_scorer.py                 — ★ Modelo de goleador por jugador (goals_as_nat,
-                                     posicion, forma club) + penalty taker + exclusiones
-    match_events.py                — ★ Corners, tiros, faltas, tarjetas, penaltis
-                                     (conversion SoT→gol real por equipo)
-    full_match_sim.py              — ★ Simulador integral 1 partido (Monte Carlo):
-                                     marcador + goleadores + eventos + arbitro + mercados
-    tournament.py                  — ★ Monte Carlo del torneo completo (grupos→final):
-                                     P(campeon/semis/etc) por equipo, ~1.2s/3000 torneos
-
-  pipelines/
-    full_update.py                 — Orquestador maestro (--scope all/squads/stats/form/lineups/wc/historical)
-    fetch_daily_form.py            — Actualiza form: martj42 + FD.org + api-sports
-    fetch_historical.py            — Descarga match_players historicos de WC via api-sports
-    fetch_api_football.py          — API-Football wrapper con cache y rate limiting
-    fetch_football_data_org.py     — football-data.org (schedule, history)
-    fetch_club_stats.py            — Stats de jugadores en sus clubs
-    fetch_nat_stats.py             — Stats en seleccion
-    fetch_players.py               — Convocados oficiales
-    fetch_predictions.py           — Predicciones de API externa
-    update_wc.py                   — Resultados durante torneo
-    update_lineup.py               — Alineaciones confirmadas
-
-  .github/workflows/
-    fetch_data.yml                 — Workflow principal (cron + push)
-    match_day.yml                  — Actualizaciones cada 30min dia de partido
-    fetch_players.yml              — Manual trigger para convocados
-
-  data/
-    mundial2026.db                 — BD SQLite principal
-    static/
-      teams_wc2026.json            — 48 equipos con grupo, ranking, seed
-      schedule_wc2026.json         — 72 partidos WC2026
-      wc_history.json              — Historial WC 2014/2018/2022
-    cache/                         — Cache de API responses (24h TTL)
-    logs/                          — Logs de pipelines
-```
+| Tabla | Filas | Descripción |
+|-------|-------|-------------|
+| `teams` | 197 | Todos los equipos (48 WC2026 + históricos) |
+| `team_matches` | 25,201 | Historial resultados; goals_for/against, result, venue |
+| `team_elo` | 197 | Ratings Elo dinámicos |
+| `team_tactics` | 61 | Formación, pressing, build_up_style |
+| `players` | 4,075 | Jugadores; name, position, club, caps, goals_as_nat |
+| `squad_selections` | 3,341 | Plantillas confirmadas |
+| `wc26_squad` | 1,602 | Plantilla oficial WC2026 |
+| `projected_lineups` | 1,602 | XI titular proyectado |
+| `player_club_stats` | 1,364 | Stats 2024/25 en clubs |
+| `player_nat_stats` | 23,743 | Stats selección + StatsBomb WC2018/22 |
+| `player_ratings` | 1,778 | Ratings 1-10 calculados |
+| `match_players` | 3,476 | Por jugador por partido (WC2018+WC2022) |
+| `match_events` | 218 | ★ Eventos/resultados partidos WC2026 reales |
+| `match_team_stats` | 104 | Stats equipo por partido WC2026 |
+| `match_predictions` | 76 | Predicciones registradas del modelo |
+| `match_lineups` | 1,709 | ★ Alineaciones confirmadas WC2026 |
+| `wc_matches` | 148 | Calendario WC2026 |
+| `model_evaluation_log` | 65 | Historial de evaluaciones del modelo |
+| `model_bias` | 7 | Sesgos detectados por confederación |
+| `team_goal_timing` | 215 | Timing de goles (early/late patterns) |
+| `team_performance_profile` | 53 | Perfiles de rendimiento por equipo |
 
 ---
 
-## TAREA COMPLETADA: expert_analysis.py ✅
+## ARQUITECTURA DEL MODELO
 
-### Que quiere el usuario:
-Analisis estilo **analista experto** (no probabilidades), con:
-1. Resultado concreto: `Croatia 2-1 Panama` (no `34% Panama gana`)
-2. Analisis defensivo: cuanto concede la seleccion + calidad individual defensores en sus clubs
-3. Analisis ofensivo: goles seleccion + referentes goleadores con datos de club
-4. Forma reciente: ultimas 5 partidos con rachas (ej: "3 victorias consecutivas")
-5. Historial directo (H2H)
-6. Quien es el favorito segun los datos (no porcentajes de apuestas, sino analisis propio)
-7. Proyeccion xG interna (Poisson) pero mostrar solo EL resultado, no las probabilidades
-8. Narrativa cohesionada como un analista deportivo lo explicaria
-
-### Diseño de la funcion principal:
-```python
-# models/expert_analysis.py
-from models.expert_analysis import analyze_match
-
-texto = analyze_match("Panama", "Croatia", db_path="data/mundial2026.db")
-print(texto)
-# Salida: informe completo en texto con bordes ASCII
-```
-
-### Factores del calculo de xG:
-- `base_xg_a` = promedio goles marcados (ultimos 20 partidos seleccion)
-- `def_mod_b` = 1.0 - (def_score_b - 5.0) * 0.04  # defensa fuerte reduce xG rival
-- `att_mod_a` = 1.0 + (att_score_a - 5.0) * 0.035 # ataque fuerte aumenta xG
-- `form_mod_a` = 1.0 + (form_score_a - 0.5) * 0.25 # forma reciente (0-1)
-- `h2h_factor` = ±0.12 si hay dominio historico claro
-- `xg_a = base_a * def_mod_b * att_mod_a * form_mod_a * h2h_a`
-
-### Scoring de defensores (0-10):
-- Base: player_ratings.rating
-- +0.6 si juega en liga Tier-1 (PL, La Liga, Bundesliga, Serie A, Ligue 1)
-- +0.3 si liga Tier-2 (Eredivisie, Liga PT, MLS, Liga MX, Saudi, etc.)
-- -0.3 si liga Tier-4 (ligas nacionales centroamericanas, etc.)
-- +0.5 bonus si market_value_m > 50M (jugador de alto valor)
-
-### Scoring de atacantes (0-10):
-- Base: player_ratings.rating
-- +hasta 1.2 por goles/caps en seleccion nacional
-- +hasta 0.8 por goles+asistencias en club (si player_club_stats disponible)
-- Ajuste por tier de liga
-
----
-
-## ⚠️ PRINCIPIO DE COBERTURA (NO DEJAR EQUIPOS AFUERA)
-
-**Regla de oro:** TODA predicción debe pasar por `predict_match()` con equipos
-registrados en `teams` + `team_elo`. **NUNCA** improvisar fórmulas Poisson manuales
-para equipos "que no están en la DB" — eso se salta Elo, Dixon-Coles, timing y XI.
-
-### Cómo se garantiza:
-```bash
-# Auditar cobertura (qué equipos con historial NO están registrados)
-python3 scripts/repair_coverage.py --audit
-
-# Reparar: registra equipos faltantes, enlaza opponent_id, reconstruye Elo
-python3 scripts/repair_coverage.py --repair
-
-# Verificar que un fixture sea 100% predecible ANTES de predecir
-python3 scripts/repair_coverage.py --check "Wales" "Ghana"
-```
-
-### Qué resolvió (2 jun 2026):
-- Antes: solo 79 equipos en `teams`; 177 con historial sin registrar → improvisación
-- `team_matches` tenía 44% de partidos SIN `opponent_id` → excluidos del Elo
-- Después: **198 equipos con Elo**, **97% de partidos enlazados**
-- Alias en `data/team_name_aliases.json` evitan duplicados (United States→USA,
-  Czech Republic→Czechia, Ireland→Republic of Ireland, etc.)
-- Equipos extintos/sancionados (Yugoslavia, Czechoslovakia, Russia…) NO se registran
-
-### Checklist antes de cualquier predicción nueva:
-1. `--check` los dos equipos → ambos deben decir ✅ PREDECIBLE
-2. Si alguno dice ❌ INCOMPLETO → correr `--repair`
-3. Predecir SIEMPRE con `predict_match(home_id, away_id)` — jamás a mano
-
----
-
-## SIMULADOR (FUNCIONANDO)
+### Motor Principal: `models/match_predictor.py`
 
 ```python
-# Uso correcto del simulador
-from models.predictor import TeamSnapshot, load_team, load_recent_form
-from models.simulator import simulate_match
-
-def make_snapshot(name):
-    team = load_team(name, db_path="data/mundial2026.db")
-    form = load_recent_form(name, last_n=10, db_path="data/mundial2026.db")
-    return TeamSnapshot(
-        name=name,
-        recent_form=form,
-        ranking_fifa=team.get("fifa_ranking", 50) if team else 50,
-        goals_scored_avg=team.get("goals_scored_avg", 1.5) if team else 1.5,
-        goals_conceded_avg=team.get("goals_conceded_avg", 1.2) if team else 1.2,
-        possession_avg=team.get("possession_avg", 50.0) if team else 50.0,
-    )
-
-snap_a = make_snapshot("Brazil")
-snap_b = make_snapshot("Argentina")
-result = simulate_match(snap_a, snap_b, n=10000)
-# result["most_likely_scoreline"] = "1-1"
-# result["home_wins_pct"] = 34.2
-# result["raw_text"] = texto completo formateado
+from models.match_predictor import predict_match
+r = predict_match(home_id, away_id, neutral=True)
+# r["predicted_score"], r["prob_home_win"], r["lambda_home"]
 ```
 
-### Resultado verificado:
-```
-Brazil vs Argentina (10,000 sim):
-  Victoria Brazil:    34.2%
-  Empate:             26.2%
-  Victoria Argentina: 39.5%
-  Marcador mas probable: 1-1 (12.5%)
-  xG: Brazil 1.27 - Argentina 1.37
-```
+**Factores Poisson:**
+- Elo diferencial (ancla principal)
+- xG blended: 40% club + 60% forma avg_gf
+- Forma reciente ponderada (últimos 10 partidos)
+- Rating XI titular (player_ratings + projected_lineups)
+- Set pieces & corners efficiency
+- Posesión/pressing matchup
+- Dixon-Coles HAS/HDS/AAS/ADS
+
+**Parámetros calibrados:**
+- `BASE_GOALS = 1.22`
+- Neutral venue para todos los partidos WC
+- Draw boost W-5 framework (5 señales)
+
+### Simulador Torneo: `models/tournament.py` / `simulate.py`
+### Simulación 1 partido: `models/full_match_sim.py`
+### Análisis experto: `models/expert_analysis.py`
 
 ---
 
-## PARTIDOS AMISTOSOS CARGADOS (Sofascore, junio 2026)
+## COMANDOS PRINCIPALES
 
-| match_id | Partido | Resultado | Fecha | Jugadores |
-|----------|---------|-----------|-------|-----------|
-| 87 | Austria vs Tunisia | 1-0 | 2026-06-01 | ~22 |
-| 88 | Colombia vs Costa Rica | 3-1 | 2026-06-01 | ~26 |
-| 89 | Canada vs Uzbekistan | 2-0 | 2026-06-01 | ~39 |
-| 90 | Belgium vs Croatia | 2-0 | 2026-06-02 | 40 |
-| 91 | Wales vs Ghana | 1-1 | 2026-06-02 | 39 |
-| 92 | Morocco vs Madagascar | 4-0 | 2026-06-02 | 41 |
-| 93 | Netherlands vs Algeria | 0-1 | 2026-06-03 | 41 |
-| 94 | Sweden vs Greece | 2-2 | 2026-06-04 | 42 |
-| 95 | Spain vs Iraq | 1-1 | 2026-06-04 | 44 |
-
-### Formato Sofascore para cargar partidos:
-Al pegar estadisticas de Sofascore, el orden de columnas es:
-**G** (siempre) | **A** (si >0) | **T/tackles** (si >0) | **Pases acc/tot** | **Duelos** | **Duelos suelo** | **Duelos aereos** | **Minutos** | **Posicion**
-
-- Si G=0 aparece "0", A solo aparece si >0, T solo aparece si >0
-- El goleador se identifica por el "1" (o mas) en primera posicion
-- Asistencias maximas = goles del equipo (el resto de "1"s son tackles)
-- `opponent_rank` se calcula automaticamente con `get_opponent_rank()` del modelo
-
-### Script tipo para insertar un partido nuevo:
-```python
-# Ver match_id=90 (Belgium vs Croatia) como referencia en esta sesion
-# Los IDs de equipos: conn.execute("SELECT id FROM teams WHERE name='X'")
-# wc_matches usa columnas: id, date, home_team_id, away_team_id, home_team_name, away_team_name, stage, score_home, score_away, played
-# match_lineups usa: match_id, team_id, player_id, position, starter
-# player_nat_stats usa: player_id, match_id, match_date, opponent, opponent_rank, minutes, goals, assists, rating, was_starter, tackles, passes_accurate, passes_total, duels_won, duels_total, ground_duels_won, ground_duels_total, aerial_won, aerial_total
-```
-
----
-
-## MEJORAS IMPLEMENTADAS (sesion 7 jun 2026)
-
-### 1. opponent_quality_factor en player_rating.py
-- **Columna nueva:** `opponent_rank INTEGER` en `player_nat_stats`
-- **Formula:** `factor = 1.0 + (50 - rank) * 0.005`, clamped [0.70, 1.35]
-- **Referencia:** rank=50 (mediana clasificados WC) → factor=1.0
-- **Ejemplos:** Francia(#1)→×1.245, Alemania(#10)→×1.200, Uzbekistan(~#50)→×1.000, Bolivia(#92)→×0.790
-- **Funcion:** `get_opponent_rank(name, conn)` busca en teams, luego `_EXTRA_OPP_RANKS` (150+ selecciones), luego partial match, default=85
-- **Backfill:** `fill_opponent_ranks()` en player_rating.py actualiza filas con opponent_rank=NULL
-- **Aplicado a:** todos los registros existentes (22K+ filas) + todos los nuevos inserts
-
-### 2. Ukraine fix (antes rank=999, Elo=1498 → rank=25, Elo=1650)
-- Ranking FIFA corregido a #25
-- Elo corregido a 1650 en tabla `team_elo` (consistente con Iraq/Scotland en rank similar)
-- 25 jugadores creados: Trubin, Zabarnyi, Zinchenko, Mudryk, Dovbyk, Yaremchuk, Tsygankov, Sudakov, etc.
-- 20 partidos historicos en `team_matches` con `opponent_id` vinculado (WCQ 2025-2026, EURO 2024)
-- nat_stats historicas para goleadores clave (Dovbyk 10 caps/7G, Mudryk 6 caps/4G, Yaremchuk 7 caps/5G)
-- **Resultado:** Denmark 48.5% - Empate 25.4% - Ukraine 26.1% (antes era 67%-13% irrealista)
-
-### 3. Nuevos equipos con jugadores creados
-- **Wales** (team_id=192): 18 jugadores nuevos creados (Neco Williams, Joe Rodon, Ethan Ampadu, Kieffer Moore, etc.)
-- **Madagascar** (team_id=135): 19+ jugadores nuevos
-- **Greece** (team_id=110): 21 jugadores nuevos (Tzolakis, Mavropanos, Koulierakis, Tsimikas, Pavlidis, etc.)
-- **Algeria**: jugadores Luca Zidane, Zineddine Belaid, Rayan Aït-Nouri, Ibrahim Maza, etc.
-- **Sweden**: Viktor Gyökeres, Gabriel Gudmundsson, Kristoffer Nordfeldt, etc.
-- **Iraq**: Merchas Doski, Zidane Iqbal, Akam Hashem, Ali Jasim, etc.
-
----
-
-## ERRORES RESUELTOS (para no repetir)
-
-| Error | Causa | Solucion |
-|-------|-------|----------|
-| `No module named 'pipelines'` | `sys.path[0]` apunta a `pipelines/` al correr `python pipelines/full_update.py` | Agregar `sys.path.insert(0, str(BASE_DIR))` en full_update.py |
-| `UNIQUE constraint failed: team_matches` | `seed_sample_match_history()` usaba `INSERT INTO` sin `OR IGNORE` | Cambiar a `INSERT OR IGNORE` |
-| `no such column: wc_history.api_fixture_id` | Tabla creada antes de agregar esa columna | `migrate_db()` en setup_db.py hace `ALTER TABLE` seguro |
-| `PlayerRater not found` | full_update.py importaba `PlayerRater` que no existia | Agregar `PlayerRater = PlayerRatingEngine` en player_rating.py |
-| `context='overall'` CHECK constraint | player_ratings.context solo acepta `'club'` o `'nat'` | Usar `context='nat'` |
-| Workflow `fetch_data` falla en `Setup database` | UNIQUE constraint en seed → exit code 1 | INSERT OR IGNORE fix |
-| `cron '0 7 * * 2-7'` invalido | GitHub Actions no acepta 7 en rangos de dia | Cambiar a `'0 7 * * *'` |
-
----
-
-## DATOS PENDIENTES
-
-| Dato | Estado | Accion |
-|------|--------|--------|
-| player_club_stats para 1407 jugadores nuevos | Sin datos | Se llenara via api-sports GitHub Actions diario (100 req/dia) |
-| Datos abril-mayo 2026 | No en martj42 | Llegara via api-sports cuando corran los workflows |
-| WC 2014 match_players | No disponible en StatsBomb | Requiere api-sports (scope=historical via Actions) |
-| match_lineups | 0 | Se llena cuando comiencen partidos (11 junio 2026) |
-
----
-
-## PROTOCOLO DE TRABAJO
-
-### Para predecir un partido:
 ```bash
-cd /home/user/mundial2026
-python3 predict.py --home "Panama" --away "Croatia"
-# O el analisis experto (cuando este listo):
-python3 models/expert_analysis.py "Panama" "Croatia"
+# Predicción partido
+python3 predict.py --home "Argentina" --away "France"
+python3 predict.py --home "Argentina" --away "France" --expert
+
+# Simulación completa (goleadores + eventos + árbitro)
+python3 simulate.py --match "Brazil" "Argentina"
+
+# Torneo completo Monte Carlo
+python3 simulate.py --tournament
+
+# Pipeline de datos
+python3 pipelines/full_update.py --scope form      # diario
+python3 pipelines/full_update.py --scope wc        # durante torneo
+python3 pipelines/full_update.py --scope all       # semanal
+
+# Backtest del modelo
+python3 scripts/validate_model.py --days 365
 ```
 
-### Para correr el pipeline de datos (local):
-```bash
-python3 pipelines/full_update.py --scope form
-```
+---
 
-### Para triggear GitHub Actions manualmente:
+## WORKFLOWS GITHUB ACTIONS
+
+| Workflow | Trigger | Scope |
+|----------|---------|-------|
+| `fetch_data.yml` | Diario 7am UTC + push | Auto-detectado |
+| `match_day.yml` | Cada 30min durante partidos | wc |
+| `fetch_players.yml` | Lunes 8am UTC | squads |
+
+### Triggear manualmente:
 ```bash
 source /root/.claude/.tokens
 curl -X POST "https://api.github.com/repos/FindITCorp/Mundial2026-/actions/workflows/fetch_data.yml/dispatches" \
   -H "Authorization: Bearer ${GITHUB_TOKEN}" \
   -H "Accept: application/vnd.github+json" \
-  -d '{"ref":"main","inputs":{"scope":"historical"}}'
-```
-
-### Para hacer commit y push:
-```bash
-cd /home/user/mundial2026
-git add <archivos>
-git -c commit.gpgsign=false commit -m "mensaje"
-git push -u origin main
+  -d '{"ref":"main","inputs":{"scope":"wc"}}'
 ```
 
 ---
 
-## PROXIMOS PASOS
+## DOS PROYECTOS — DIFERENCIAS
 
-- [x] ~~CREAR `models/expert_analysis.py`~~ — LISTO, deployado
-- [x] ~~Conectar expert_analysis con predict.py como `--expert`~~ — LISTO
-- [x] ~~Corregir roster 48 equipos WC2026~~ — LISTO (script fix_teams_wc2026.py ejecutado)
-- [ ] Incorporar odds por partido (The Odds API, 500 req/mes gratis) — disponible cuando empiece torneo
-- [ ] Cuando esten las convocatorias oficiales: `scope=squads` via GitHub Actions
-- [ ] Durante torneo (desde 11 junio): `scope=wc` para actualizar resultados en tiempo real
+| | `mundial2026` (ESTE) | `logistic` |
+|---|---|---|
+| **Repo** | `FindITCorp/Mundial2026-` | `FindITCorp/logistic` |
+| **Branch** | `main` | `claude/sleepy-bohr-PDVSt` |
+| **Ruta** | `/home/user/mundial2026` | `/home/user/logistic` |
+| **Propósito** | Proyecto principal de predicción | Repo de desarrollo/IA |
+| **DB filas** | 25k+ team_matches, 218 match_events WC | 26k team_matches, sin match_events WC |
+| **Diferencial** | ★ match_lineups (1709), model_evaluation, goal_timing | ★ veteran_experience.py, validate_model.py |
 
-### Uso del analisis experto:
-```bash
-python3 predict.py --home "Panama" --away "Croatia" --expert
-# o directamente:
-python3 models/expert_analysis.py "Panama" "Croatia"
+> **Mejoras del repo `logistic` deben portarse a `mundial2026` cuando estén validadas.**
+
+---
+
+## ERRORES CONOCIDOS Y SOLUCIONES
+
+| Error | Causa | Solución |
+|-------|-------|----------|
+| `No module named 'models'` | CWD incorrecto | `cd /home/user/mundial2026` |
+| `push rejected non-fast-forward` | Remote adelantado | `git fetch && git reset --hard origin/main` |
+| Commits "Unverified" | Falta autor correcto | `git config user.email "noreply@anthropic.com"` |
+| APIs externas 403 | Política de red | Solo via GitHub Actions |
+| `UNIQUE constraint failed` | Inserción duplicada | Usar `INSERT OR IGNORE` |
+
+---
+
+## ESTADO ACTUAL
+
+**Última actualización:** 10 junio 2026
+**Torneo:** El Mundial 2026 **comenzó ayer** (11 junio 2026)
+
+```
+✅ DB: 25,201 partidos históricos + 218 eventos WC reales
+✅ Alineaciones: 1,709 confirmadas
+✅ Elo: 197 equipos
+✅ Modelo calibrado (BASE_GOALS=1.22)
+✅ model_evaluation_log: 65 evaluaciones registradas
+✅ team_goal_timing: 215 equipos con patrones de timing
+⚠️  player_club_stats: solo 1,364 (parcial, se actualiza via Actions)
 ```
 
-### Estado equipos (23 mayo 2026):
-- 48 equipos correctos (fixture oficial FIFA draw)
-- 14 equipos erroneos eliminados (Bolivia, Italy, Denmark, Poland, etc.)
-- 14 equipos nuevos agregados (Ivory Coast, Norway, Algeria, Haiti, etc.)
-- Grupos A-L asignados segun sorteo oficial
-- Rankings FIFA abril 2026: Francia #1, España #2, Argentina #3
-- Odds apuestas y probabilidades Opta cargadas para los 48 equipos
+---
+
+## TAREAS AL INICIAR NUEVA SESION
+
+1. Verificar que el hook corrió sin errores
+2. Comprobar si hay partidos WC nuevos desde la última sesión
+3. Si hay partidos nuevos → `--scope wc` para actualizar
+4. Si el usuario provee datos de partido → cargar y recalibrar
+5. Actualizar este CLAUDE.md con cambios relevantes
