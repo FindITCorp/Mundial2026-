@@ -62,6 +62,10 @@ def evaluate(db_path=DB, verbose=True) -> dict:
         WHERE wm.score_home IS NOT NULL
           AND (mp.evaluated = 0 OR 1=1)          -- evalúa siempre para tener histórico fresco
           AND wm.home_team_name IS NOT NULL
+          -- guard de integridad: si el fixture cambió bajo la predicción
+          -- (nombres sellados ≠ fixture actual), NO contaminar la calibración
+          AND (mp.home_team_name IS NULL OR mp.home_team_name = wm.home_team_name)
+          AND (mp.away_team_name IS NULL OR mp.away_team_name = wm.away_team_name)
         ORDER BY wm.date
     """).fetchall()
 

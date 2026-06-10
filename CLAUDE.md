@@ -109,7 +109,7 @@ git push origin main
 | Tabla | Filas | Descripción |
 |-------|-------|-------------|
 | `teams` | 197 | Todos los equipos (48 WC2026 + históricos) |
-| `team_matches` | 25,201 | Historial resultados; goals_for/against, result, venue |
+| `team_matches` | 24,795 | Historial resultados (DEDUPED 10-jun: -406 filas dobles ±1 día) |
 | `team_elo` | 197 | Ratings Elo dinámicos |
 | `team_tactics` | 61 | Formación, pressing, build_up_style |
 | `players` | 4,075 | Jugadores; name, position, club, caps, goals_as_nat |
@@ -122,11 +122,11 @@ git push origin main
 | `match_players` | 3,476 | Por jugador por partido (WC2018+WC2022) |
 | `match_events` | 218 | ★ Eventos/resultados partidos WC2026 reales |
 | `match_team_stats` | 104 | Stats equipo por partido WC2026 |
-| `match_predictions` | 76 | Predicciones registradas del modelo |
+| `match_predictions` | 89 | Predicciones del modelo (v1.2-veteran, con nombres sellados) |
 | `match_lineups` | 1,709 | ★ Alineaciones confirmadas WC2026 |
-| `wc_matches` | 148 | Calendario WC2026 (72 grupos reales + 76 amistosos/qualifiers jugados) |
+| `wc_matches` | 147 | Calendario WC2026 (72 grupos reales + amistosos; deduped 10-jun) |
 | `wc_group_draw` | 48 | ★ NUEVO 10-jun: grupos REALES derivados de wc_matches (`scripts/sync_wc_group_draw.py`) — lo necesita tournament.py |
-| `model_evaluation_log` | 68 | Historial de evaluaciones del modelo |
+| `model_evaluation_log` | 65 | Evaluaciones del modelo (limpio de duplicados) |
 | `model_bias` | 12 | Sesgos aprendidos (λ_scale 0.9005 @ 10-jun, post-veterano) |
 | `team_goal_timing` | 215 | Timing de goles (early/late patterns) |
 | `team_performance_profile` | 53 | Perfiles de rendimiento por equipo |
@@ -166,8 +166,9 @@ r = predict_match(home_id, away_id, neutral=True)
 (acc 66.4→65.9, Brier 0.4647→0.4642) — la señal es de KNOCKOUT/penales, no medible
 en retrodict de amistosos. En logistic (491 pj): +0.4pp. Mantener activo y
 re-evaluar tras los primeros 10+ partidos del Mundial.
-**Evaluación producción (68 pj jugados):** accuracy 64.7%, Brier 0.2820 (mejor que
-snapshot 09-jun: 63.1%/0.2895).
+**Evaluación producción (65 pj limpios, 10-jun tarde):** accuracy 63.1%, Brier 0.2869,
+λ_scale ×0.900. Tras dedupe de 406 team_matches + 3 fixtures dobles que se contaban 2x.
+21.5% de los fallos son empates no predichos (0-0 de amistosos con rotaciones).
 
 ### Simulador Torneo: `models/tournament.py` / `simulate.py`
 ### Simulación 1 partido: `models/full_match_sim.py`
@@ -195,6 +196,11 @@ python3 pipelines/full_update.py --scope all       # semanal
 
 # Backtest del modelo
 python3 scripts/validate_model.py --days 365
+
+# Sincronizar resultados team_matches → wc_matches (amistosos) y recalibrar
+python3 scripts/sync_friendly_results.py            # auto desde team_matches
+python3 scripts/sync_friendly_results.py --set 147 2-1   # resultado manual
+python3 scripts/evaluate_model.py                   # evalúa + refit model_bias
 ```
 
 ---
@@ -242,6 +248,9 @@ curl -X POST "https://api.github.com/repos/FindITCorp/Mundial2026-/actions/workf
 | Commits "Unverified" | Falta autor correcto | `git config user.email "noreply@anthropic.com"` |
 | APIs externas 403 | Política de red | Solo via GitHub Actions |
 | `UNIQUE constraint failed` | Inserción duplicada | Usar `INSERT OR IGNORE` |
+| Lote predicciones v1.0 corrupto (09-jun) | Registro ad-hoc con probs invertidas (México 16% vs Sudáfrica 52%!) | CORREGIDO 10-jun: regeneradas las 82 pendientes como v1.2-veteran con nombres sellados; guard de integridad en evaluate_model.py |
+| Amistosos sin evaluar | fetch escribe team_matches pero evaluate lee wc_matches | `scripts/sync_friendly_results.py` copia resultados (creado 10-jun) |
+| Filas dobles en team_matches | Loaders distintos, fechas ±1 día | Dedupe aplicado 10-jun (-406); criterio: mismo rival+score ±1 día |
 
 ---
 
@@ -258,7 +267,10 @@ curl -X POST "https://api.github.com/repos/FindITCorp/Mundial2026-/actions/workf
 ✅ FACTOR VETERANO PORTADO desde logistic e integrado (predictor+torneo+full_sim)
 ✅ wc_group_draw creada (48 equipos, grupos reales) — tournament.py operativo
 ✅ scripts/validate_model.py (harness A/B) y scripts/sync_wc_group_draw.py portados/creados
-✅ model_evaluation_log: 68 evaluaciones (3 pendientes del 08-jun procesadas)
+✅ model_evaluation_log: 65 evaluaciones LIMPIAS (dedupe 10-jun) — 63.1% acc, Brier 0.2869
+✅ Predicciones amistosos 09-10 jun + 5 de hoy (Pakistán-Afganistán, Austria-Guatemala incl.) registradas v1.2-veteran
+✅ Lote corrupto v1.0 del 09-jun detectado y regenerado (México 1-0 60/32/7, antes decía 0-1 16/33/52)
+✅ sync_friendly_results.py cierra ciclo: fetch → team_matches → wc_matches → evaluate → recalibrar
 ✅ team_goal_timing: 215 equipos con patrones de timing
 ⚠️  player_club_stats: solo 1,364 (parcial, se actualiza via Actions)
 ⚠️  Backtest A/B veterano neutro en pre-torneo — re-evaluar tras 10+ partidos WC

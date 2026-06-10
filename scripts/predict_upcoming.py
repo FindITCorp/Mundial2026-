@@ -65,12 +65,15 @@ def store_predictions(db_path=DB, days_ahead=3):
 
         scoreline = f"{round(lh)}-{round(la)}"
 
-        # Siempre reemplaza — el modelo mejora cada día con bias actualizado
+        # Siempre reemplaza — el modelo mejora cada día con bias actualizado.
+        # Sella nombres + versión: si el fixture cambia bajo la predicción,
+        # la evaluación puede detectarlo (lección del lote corrupto v1.0 del 09-jun).
         conn.execute("""
             INSERT INTO match_predictions
               (match_id, predicted_at, home_win_prob, draw_prob, away_win_prob,
-               pred_home_goals, pred_away_goals, pred_winner, pred_scoreline)
-            VALUES (?,?,?,?,?,?,?,?,?)
+               pred_home_goals, pred_away_goals, pred_winner, pred_scoreline,
+               model_version, home_team_name, away_team_name)
+            VALUES (?,?,?,?,?,?,?,?,?,'1.2-veteran',?,?)
             ON CONFLICT(match_id) DO UPDATE SET
               predicted_at    = excluded.predicted_at,
               home_win_prob   = excluded.home_win_prob,
@@ -80,8 +83,12 @@ def store_predictions(db_path=DB, days_ahead=3):
               pred_away_goals = excluded.pred_away_goals,
               pred_winner     = excluded.pred_winner,
               pred_scoreline  = excluded.pred_scoreline,
+              model_version   = excluded.model_version,
+              home_team_name  = excluded.home_team_name,
+              away_team_name  = excluded.away_team_name,
               evaluated       = 0
-        """, (match_id, today_str, hw, dw, aw, lh, la, winner, scoreline))
+        """, (match_id, today_str, hw, dw, aw, lh, la, winner, scoreline,
+              h_name, a_name))
         stored += 1
         print(f"OK ({winner}, {scoreline})")
 
