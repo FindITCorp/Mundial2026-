@@ -26,6 +26,13 @@ from collections import defaultdict
 from pathlib import Path
 
 from models.match_predictor import _get_form, BASE_GOALS
+from models.veteran_experience import (
+    get_team_veteran_stats,
+    get_global_exp_mean,
+    veteran_lambda_factor,
+    veteran_shootout_edge,
+    pressure_adjustment,
+)
 
 DB_PATH = Path(__file__).parent.parent / "data" / "mundial2026.db"
 GROUPS = list("ABCDEFGHIJKL")
@@ -61,20 +68,29 @@ class TournamentSimulator:
         self.strength: dict[int, dict] = {}
         self.name: dict[int, str] = {}
         all_ids = [tid for ids in self.groups.values() for tid in ids]
+        db_key = str(self.db_path)
+        vet_mean = get_global_exp_mean(conn, db_key)
+        self.vet_mean = vet_mean
         for tid in all_ids:
             elo_row = conn.execute("SELECT elo FROM team_elo WHERE team_id=?", (tid,)).fetchone()
             nm_row = conn.execute("SELECT name FROM teams WHERE id=?", (tid,)).fetchone()
             form = _get_form(conn, tid)
+            vet = get_team_veteran_stats(conn, tid, db_key)
             self.strength[tid] = {
                 "elo": elo_row["elo"] if elo_row else 1500.0,
                 "att": form["avg_gf"],
                 "deff": form["avg_ga"],
+                "vet_exp": vet["exp_score"],
+                # Precalculados: factor λ por etapa (evita recomputar en 3k sims)
+                "vet_f_group": veteran_lambda_factor(vet["exp_score"], vet_mean, "group"),
+                "vet_f_ko":    veteran_lambda_factor(vet["exp_score"], vet_mean, "knockout"),
             }
             self.name[tid] = nm_row["name"] if nm_row else f"Team{tid}"
         conn.close()
 
     # ── Motor de λ rápido (coherente con match_predictor) ────────────────────
-    def _lambdas_base(self, h: int, a: int, neutral: bool = True) -> tuple[float, float]:
+    def _lambdas_base(self, h: int, a: int, neutral: bool = True,
+                      knockout: bool = False) -> tuple[float, float]:
         sh, sa = self.strength[h], self.strength[a]
         elo_diff = sh["elo"] - sa["elo"]
         adj = 0 if neutral else 50
@@ -92,6 +108,15 @@ class TournamentSimulator:
 
         lh = BASE_GOALS * h_att * a_def * (elo_f_h ** 0.90)
         la = BASE_GOALS * a_att * h_def * (elo_f_a ** 0.90)
+
+        # Experiencia mundialista (WC2018/22): mayor sensibilidad en knockout
+        vet_key = "vet_f_ko" if knockout else "vet_f_group"
+        lh *= sh[vet_key]
+        la *= sa[vet_key]
+
+        # Presión vs elite: inexpertos sub-convierten ante rivales muy superiores
+        lh *= pressure_adjustment(sh["vet_exp"], self.vet_mean, sh["elo"], sa["elo"])
+        la *= pressure_adjustment(sa["vet_exp"], self.vet_mean, sa["elo"], sh["elo"])
 
         # Localía de anfitriones
         if not neutral:
@@ -132,8 +157,13 @@ class TournamentSimulator:
         elo_a = self.strength[a]["elo"]
         elo_edge = min(0.02, max(-0.02, (elo_h - elo_a) / 2000))
 
-        p_h = max(0.55, min(0.85, P_BASE + elo_edge))
-        p_a = max(0.55, min(0.85, P_BASE - elo_edge))
+        # Edge por experiencia mundialista: veteranos convierten mejor bajo
+        # presión (±2.5pp). Ej: Croatia (Modrić y cía) vs debutante.
+        vet_edge = veteran_shootout_edge(
+            self.strength[h]["vet_exp"], self.strength[a]["vet_exp"])
+
+        p_h = max(0.55, min(0.88, P_BASE + elo_edge + vet_edge))
+        p_a = max(0.55, min(0.88, P_BASE - elo_edge - vet_edge))
 
         scored_h, scored_a = [], []
         prev_scored_h = prev_scored_a = False
@@ -183,7 +213,7 @@ class TournamentSimulator:
                    knockout: bool = False,
                    fatigue_h: float = 0.0, fatigue_a: float = 0.0) -> tuple[int, int, int]:
         """Devuelve (goles_h, goles_a, ganador_id). En knockout nunca hay empate."""
-        lh, la = self._lambdas(h, a, neutral, fatigue_h, fatigue_a)
+        lh, la = self._lambdas(h, a, neutral, fatigue_h, fatigue_a, knockout)
         gh, ga = self._poisson(lh), self._poisson(la)
         if not knockout:
             winner = h if gh > ga else (a if ga > gh else 0)
@@ -222,9 +252,10 @@ class TournamentSimulator:
         return table
 
     def _lambdas(self, h: int, a: int, neutral: bool = True,
-                fatigue_h: float = 0.0, fatigue_a: float = 0.0):
+                fatigue_h: float = 0.0, fatigue_a: float = 0.0,
+                knockout: bool = False):
         """Calcula lambdas con penalización opcional por fatiga acumulada."""
-        lh, la = self._lambdas_base(h, a, neutral)
+        lh, la = self._lambdas_base(h, a, neutral, knockout)
         # Fatiga: cada punto reduce λ hasta 6% máx (calibrado de Liverpool/PMC 2024)
         lh *= max(0.94, 1.0 - fatigue_h)
         la *= max(0.94, 1.0 - fatigue_a)

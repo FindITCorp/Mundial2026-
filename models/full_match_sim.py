@@ -85,7 +85,7 @@ def simulate_full_match(
     # ── 1. Predicción base (λ, posesión, prob 1X2) ───────────────────────────
     base = predict_match(home_id, away_id, neutral=neutral,
                          home_absence=home_absence, away_absence=away_absence,
-                         db_path=db_path)
+                         db_path=db_path, stage=stage)
     lam_h = base["lambda_home"]
     lam_a = base["lambda_away"]
 

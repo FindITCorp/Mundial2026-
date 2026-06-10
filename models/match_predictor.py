@@ -21,6 +21,13 @@ import logging
 import unicodedata
 from pathlib import Path
 
+from models.veteran_experience import (
+    get_team_veteran_stats,
+    get_global_exp_mean,
+    veteran_lambda_factor,
+    pressure_adjustment,
+)
+
 DB_PATH = Path(__file__).parent.parent / "data" / "mundial2026.db"
 log = logging.getLogger("predictor")
 
@@ -1059,6 +1066,8 @@ def predict_match(
     away_absence: float = 0.0,
     db_path: str | Path = DB_PATH,
     use_strength: bool = True,   # activar mejora HAS/HDS/AAS/ADS
+    stage: str = "group",        # "group" | "knockout" — sensibilidad del factor veterano
+    use_veteran: bool = True,    # activar factor experiencia mundialista (A/B testing)
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -1091,6 +1100,20 @@ def predict_match(
     if use_strength:
         h_str = _get_attack_defense_strength(conn, home_id, db_key)
         a_str = _get_attack_defense_strength(conn, away_id, db_key)
+
+    # Experiencia mundialista (WC2018/WC2022 → wc26_squad + projected_lineups)
+    h_vet = get_team_veteran_stats(conn, home_id, db_key)
+    a_vet = get_team_veteran_stats(conn, away_id, db_key)
+    vet_mean = get_global_exp_mean(conn, db_key)
+    h_vet_f = veteran_lambda_factor(h_vet["exp_score"], vet_mean, stage)
+    a_vet_f = veteran_lambda_factor(a_vet["exp_score"], vet_mean, stage)
+    # Presión vs elite: inexpertos sub-convierten ante rivales muy superiores
+    h_press_adj = pressure_adjustment(h_vet["exp_score"], vet_mean, home_elo, away_elo)
+    a_press_adj = pressure_adjustment(a_vet["exp_score"], vet_mean, away_elo, home_elo)
+    h_vet_f *= h_press_adj
+    a_vet_f *= a_press_adj
+    if not use_veteran:
+        h_vet_f = a_vet_f = 1.0
 
     _hn = conn.execute("SELECT name FROM teams WHERE id=?", (home_id,)).fetchone()
     _an = conn.execute("SELECT name FROM teams WHERE id=?", (away_id,)).fetchone()
@@ -1288,6 +1311,7 @@ def predict_match(
         * (1.0 / max(0.88, a_def_xi["combined"]) if a_def_xi["has_data"] else 1.0)
         * h2h_hf
         * venue_h
+        * h_vet_f                                    # experiencia mundialista (±4.5%)
         * (1 - home_absence)
         * h_perf_press_f                             # high-press vs low-possession bonus
         * h_perf_aerial_f                            # aerial dominance set-piece edge
@@ -1308,6 +1332,7 @@ def predict_match(
         * (1.0 / max(0.88, h_def_xi["combined"]) if h_def_xi["has_data"] else 1.0)
         * h2h_af
         * venue_a
+        * a_vet_f                                    # experiencia mundialista (±4.5%)
         * a_perf_press_f                             # high-press vs low-possession bonus
         * a_perf_aerial_f                            # aerial dominance set-piece edge
         * (1 - away_absence)
@@ -1563,6 +1588,14 @@ def predict_match(
         # Elo
         "elo_home":        round(home_elo, 1),
         "elo_away":        round(away_elo, 1),
+        # Experiencia mundialista (WC2018/WC2022)
+        "veteran_pct_home":  round(h_vet["squad_vet_pct"] * 100, 1),
+        "veteran_pct_away":  round(a_vet["squad_vet_pct"] * 100, 1),
+        "veteran_xi_home":   round(h_vet["xi_vet_pct"] * 100, 1),
+        "veteran_xi_away":   round(a_vet["xi_vet_pct"] * 100, 1),
+        "veteran_factor_home": round(h_vet_f, 4),
+        "veteran_factor_away": round(a_vet_f, 4),
+        "stage": stage,
         # Tácticas
         "formation_home":  home_tac["formation"],
         "formation_away":  away_tac["formation"],
@@ -1594,6 +1627,11 @@ def predict_match(
             # Interacción táctica — estilo de juego
             "tac_h": round(h_tac_f, 3),
             "tac_a": round(a_tac_f, 3),
+            # Experiencia mundialista
+            "vet_factor_home":  round(h_vet_f, 4),
+            "vet_factor_away":  round(a_vet_f, 4),
+            "vet_exp_home":     round(h_vet["exp_score"], 3),
+            "vet_exp_away":     round(a_vet["exp_score"], 3),
             # Rendimiento real del XI — StatsBomb
             "def_xi_home":      h_def_xi,
             "def_xi_away":      a_def_xi,
