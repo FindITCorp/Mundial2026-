@@ -155,6 +155,13 @@ r = predict_match(home_id, away_id, neutral=True)
   ±4.5% λ, STAGE_SENSITIVITY group=0.05/knockout=0.11, pressure-vs-elite adjustment,
   shootout edge ±2.5pp en penales (tournament.py). Params: `stage="group"|"knockout"`,
   `use_veteran=True` (A/B con False)
+- ★ **Sesgo de confederación** (NUEVO 10-jun, tras fallo Irak 0-2 Venezuela): el Elo se
+  infla/desinfla en pools cerrados. `scripts/fit_confederation_bias.py` fittea offsets
+  de partidos inter-confed desde 2023 → tabla `confed_elo_offset`; el predictor corrige
+  el Elo fuente solo en cruces inter-confed (`use_confed_adj=True`, A/B con False).
+  Fit 10-jun: CONMEBOL +60, UEFA +22, CAF -2, CONCACAF -31, AFC -36.
+  Backtest A/B 365d (458 pj): acc 65.3→65.9 (+0.7pp), Brier 0.4630→0.4589;
+  en inter-confed (355 pj): +0.8pp. RE-FITTEAR tras cada tanda WC (el workflow lo hace).
 
 **Parámetros calibrados:**
 - `BASE_GOALS = 1.22`
@@ -256,7 +263,7 @@ curl -X POST "https://api.github.com/repos/FindITCorp/Mundial2026-/actions/workf
 
 ## ESTADO ACTUAL
 
-**Última actualización:** 10 junio 2026 (noche — víspera del torneo)
+**Última actualización:** 10 junio 2026 (18:30 UTC — víspera del torneo)
 **Torneo:** comienza MAÑANA 11 junio 2026 (inaugural: Mexico vs South Africa)
 
 ```
@@ -271,6 +278,10 @@ curl -X POST "https://api.github.com/repos/FindITCorp/Mundial2026-/actions/workf
 ✅ Predicciones amistosos 09-10 jun + 5 de hoy (Pakistán-Afganistán, Austria-Guatemala incl.) registradas v1.2-veteran
 ✅ Lote corrupto v1.0 del 09-jun detectado y regenerado (México 1-0 60/32/7, antes decía 0-1 16/33/52)
 ✅ sync_friendly_results.py cierra ciclo: fetch → team_matches → wc_matches → evaluate → recalibrar
+✅ FACTOR CONFEDERACIÓN (v1.3-confed): Irak 0-2 Venezuela evaluado → sesgo sistémico detectado
+   y corregido; 77 predicciones regeneradas; workflow diario refittea offsets automáticamente
+✅ Irak-Venezuela post-mortem: modelo daba 65/26/9, gap Elo real era +40 no +137 (calendario
+   asiático débil vs gauntlet CONMEBOL); stats reales guardadas en match_team_stats (15-10 remates VEN)
 ✅ team_goal_timing: 215 equipos con patrones de timing
 ⚠️  player_club_stats: solo 1,364 (parcial, se actualiza via Actions)
 ⚠️  Backtest A/B veterano neutro en pre-torneo — re-evaluar tras 10+ partidos WC

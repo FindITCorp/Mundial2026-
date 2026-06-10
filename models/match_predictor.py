@@ -1058,6 +1058,26 @@ def _get_h2h(conn, tid1: int, tid2: int, n: int = 8) -> dict:
 
 # ── Motor principal ────────────────────────────────────────────────────────────
 
+_CONFED_OFFSET_CACHE: dict[str, dict[str, float]] = {}
+
+
+def _get_confed_offsets(conn, db_key: str) -> dict[str, float]:
+    """Offsets de Elo por confederación (scripts/fit_confederation_bias.py).
+
+    El Elo se infla/desinfla en pools casi cerrados por confederación; estos
+    offsets lo corrigen en cruces inter-confed (fallo Irak 0-2 Venezuela,
+    10-jun-2026: CONMEBOL ~+50 Elo subvalorada). Mismo confed → se cancela.
+    """
+    if db_key not in _CONFED_OFFSET_CACHE:
+        try:
+            rows = conn.execute(
+                "SELECT confederation, offset FROM confed_elo_offset").fetchall()
+            _CONFED_OFFSET_CACHE[db_key] = {r[0]: r[1] for r in rows}
+        except Exception:
+            _CONFED_OFFSET_CACHE[db_key] = {}
+    return _CONFED_OFFSET_CACHE[db_key]
+
+
 def predict_match(
     home_id: int,
     away_id: int,
@@ -1068,6 +1088,7 @@ def predict_match(
     use_strength: bool = True,   # activar mejora HAS/HDS/AAS/ADS
     stage: str = "group",        # "group" | "knockout" — sensibilidad del factor veterano
     use_veteran: bool = True,    # activar factor experiencia mundialista (A/B testing)
+    use_confed_adj: bool = True, # corregir Elo por sesgo de confederación (A/B testing)
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -1079,6 +1100,23 @@ def predict_match(
     db_key    = str(db_path)
     home_elo  = _get_elo(conn, home_id)
     away_elo  = _get_elo(conn, away_id)
+
+    # Corrección por confederación: se aplica al Elo fuente para que propague
+    # a TODOS los factores derivados (λ Elo, h_att_elo, presión-vs-elite, etc.)
+    h_confed_off = a_confed_off = 0.0
+    if use_confed_adj:
+        offs = _get_confed_offsets(conn, db_key)
+        if offs:
+            _confeds = {r[0]: r[1] for r in conn.execute(
+                "SELECT id, confederation FROM teams WHERE id IN (?,?)",
+                (home_id, away_id))}
+            hc = _confeds.get(home_id)
+            ac = _confeds.get(away_id)
+            if hc and ac and hc != ac:
+                h_confed_off = offs.get(hc, 0.0)
+                a_confed_off = offs.get(ac, 0.0)
+                home_elo += h_confed_off
+                away_elo += a_confed_off
     home_form = _get_form(conn, home_id)
     away_form = _get_form(conn, away_id)
     home_xi   = _get_xi_rating(conn, home_id)
@@ -1609,6 +1647,8 @@ def predict_match(
         # Breakdown por factor
         "_factors": {
             "elo_diff":       round(elo_diff, 1),
+            "confed_adj_home": round(h_confed_off, 1),
+            "confed_adj_away": round(a_confed_off, 1),
             "form_home":      round(home_form["form_score"], 3),
             "form_away":      round(away_form["form_score"], 3),
             "xi_home":        round(home_xi, 3),

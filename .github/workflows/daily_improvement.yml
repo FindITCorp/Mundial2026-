@@ -67,6 +67,27 @@ jobs:
         env:
           APIFOOT: ${{ secrets.APIFOOT }}
 
+      # ── FASE 0b: Sincronizar resultados varados + refit sesgo confederación ──
+      - name: Sync stranded results (team_matches → wc_matches) + confed bias refit
+        run: |
+          cd $GITHUB_WORKSPACE
+          python3 -c "
+          import sys, sqlite3
+          sys.path.insert(0, '.')
+          try:
+              from scripts.sync_friendly_results import sync
+              conn = sqlite3.connect('data/mundial2026.db')
+              n = sync(conn); conn.commit(); conn.close()
+              print(f'sync_friendly_results: {n} resultados')
+          except Exception as e:
+              print(f'sync skipped: {e}')
+          try:
+              import subprocess
+              subprocess.run(['python3', 'scripts/fit_confederation_bias.py'], check=False)
+          except Exception as e:
+              print(f'confed fit skipped: {e}')
+          "
+
       # ── FASE 1: Predecir partidos de los próximos 3 días ─────────────────
       - name: Predict upcoming matches
         run: |
