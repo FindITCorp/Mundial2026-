@@ -9,6 +9,8 @@ on:
         default: 'all'
   schedule:
     - cron: '0 8 * * 1'      # Lunes 8am UTC (100 req/dia api-sports)
+    - cron: '0 5 * 6 *'      # Diario 5am UTC en JUNIO (torneo): convocados + stats frescos
+    - cron: '0 5 * 7 *'      # Diario 5am UTC en JULIO (torneo)
 
 jobs:
   fetch-players:

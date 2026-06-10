@@ -18,6 +18,8 @@ on:
     - cron: '0,30 14-23 21-30 6 *'    # June 21-30: Group stage day 11-20
     - cron: '0,30 14-23 1-9 7 *'      # July 1-9: Round of 32 / Round of 16
     - cron: '0,30 17-23 10-19 7 *'    # July 10-19: Quarters, Semis, Final
+    - cron: '0,30 0-3 12-30 6 *'      # Madrugada UTC: partidos nocturnos MX/US-West (junio)
+    - cron: '0,30 0-3 1-20 7 *'       # Madrugada UTC: partidos nocturnos (julio)
 
 jobs:
   match_day_update:
@@ -157,6 +159,43 @@ jobs:
                   time.sleep(2)
           except Exception as e:
               print(f"Error: {e}")
+          EOF
+
+      - name: Fetch lineups by date (api-sports, budget-aware) + sync confirmed XI
+        run: |
+          python - <<'EOF'
+          import sys, sqlite3
+          from datetime import datetime, date
+          sys.path.insert(0, '.')
+
+          # Gating de presupuesto (free tier 100 req/día): correr el fetch
+          # por-fecha solo 1 vez por hora (minuto < 15) y solo si hay partido
+          # de hoy/ayer sin jugar. Lineups salen ~40 min antes del kickoff.
+          now = datetime.utcnow()
+          conn = sqlite3.connect('data/mundial2026.db')
+          pending = conn.execute(
+              "SELECT COUNT(*) FROM wc_matches WHERE played=0 AND date BETWEEN date('now','-1 day') AND date('now')"
+          ).fetchone()[0]
+          conn.close()
+          if pending and now.minute < 15:
+              try:
+                  from scripts.fetch_apisports_today import run as fetch_run
+                  out = fetch_run()
+                  print(f"fetch_apisports_today: {out.get('wc_fixtures_count',0)} fixtures WC, {out.get('requests_used','?')} req")
+                  from scripts.store_apisports_today import run as store_run
+                  store_run()
+              except Exception as e:
+                  print(f'fetch/store by-date skipped: {e}')
+          else:
+              print(f'Sin fetch por-fecha (pending={pending}, min={now.minute})')
+
+          try:
+              from scripts.sync_confirmed_xi import sync as xi_sync
+              conn = sqlite3.connect('data/mundial2026.db')
+              n = xi_sync(conn); conn.commit(); conn.close()
+              print(f'sync_confirmed_xi: {n} equipos con XI real')
+          except Exception as e:
+              print(f'sync_confirmed_xi skipped: {e}')
           EOF
 
       - name: Fetch live scores (Free API Live Football Data)

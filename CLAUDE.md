@@ -217,8 +217,15 @@ python3 scripts/evaluate_model.py                   # evalúa + refit model_bias
 | Workflow | Trigger | Scope |
 |----------|---------|-------|
 | `fetch_data.yml` | Diario 7am UTC + push | Auto-detectado |
-| `match_day.yml` | Cada 30min durante partidos | wc |
-| `fetch_players.yml` | Lunes 8am UTC | squads |
+| `match_day.yml` | Cada 30min 14:00-23:30 UTC **+ 00:00-03:30 UTC** (nocturnos MX/US) | wc + lineups por-fecha + sync XI |
+| `fetch_players.yml` | Lunes 8am + **DIARIO 5am UTC jun-jul** (torneo) | squads/convocados + club stats |
+| `daily_improvement.yml` | Diario 8am UTC | sync resultados + confed refit + sync XI + predict + evaluate |
+
+**Cadena de alineaciones (10-jun):** api-sports `/fixtures?date=` → `fetch_apisports_today.py`
+(cap 80 req, gateado a 1x/hora con partidos pendientes) → `store_apisports_today.py` →
+`match_lineups` → **`scripts/sync_confirmed_xi.py`** → `projected_lineups` → factor XI (18%)
+del modelo. Antes el XI confirmado NUNCA llegaba al modelo (eslabón creado 10-jun).
+Regla: solo aplica XI con ≥10 titulares mapeados; convocado nuevo se inserta.
 
 ### Triggear manualmente:
 ```bash
