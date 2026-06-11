@@ -1106,6 +1106,42 @@ def _get_h2h(conn, tid1: int, tid2: int, n: int = 8) -> dict:
 
 _CONFED_OFFSET_CACHE: dict[str, dict[str, float]] = {}
 _TEAM_OFFSET_CACHE: dict[str, dict[int, float]] = {}
+_STRENGTHS_CACHE: dict[str, dict[int, dict]] = {}
+
+
+def _get_strengths(conn, db_key: str) -> dict[int, dict]:
+    """Perfiles fortaleza/debilidad por eje (scripts/team_strengths.py).
+    {team_id: {'ataque': z, 'defensa': z, ..., 'n': partidos}}"""
+    if db_key not in _STRENGTHS_CACHE:
+        out: dict[int, dict] = {}
+        try:
+            for tid, ax, z, n in conn.execute(
+                    "SELECT team_id, axis, z, n FROM team_strengths"):
+                d = out.setdefault(tid, {"n": n})
+                d[ax] = z
+        except Exception:
+            pass
+        _STRENGTHS_CACHE[db_key] = out
+    return _STRENGTHS_CACHE[db_key]
+
+
+def _strengths_matchup(att: dict | None, deff: dict | None) -> float:
+    """Multiplicador del λ atacante cuando sus fortalezas golpean debilidades
+    del rival (pedido 11-jun: 'defensa débil vs ataque fuerte → goleada').
+
+    Interacciones (z-diferencias, coeficientes chicos — Elo/xG ya capturan el
+    nivel general; esto solo añade el CRUCE de ejes):
+      ataque vs defensa   (la goleada clásica)
+      aéreo vs aéreo      (dominar el juego aéreo rival)
+      pressing vs seguridad (asfixiar a un rival impreciso)
+    Cap total ±8%. Neutral (1.0) si algún lado tiene n<3.
+    """
+    if not att or not deff or att.get("n", 0) < 3 or deff.get("n", 0) < 3:
+        return 1.0
+    adj = (0.020 * ((att.get("ataque", 0.0)) - (deff.get("defensa", 0.0)))
+           + 0.015 * ((att.get("aereo", 0.0)) - (deff.get("aereo", 0.0)))
+           + 0.012 * ((att.get("pressing", 0.0)) - (deff.get("seguridad", 0.0))))
+    return 1.0 + max(-0.08, min(0.08, adj))
 
 
 def _get_confed_offsets(conn, db_key: str) -> dict[str, float]:
@@ -1151,6 +1187,7 @@ def predict_match(
     stage: str = "group",        # "group" | "knockout" — sensibilidad del factor veterano
     use_veteran: bool = True,    # activar factor experiencia mundialista (A/B testing)
     use_confed_adj: bool = True, # corregir Elo por sesgo de confederación (A/B testing)
+    use_matchup: bool | None = None,  # fortalezas vs debilidades (None → env WC_MATCHUP)
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -1216,6 +1253,16 @@ def predict_match(
     a_vet_f *= a_press_adj
     if not use_veteran:
         h_vet_f = a_vet_f = 1.0
+
+    # Fortalezas vs debilidades (team_strengths) — cruce de ejes de juego
+    if use_matchup is None:
+        import os
+        use_matchup = os.environ.get("WC_MATCHUP", "1") != "0"
+    h_str_mu = a_str_mu = 1.0
+    if use_matchup:
+        _str = _get_strengths(conn, db_key)
+        h_str_mu = _strengths_matchup(_str.get(home_id), _str.get(away_id))
+        a_str_mu = _strengths_matchup(_str.get(away_id), _str.get(home_id))
 
     _hn = conn.execute("SELECT name FROM teams WHERE id=?", (home_id,)).fetchone()
     _an = conn.execute("SELECT name FROM teams WHERE id=?", (away_id,)).fetchone()
@@ -1417,6 +1464,7 @@ def predict_match(
         * (1 - home_absence)
         * h_perf_press_f                             # high-press vs low-possession bonus
         * h_perf_aerial_f                            # aerial dominance set-piece edge
+        * h_str_mu                                   # fortalezas vs debilidades (±8%)
     )
     la_raw = (
         BASE_GOALS
@@ -1437,6 +1485,7 @@ def predict_match(
         * a_vet_f                                    # experiencia mundialista (±4.5%)
         * a_perf_press_f                             # high-press vs low-possession bonus
         * a_perf_aerial_f                            # aerial dominance set-piece edge
+        * a_str_mu                                   # fortalezas vs debilidades (±8%)
         * (1 - away_absence)
     )
 
@@ -1734,6 +1783,8 @@ def predict_match(
             # Experiencia mundialista
             "vet_factor_home":  round(h_vet_f, 4),
             "vet_factor_away":  round(a_vet_f, 4),
+            "strengths_mu_home": round(h_str_mu, 4),
+            "strengths_mu_away": round(a_str_mu, 4),
             "vet_exp_home":     round(h_vet["exp_score"], 3),
             "vet_exp_away":     round(a_vet["exp_score"], 3),
             # Rendimiento real del XI — StatsBomb

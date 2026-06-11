@@ -99,6 +99,11 @@ jobs:
           except Exception as e:
               print(f'fix_stats_links skipped: {e}')
           try:
+              import subprocess as sp2
+              sp2.run(['python3', 'scripts/team_strengths.py'], check=False)
+          except Exception as e:
+              print(f'team_strengths skipped: {e}')
+          try:
               from scripts.sync_player_match_ratings import sync as pr_sync
               conn = sqlite3.connect('data/mundial2026.db')
               pr_sync(conn); conn.commit(); conn.close()
