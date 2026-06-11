@@ -81,7 +81,12 @@ def store_predictions(db_path=DB, days_ahead=3):
         else:
             winner = "Draw"
 
-        scoreline = f"{round(lh)}-{round(la)}"
+        # PRONÓSTICO OFICIAL = marcador exacto más probable del grid Poisson
+        # (pedido 11-jun: el exacto es la guía de alineación datos↔realidad;
+        # antes se guardaba round(λ) que podía diferir del exacto del modelo)
+        top = result.get("top_scores") or []
+        scoreline = result.get("predicted_score") or f"{round(lh)}-{round(la)}"
+        score_prob = round(top[0][1], 1) if top else None
 
         # Siempre reemplaza — el modelo mejora cada día con bias actualizado.
         # Sella nombres + versión: si el fixture cambia bajo la predicción,
@@ -90,8 +95,8 @@ def store_predictions(db_path=DB, days_ahead=3):
             INSERT INTO match_predictions
               (match_id, predicted_at, home_win_prob, draw_prob, away_win_prob,
                pred_home_goals, pred_away_goals, pred_winner, pred_scoreline,
-               model_version, home_team_name, away_team_name)
-            VALUES (?,?,?,?,?,?,?,?,?,'1.3-confed',?,?)
+               pred_score_prob, model_version, home_team_name, away_team_name)
+            VALUES (?,?,?,?,?,?,?,?,?,?,'1.4-exacto',?,?)
             ON CONFLICT(match_id) DO UPDATE SET
               predicted_at    = excluded.predicted_at,
               home_win_prob   = excluded.home_win_prob,
@@ -101,14 +106,16 @@ def store_predictions(db_path=DB, days_ahead=3):
               pred_away_goals = excluded.pred_away_goals,
               pred_winner     = excluded.pred_winner,
               pred_scoreline  = excluded.pred_scoreline,
+              pred_score_prob = excluded.pred_score_prob,
               model_version   = excluded.model_version,
               home_team_name  = excluded.home_team_name,
               away_team_name  = excluded.away_team_name,
               evaluated       = 0
         """, (match_id, today_str, hw, dw, aw, lh, la, winner, scoreline,
-              h_name, a_name))
+              score_prob, h_name, a_name))
         stored += 1
-        print(f"OK ({winner}, {scoreline})")
+        print(f"OK ({winner}, exacto {scoreline}" +
+              (f" @{score_prob}%" if score_prob else "") + ")")
 
     conn.commit()
     conn.close()

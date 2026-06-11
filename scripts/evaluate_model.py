@@ -77,6 +77,7 @@ def evaluate(db_path=DB, verbose=True) -> dict:
     # ── Acumular métricas ────────────────────────────────────────────────────
     n = len(rows)
     correct_winner = 0
+    exact_hits = 0       # pronóstico oficial de marcador EXACTO acertado
     brier_total = 0.0
     log_loss_total = 0.0
     goal_error_home = []   # predicho - real
@@ -116,6 +117,8 @@ def evaluate(db_path=DB, verbose=True) -> dict:
         ok = (real_w == pred_w)
         if ok:
             correct_winner += 1
+        if psc and psc == f"{rh}-{ra}":
+            exact_hits += 1
 
         goal_error_home.append((ph or 1.3) - rh)
         goal_error_away.append((pa or 1.2) - ra)
@@ -226,6 +229,7 @@ def evaluate(db_path=DB, verbose=True) -> dict:
         "lambda_scale": round(lambda_scale, 4),
         "draw_miss_rate": round(draw_missed / n, 3),
         "upset_miss_rate": round(upset_missed / n, 3),
+        "exact_score_rate": round(exact_hits / n, 3),
         "notes": notes_str,
     }
 
@@ -242,6 +246,7 @@ def _print_report(s, log_entries, rows):
     print(f"  EVALUACIÓN DEL MODELO  ({s['n_matches']} partidos)")
     print(f"{'═'*62}")
     print(f"  Accuracy (ganador correcto):  {s['accuracy']*100:.1f}%")
+    print(f"  Marcador EXACTO acertado:     {s.get('exact_score_rate',0)*100:.1f}%  (guía de alineación)")
     print(f"  Brier score (0=perfecto):     {s['avg_brier']:.4f}")
     print(f"  Log-loss:                     {s['avg_log_loss']:.4f}")
     print(f"  Sesgo goles locales:          {s['home_lambda_bias']:+.3f} goles/partido")
