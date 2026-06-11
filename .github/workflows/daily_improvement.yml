@@ -93,6 +93,12 @@ jobs:
               print(f'sync_confirmed_xi: {n} equipos')
           except Exception as e:
               print(f'sync_confirmed_xi skipped: {e}')
+          try:
+              from scripts.sync_player_match_ratings import sync as pr_sync
+              conn = sqlite3.connect('data/mundial2026.db')
+              pr_sync(conn); conn.commit(); conn.close()
+          except Exception as e:
+              print(f'sync_player_match_ratings skipped: {e}')
           "
 
       # ── FASE 1: Predecir partidos de los próximos 3 días ─────────────────

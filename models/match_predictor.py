@@ -608,7 +608,20 @@ def _get_xi_rating(conn, team_id: int) -> float:
                pcs.sb_matches
         FROM projected_lineups pl
         JOIN players p ON p.id = pl.player_id
-        LEFT JOIN player_ratings pr ON pr.player_id = pl.player_id AND pr.context = 'nat'
+        LEFT JOIN (
+            -- player_ratings guarda UNA FILA POR PARTIDO: sin agregar, el join
+            -- explotaba (cada titular contaba N veces y ratings viejos diluían
+            -- a los nuevos — reclamo usuario 11-jun: stats cargados ignorados).
+            -- Promedio de los últimos 5 ratings 'nat' por jugador.
+            SELECT player_id, AVG(rating) AS rating FROM (
+                SELECT player_id, rating,
+                       ROW_NUMBER() OVER (PARTITION BY player_id
+                                          ORDER BY computed_at DESC, id DESC) AS rn
+                FROM player_ratings
+                WHERE context = 'nat' AND rating IS NOT NULL
+            ) WHERE rn <= 5
+            GROUP BY player_id
+        ) pr ON pr.player_id = pl.player_id
         LEFT JOIN player_club_stats pcs ON pcs.player_id = pl.player_id AND pcs.season = '2024/25'
         WHERE pl.team_id = ? AND pl.is_starter = 1
     """, (team_id,)).fetchall()
