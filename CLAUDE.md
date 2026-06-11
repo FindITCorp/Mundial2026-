@@ -229,7 +229,12 @@ python3 scripts/fix_stats_links.py        # re-enlaza stats huérfanas (match_id
                                           # de team_matches → wc_matches; bug 11-jun)
 python3 scripts/sync_player_match_ratings.py  # match_player_stats.rating →
                                           # player_ratings 'nat' (matching multi-clave)
-python3 scripts/team_strengths.py --report    # fortalezas/debilidades 8 ejes →
+python3 scripts/team_strengths.py --report
+
+# METODOLOGÍA BLOQUEADA (11-jun, elegida por backtest — NO cambiar sin uno mejor):
+# pred_scoreline = MEDIANA de goles por equipo + consistencia ganador↔marcador.
+# Backtest 278 pj/240d: mediana 15.8% de exactos vs argmax 15.1% (Δ+0.7pp).
+# Cualquier cambio futuro requiere backtest que la supere, no preferencia.    # fortalezas/debilidades 8 ejes →
                                           # tabla team_strengths (factor matchup ±8%,
                                           # gate n>=3, A/B con WC_MATCHUP=0)
 ```
