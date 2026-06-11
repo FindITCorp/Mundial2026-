@@ -73,7 +73,7 @@ def store_predictions(db_path=DB, days_ahead=3):
               (match_id, predicted_at, home_win_prob, draw_prob, away_win_prob,
                pred_home_goals, pred_away_goals, pred_winner, pred_scoreline,
                model_version, home_team_name, away_team_name)
-            VALUES (?,?,?,?,?,?,?,?,?,'1.2-veteran',?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,'1.3-confed',?,?)
             ON CONFLICT(match_id) DO UPDATE SET
               predicted_at    = excluded.predicted_at,
               home_win_prob   = excluded.home_win_prob,
