@@ -223,6 +223,15 @@ python3 scripts/validate_model.py --days 365
 python3 scripts/sync_friendly_results.py            # auto desde team_matches
 python3 scripts/sync_friendly_results.py --set 147 2-1   # resultado manual
 python3 scripts/evaluate_model.py                   # evalúa + refit model_bias
+
+# Pipeline de datos cargados a mano (11-jun — todo corre solo en el workflow):
+python3 scripts/fix_stats_links.py        # re-enlaza stats huérfanas (match_id
+                                          # de team_matches → wc_matches; bug 11-jun)
+python3 scripts/sync_player_match_ratings.py  # match_player_stats.rating →
+                                          # player_ratings 'nat' (matching multi-clave)
+python3 scripts/team_strengths.py --report    # fortalezas/debilidades 8 ejes →
+                                          # tabla team_strengths (factor matchup ±8%,
+                                          # gate n>=3, A/B con WC_MATCHUP=0)
 ```
 
 ---
