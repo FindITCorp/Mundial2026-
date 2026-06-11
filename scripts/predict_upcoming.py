@@ -15,11 +15,19 @@ sys.path.insert(0, str(BASE_DIR))
 DB = BASE_DIR / "data" / "mundial2026.db"
 
 
-def _predict_safe(home_id, away_id, db_path):
+# Anfitriones WC2026: por formato FIFA juegan TODA la fase de grupos en su
+# país (México: Azteca/Guadalajara; USA: LA/Seattle; Canadá: Toronto/Vancouver).
+# El inaugural México-Sudáfrica se predecía como cancha neutral (bug 11-jun).
+# Eliminatorias: neutral (la sede depende del bracket y no está cargada).
+HOSTS = {"Mexico", "USA", "Canada"}
+
+
+def _predict_safe(home_id, away_id, db_path, neutral=True, stage="group"):
     """Llama predict_match y captura cualquier excepción."""
     try:
         from models.match_predictor import predict_match
-        return predict_match(home_id, away_id, neutral=True, db_path=db_path)
+        return predict_match(home_id, away_id, neutral=neutral,
+                             stage=stage, db_path=db_path)
     except Exception as e:
         print(f"    [WARN] predict_match falló: {e}")
         return None
@@ -32,7 +40,8 @@ def store_predictions(db_path=DB, days_ahead=3):
     today_str = today.isoformat()
 
     upcoming = conn.execute("""
-        SELECT id, home_team_id, away_team_id, home_team_name, away_team_name, date
+        SELECT id, home_team_id, away_team_id, home_team_name, away_team_name,
+               date, stage
         FROM wc_matches
         WHERE date >= ? AND date <= ?
           AND (score_home IS NULL OR played = 0)
@@ -43,9 +52,18 @@ def store_predictions(db_path=DB, days_ahead=3):
     print(f"[predict_upcoming] {len(upcoming)} partidos próximos ({today_str} → {cutoff})")
     stored = 0
 
-    for match_id, h_id, a_id, h_name, a_name, mdate in upcoming:
-        print(f"  Prediciendo {h_name} vs {a_name} ({mdate})...", end=" ")
-        result = _predict_safe(h_id, a_id, db_path)
+    for match_id, h_id, a_id, h_name, a_name, mdate, stage in upcoming:
+        stage = (stage or "group").lower()
+        is_group = "group" in stage
+        is_knockout = any(k in stage for k in
+                          ("knockout", "round", "quarter", "semi", "final", "32", "16"))
+        # Anfitrión jugando en casa en fase de grupos → localía real
+        neutral = not (is_group and h_name in HOSTS)
+        loc = " [LOCAL]" if not neutral else ""
+        print(f"  Prediciendo {h_name} vs {a_name} ({mdate}){loc}...", end=" ")
+        result = _predict_safe(h_id, a_id, db_path,
+                               neutral=neutral,
+                               stage="knockout" if is_knockout else "group")
         if result is None:
             print("SKIPPED")
             continue

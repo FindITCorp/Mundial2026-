@@ -162,10 +162,25 @@ r = predict_match(home_id, away_id, neutral=True)
   Fit 10-jun: CONMEBOL +60, UEFA +22, CAF -2, CONCACAF -31, AFC -36.
   Backtest A/B 365d (458 pj): acc 65.3→65.9 (+0.7pp), Brier 0.4630→0.4589;
   en inter-confed (355 pj): +0.8pp. RE-FITTEAR tras cada tanda WC (el workflow lo hace).
+- ★ **Paquete 4 fixes (11-jun, análisis México-Sudáfrica):**
+  1. *Offset por EQUIPO* (`team_elo_offset`, mismo fit script): blend señal propia ↔
+     confederación, w=n/(n+30), cap ±75. México -40 propio (n=28, peor que pool -29:
+     bajo rendimiento inter-confed 2023-25 pese a la buena forma 2026), Brasil +62,
+     Argentina/Venezuela +75 (cap). El predictor usa team offset si existe, sino confed.
+  2. *xG ajustado por rival* (`_get_team_xg_from_stats`): cada xG se escala por
+     (opp_elo/1550)^1.5 — 1.9 xG vs Nicaragua ya no vale más que 0.5 vs Bélgica.
+  3. *Shrink XI por cobertura* (`_get_xi_rating`): xi = cov·xi + (1-cov)·XI_PIVOT.
+     Sin datos de jugadores → factor neutral 1.0, no penalización fantasma
+     (México 1/11 con stats vs Sudáfrica 7/11 Mamelodi comparaba basura).
+  4. *Localía anfitriones* (`predict_upcoming.py` HOSTS): México/USA/Canadá juegan
+     fase de grupos EN CASA (neutral=False) — el inaugural en el Azteca no es neutral.
+  Backtest A/B 240d (275 pj): acc 64.4→65.1 (+0.7pp), Brier 0.4790→0.4772,
+  draw recall 71.0→75.4 (+4.4pp). México-Sudáfrica neto: 58.6→56.1 (localía +4
+  compensada por offset propio -40 y pérdida del bonus caps fantasma del XI).
 
 **Parámetros calibrados:**
 - `BASE_GOALS = 1.22`
-- Neutral venue para todos los partidos WC
+- Neutral venue para WC EXCEPTO anfitriones en fase de grupos (fix 11-jun)
 - Draw boost W-5 framework (5 señales)
 - model_bias λ_scale 0.9005 (refit 10-jun con veterano activo, 68 partidos)
 

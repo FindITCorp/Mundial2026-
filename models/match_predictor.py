@@ -302,6 +302,10 @@ PRIOR_N         = 3.0      # reducido 4.0→3.0: confiar más en forma reciente 
 PRIOR_GF        = 1.35
 PRIOR_GA        = 1.20
 
+# Media real del score XI entre equipos WC (WC2022 + Euro2024 + CA2024 + WC2018).
+# Usada como pivote del factor XI y como destino del shrink por cobertura.
+XI_PIVOT        = 0.312
+
 
 def _is_competitive(competition: str) -> bool:
     if not competition:
@@ -537,16 +541,34 @@ def _get_form(conn, team_id: int, n: int = 10) -> dict:
 
 
 def _get_team_xg_from_stats(conn, team_id: int, n: int = 8) -> float | None:
-    """Promedio xG real por partido desde match_team_stats (Sofascore). None si sin datos."""
+    """Promedio xG real por partido desde match_team_stats (Sofascore),
+    AJUSTADO por fuerza del rival. None si sin datos.
+
+    Sin ajuste, 1.9 xG vs Nicaragua valía más que 0.5 xG vs Bélgica y el
+    modelo concluía que Sudáfrica "ataca más" que México (11-jun-2026).
+    Misma convención SOS que _get_form: peso (opp_elo/SOS_PIVOT)^SOS_EXP."""
     rows = conn.execute("""
-        SELECT mts.xg FROM match_team_stats mts
+        SELECT mts.xg,
+               CASE WHEN wm.home_team_id = ? THEN wm.away_team_id
+                    ELSE wm.home_team_id END AS opp_id
+        FROM match_team_stats mts
         JOIN wc_matches wm ON wm.id = mts.match_id
         WHERE mts.team_id = ? AND mts.xg IS NOT NULL
         ORDER BY wm.date DESC LIMIT ?
-    """, (team_id, n)).fetchall()
+    """, (team_id, team_id, n)).fetchall()
     if not rows:
         return None
-    return sum(r[0] for r in rows) / len(rows)
+    num = denom = 0.0
+    for xg, opp_id in rows:
+        opp_elo = None
+        if opp_id is not None:
+            r = conn.execute("SELECT elo FROM team_elo WHERE team_id=?",
+                             (opp_id,)).fetchone()
+            opp_elo = r[0] if r else None
+        w = ((opp_elo or SOS_DEFAULT_ELO) / SOS_PIVOT) ** SOS_EXP
+        num += xg * w
+        denom += 1.0
+    return num / denom if denom else None
 
 
 def _get_team_possession_from_stats(conn, team_id: int, n: int = 8) -> float | None:
@@ -672,6 +694,17 @@ def _get_xi_rating(conn, team_id: int) -> float:
     any_club_xg    = any((r["xg"] or 0) > 0 for r in rows)
     if not any_tournament:
         xi = min(xi, 0.62 if any_club_xg else 0.360)
+
+    # Shrink por cobertura de señal (11-jun-2026): un XI sin datos (México
+    # 1/11 con stats) competía con caps-score bajo contra un XI bien poblado
+    # (Sudáfrica 7/11 Mamelodi) — el factor castigaba la FALTA DE DATOS, no
+    # la calidad. Sin señal → pivote neutral (factor 1.0), no penalización.
+    signal = sum(1 for r in rows
+                 if (r["sb_matches"] or 0) > 0
+                 or (r["xg"] or 0) > 0
+                 or r["rating"] is not None)
+    cov = signal / len(rows)
+    xi = cov * xi + (1 - cov) * XI_PIVOT
 
     return xi
 
@@ -1059,6 +1092,7 @@ def _get_h2h(conn, tid1: int, tid2: int, n: int = 8) -> dict:
 # ── Motor principal ────────────────────────────────────────────────────────────
 
 _CONFED_OFFSET_CACHE: dict[str, dict[str, float]] = {}
+_TEAM_OFFSET_CACHE: dict[str, dict[int, float]] = {}
 
 
 def _get_confed_offsets(conn, db_key: str) -> dict[str, float]:
@@ -1076,6 +1110,21 @@ def _get_confed_offsets(conn, db_key: str) -> dict[str, float]:
         except Exception:
             _CONFED_OFFSET_CACHE[db_key] = {}
     return _CONFED_OFFSET_CACHE[db_key]
+
+
+def _get_team_offsets(conn, db_key: str) -> dict[int, float]:
+    """Offsets de Elo por EQUIPO (blend señal propia ↔ confederación).
+
+    Evita el doble castigo del pool: México no paga la tarifa CONCACAF media
+    si su propio récord inter-confed es de élite (11-jun-2026)."""
+    if db_key not in _TEAM_OFFSET_CACHE:
+        try:
+            rows = conn.execute(
+                "SELECT team_id, offset FROM team_elo_offset").fetchall()
+            _TEAM_OFFSET_CACHE[db_key] = {r[0]: r[1] for r in rows}
+        except Exception:
+            _TEAM_OFFSET_CACHE[db_key] = {}
+    return _TEAM_OFFSET_CACHE[db_key]
 
 
 def predict_match(
@@ -1106,15 +1155,17 @@ def predict_match(
     h_confed_off = a_confed_off = 0.0
     if use_confed_adj:
         offs = _get_confed_offsets(conn, db_key)
-        if offs:
+        team_offs = _get_team_offsets(conn, db_key)
+        if offs or team_offs:
             _confeds = {r[0]: r[1] for r in conn.execute(
                 "SELECT id, confederation FROM teams WHERE id IN (?,?)",
                 (home_id, away_id))}
             hc = _confeds.get(home_id)
             ac = _confeds.get(away_id)
             if hc and ac and hc != ac:
-                h_confed_off = offs.get(hc, 0.0)
-                a_confed_off = offs.get(ac, 0.0)
+                # offset por equipo (blend propio↔confed) > offset de pool
+                h_confed_off = team_offs.get(home_id, offs.get(hc, 0.0))
+                a_confed_off = team_offs.get(away_id, offs.get(ac, 0.0))
                 home_elo += h_confed_off
                 away_elo += a_confed_off
     home_form = _get_form(conn, home_id)
@@ -1263,7 +1314,7 @@ def predict_match(
     # Factor XI: normalizado contra la media real de todos los equipos WC (0.265)
     # Equipos sobre la media reciben bonus, bajo la media reciben penalización
     # Cap 0.75–1.40 para evitar distorsiones por cobertura incompleta de datos
-    XI_PIVOT   = 0.312  # media real del score XI entre equipos WC (WC2022 + Euro2024 + CA2024 + WC2018)
+    # (XI_PIVOT es constante de módulo — también destino del shrink de cobertura)
     h_xi_f     = min(1.40, max(0.75, home_xi / XI_PIVOT))
     a_xi_f     = min(1.40, max(0.75, away_xi / XI_PIVOT))
 
