@@ -171,7 +171,7 @@ def build(conn, report: bool = False) -> int:
                UNION SELECT DISTINCT away_team_id FROM wc_matches WHERE stage='group'""")}
         print(f"\n{'='*64}\n  FORTALEZAS / DEBILIDADES (z±0.6, {len(profiles)} equipos)\n{'='*64}")
         for tid, (p, n) in sorted(profiles.items(),
-                                  key=lambda x: -(x[1][0]["ataque"])):
+                                  key=lambda x: -(x[1][0]["ataque"] or 0)):
             if tid not in wc_teams:
                 continue
             name = conn.execute("SELECT name FROM teams WHERE id=?", (tid,)).fetchone()[0]
