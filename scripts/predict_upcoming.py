@@ -81,12 +81,42 @@ def store_predictions(db_path=DB, days_ahead=3):
         else:
             winner = "Draw"
 
-        # PRONÓSTICO OFICIAL = marcador exacto más probable del grid Poisson
-        # (pedido 11-jun: el exacto es la guía de alineación datos↔realidad;
-        # antes se guardaba round(λ) que podía diferir del exacto del modelo)
+        # PRONÓSTICO OFICIAL (pedido 11-jun): el marcador que el modelo arroja
+        # integrando TODAS las variables. El argmax del grid favorece 1-0/0-1
+        # por artefacto (cada línea baja concentra más probabilidad individual)
+        # e ignora la forma de la distribución. Usamos la MEDIANA de goles por
+        # equipo sobre los λ finales (que ya sintetizan Elo+forma+XI+xG+balón
+        # parado+matchup+veterano+localía) + consistencia con el ganador.
+        import math
+        def _median_pois(lam):
+            prob = math.exp(-lam); cdf = prob; k = 0
+            while cdf < 0.5 and k < 10:
+                k += 1
+                prob *= lam / k
+                cdf += prob
+            return k
         top = result.get("top_scores") or []
-        scoreline = result.get("predicted_score") or f"{round(lh)}-{round(la)}"
-        score_prob = round(top[0][1], 1) if top else None
+        mh, ma = _median_pois(lh), _median_pois(la)
+        def _grid_prob(sc):
+            return next((round(pr, 1) for s_, pr in top if s_ == sc), None)
+        # consistencia ganador↔marcador: si la mediana contradice al ganador,
+        # tomar la línea más probable del grid coherente con el ganador
+        def _pick(cond):
+            for s_, pr in top:
+                a_, b_ = (int(x) for x in s_.split("-"))
+                if cond(a_, b_):
+                    return s_, round(pr, 1)
+            return None, None
+        scoreline = f"{mh}-{ma}"
+        if winner == h_name and mh <= ma:
+            scoreline, _ = _pick(lambda x, y: x > y) or (f"{ma+1}-{ma}", None)
+        elif winner == a_name and ma <= mh:
+            scoreline, _ = _pick(lambda x, y: y > x) or (f"{mh}-{mh+1}", None)
+        elif winner == "Draw" and mh != ma:
+            scoreline, _ = _pick(lambda x, y: x == y) or (f"{min(mh,ma)}-{min(mh,ma)}", None)
+        if scoreline is None:
+            scoreline = f"{mh}-{ma}"
+        score_prob = _grid_prob(scoreline)
 
         # Siempre reemplaza — el modelo mejora cada día con bias actualizado.
         # Sella nombres + versión: si el fixture cambia bajo la predicción,
