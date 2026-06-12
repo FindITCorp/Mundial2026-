@@ -1,0 +1,35 @@
+{
+  "api_key_present": true,
+  "hosts_tested": {
+    "sofascore.p.rapidapi.com": {
+      "status": 403,
+      "body": "{'message': 'You are not subscribed to this API.'}"
+    },
+    "sofascore3.p.rapidapi.com": {
+      "status": 403,
+      "body": "{'message': 'You are not subscribed to this API.'}"
+    },
+    "sofascore-v1.p.rapidapi.com": {
+      "status": 404,
+      "body": "{'message': \"API doesn't exists\"}"
+    },
+    "api-sofascore.p.rapidapi.com": {
+      "status": 404,
+      "body": "{'message': \"API doesn't exists\"}"
+    },
+    "alt:free-api-live-football-data.p.rapidapi.com": {
+      "status": 200,
+      "body": "{'status': 'success', 'response': {'leagues': [{'id': 42, 'name': 'Champions League', 'localizedName': 'Champions League', 'ccode': 'INT', 'logo': 'https://images.fotmob.com/image_resources/logo/leaguelogo/dark/42.png'}, {'id': 73, 'name': 'Europa League', 'localizedName': 'Europa League', 'ccode': "
+    }
+  },
+  "working_host": "free-api-live-football-data.p.rapidapi.com",
+  "team_search": {
+    "status": 404,
+    "body": "{'message': \"Endpoint '/api/v1/teams/search' does not exist\"}"
+  },
+  "near_events_status": 404,
+  "near_events_body": "{'message': \"Endpoint '/api/v1/team/3/near-events/0' does not exist\"}",
+  "sample_matches": [],
+  "errors": [],
+  "api_key_len": 50
+}
