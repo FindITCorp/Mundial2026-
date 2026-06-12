@@ -24,19 +24,9 @@ jobs:
       - run: pip install requests
 
       - name: Probe Sofascore RapidAPI hosts and endpoints
-        continue-on-error: true
         env:
           INPUT_API_KEY: ${{ github.event.inputs.api_key }}
           SECRET_API_KEY: ${{ secrets.SOFASCORE_RAPIDAPI_KEY }}
           TEAM_NAME: ${{ github.event.inputs.team_name }}
-        run: |
-          python3 scripts/probe_sofascore.py
-
-      - name: Push results to repo
-        if: always()
-        run: |
-          git config user.email "noreply@anthropic.com"
-          git config user.name "Claude"
-          git add scripts/sofascore_probe_results.json 2>/dev/null || true
-          git diff --cached --quiet || git commit -m "data: sofascore rapidapi probe results"
-          git push origin main || true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/probe_sofascore.py
