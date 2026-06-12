@@ -13,14 +13,19 @@ on:
         default: 'Brazil'
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - run: pip install requests
 
       - name: Probe Sofascore RapidAPI hosts and endpoints
@@ -30,3 +35,14 @@ jobs:
           TEAM_NAME: ${{ github.event.inputs.team_name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/probe_sofascore.py
+
+      - name: Git push fallback (si gh_push falló)
+        if: always()
+        run: |
+          git config user.email "noreply@anthropic.com"
+          git config user.name "Claude"
+          # Forzar add del archivo aunque no esté tracked
+          git add -f scripts/sofascore_probe_results.json 2>&1 || echo "add falló"
+          git status --short
+          git diff --cached --quiet && echo "nada que commitear" || \
+            (git commit -m "data: sofascore probe results [fallback git push]" && git push origin main)
