@@ -1,0 +1,178 @@
+name: Probe Sofascore RapidAPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_key:
+        description: 'RapidAPI Key (opcional si ya está en Secrets como SOFASCORE_RAPIDAPI_KEY)'
+        required: false
+        type: string
+      team_name:
+        description: 'Selección a buscar (default: Brazil)'
+        required: false
+        default: 'Brazil'
+        type: string
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+
+      - name: Probe Sofascore RapidAPI hosts and endpoints
+        env:
+          INPUT_API_KEY: ${{ github.event.inputs.api_key }}
+          SECRET_API_KEY: ${{ secrets.SOFASCORE_RAPIDAPI_KEY }}
+          TEAM_NAME: ${{ github.event.inputs.team_name }}
+        run: |
+          python3 - <<'EOF'
+          import os, json, time, requests
+
+          API_KEY = os.environ.get("INPUT_API_KEY") or os.environ.get("SECRET_API_KEY", "")
+          TEAM = os.environ.get("TEAM_NAME", "Brazil")
+
+          if not API_KEY:
+              print("ERROR: No API key provided.")
+              exit(1)
+
+          print(f"\n{'='*70}")
+          print(f"  SOFASCORE RAPIDAPI PROBE — buscando: {TEAM}")
+          print(f"  Key: {API_KEY[:12]}...{API_KEY[-6:]}")
+          print(f"{'='*70}\n")
+
+          # Hosts a probar (Sofascore wrappers en RapidAPI)
+          HOSTS = [
+              "sofascore.p.rapidapi.com",
+              "sofascore3.p.rapidapi.com",
+              "sofascore-v1.p.rapidapi.com",
+              "api-sofascore.p.rapidapi.com",
+          ]
+
+          def get(host, path, params=None):
+              url = f"https://{host}{path}"
+              headers = {
+                  "X-RapidAPI-Key": API_KEY,
+                  "X-RapidAPI-Host": host,
+              }
+              try:
+                  r = requests.get(url, headers=headers, params=params, timeout=15)
+                  return r.status_code, r.json() if r.headers.get('content-type','').startswith('application/json') else r.text[:500]
+              except Exception as e:
+                  return None, str(e)
+
+          working_host = None
+          team_id = None
+
+          # Paso 1: Encontrar host que responde
+          print("PASO 1: Detectar host activo")
+          print("-" * 50)
+          for host in HOSTS:
+              sc, data = get(host, "/api/v1/sport/football/scheduled-events/2026-06-12")
+              print(f"  {host}: HTTP {sc}")
+              if sc == 200:
+                  working_host = host
+                  print(f"  ✅ HOST ACTIVO: {host}")
+                  if isinstance(data, dict):
+                      print(f"     Keys: {list(data.keys())[:5]}")
+                  break
+              elif sc == 429:
+                  print(f"  ⚠️  Rate limit (host existe pero límite alcanzado)")
+                  working_host = host
+                  break
+              elif sc == 403:
+                  print(f"  🔒 403 — key inválida para este host")
+              elif sc is None:
+                  print(f"  ❌ Error: {data}")
+              time.sleep(0.5)
+
+          if not working_host:
+              print("\n❌ Ningún host Sofascore respondió. Probar hosts alternativos:")
+              # Alternativas: APIs de fútbol genéricas con datos Sofascore
+              alt_hosts = [
+                  ("free-api-live-football-data.p.rapidapi.com", "/football-search-players"),
+                  ("football-live-scores2.p.rapidapi.com", "/players/search"),
+                  ("footapi7.p.rapidapi.com", "/api/teams/search"),
+              ]
+              for host, path in alt_hosts:
+                  sc, data = get(host, path, {"searchQuery": TEAM})
+                  print(f"  {host}{path}: HTTP {sc}")
+                  if sc in (200, 429):
+                      working_host = host
+                      print(f"  ✅ ALTERNATIVA ACTIVA: {host}")
+                      break
+                  time.sleep(0.3)
+
+          if not working_host:
+              print("\n❌ FALLO TOTAL: Key no funciona con ningún host Sofascore en RapidAPI")
+              exit(1)
+
+          print(f"\nPASO 2: Buscar equipo '{TEAM}' en {working_host}")
+          print("-" * 50)
+
+          # Endpoints de búsqueda de equipos (varían por wrapper)
+          search_paths = [
+              f"/api/v1/teams/search?query={TEAM}",
+              f"/teams/search?name={TEAM}",
+              f"/api/v1/sport/football/teams/search?query={TEAM}",
+              f"/search/teams?query={TEAM}",
+          ]
+
+          for path in search_paths:
+              sc, data = get(working_host, path)
+              print(f"  GET {path}: HTTP {sc}")
+              if sc == 200 and isinstance(data, dict):
+                  print(f"  Keys: {list(data.keys())}")
+                  # Buscar team_id de Brazil/etc
+                  teams = data.get('teams', data.get('results', data.get('data', [])))
+                  if isinstance(teams, list) and teams:
+                      first = teams[0]
+                      print(f"  Primer resultado: {json.dumps(first, ensure_ascii=False)[:300]}")
+                      tid = first.get('id') or first.get('teamId') or first.get('team', {}).get('id')
+                      if tid:
+                          team_id = tid
+                          print(f"  ✅ team_id encontrado: {team_id}")
+                      break
+              time.sleep(0.3)
+
+          if not team_id:
+              print("  ⚠️ No se pudo extraer team_id, probando con ID conocido de Brasil (3)")
+              team_id = 3  # Sofascore interno: Brasil=3
+
+          print(f"\nPASO 3: Últimos 5 partidos del equipo id={team_id}")
+          print("-" * 50)
+
+          near_paths = [
+              f"/api/v1/team/{team_id}/near-events/0",
+              f"/teams/{team_id}/events/last/0",
+              f"/api/v1/team/{team_id}/events/last/0",
+              f"/teams/{team_id}/matches/recent",
+          ]
+
+          for path in near_paths:
+              sc, data = get(working_host, path)
+              print(f"  GET {path}: HTTP {sc}")
+              if sc == 200 and isinstance(data, dict):
+                  events = data.get('previousEvents', data.get('events', data.get('matches', [])))
+                  if isinstance(events, list) and events:
+                      print(f"  ✅ {len(events)} partidos encontrados!")
+                      for ev in events[-5:]:
+                          ht = ev.get('homeTeam', {}).get('name', '?')
+                          at = ev.get('awayTeam', {}).get('name', '?')
+                          hs = ev.get('homeScore', {}).get('current', '?')
+                          as_ = ev.get('awayScore', {}).get('current', '?')
+                          date = ev.get('startTimestamp', ev.get('date', '?'))
+                          print(f"    {ht} {hs}-{as_} {at} ({date})")
+                      break
+              time.sleep(0.3)
+
+          print(f"\n{'='*70}")
+          print("  RESUMEN DE LA PRUEBA")
+          print(f"{'='*70}")
+          print(f"  Host funcional: {working_host or 'NINGUNO'}")
+          print(f"  Team ID obtenido: {team_id}")
+          print(f"  Recomendación: {'✅ Usar en workflow fetch_sofascore' if working_host else '❌ Revisar key o suscripción'}")
+          EOF
