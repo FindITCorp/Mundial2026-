@@ -231,10 +231,12 @@ python3 scripts/sync_player_match_ratings.py  # match_player_stats.rating →
                                           # player_ratings 'nat' (matching multi-clave)
 python3 scripts/team_strengths.py --report
 
-# METODOLOGÍA BLOQUEADA (11-jun, elegida por backtest — NO cambiar sin uno mejor):
-# pred_scoreline = MEDIANA de goles por equipo + consistencia ganador↔marcador.
-# Backtest 278 pj/240d: mediana 15.8% de exactos vs argmax 15.1% (Δ+0.7pp).
-# Cualquier cambio futuro requiere backtest que la supere, no preferencia.    # fortalezas/debilidades 8 ejes →
+# METODOLOGÍA DEL MARCADOR OFICIAL (12-jun, directiva del dueño + backtest):
+# pred_scoreline = MEDIANA de goles por equipo, SIN ningún override.
+# Si la mediana dice empate y el ganador más probable es otro, se reportan
+# AMBOS por separado — nunca se fuerza el marcador a coincidir con el ganador.
+# Backtest 259-278 pj/240d: mediana pura 16.6% > mediana+override 15.8% >
+# argmax 15.1%. Cambios futuros requieren backtest superior.    # fortalezas/debilidades 8 ejes →
                                           # tabla team_strengths (factor matchup ±8%,
                                           # gate n>=3, A/B con WC_MATCHUP=0)
 ```

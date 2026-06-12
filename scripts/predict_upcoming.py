@@ -97,26 +97,12 @@ def store_predictions(db_path=DB, days_ahead=3):
             return k
         top = result.get("top_scores") or []
         mh, ma = _median_pois(lh), _median_pois(la)
-        def _grid_prob(sc):
-            return next((round(pr, 1) for s_, pr in top if s_ == sc), None)
-        # consistencia ganador↔marcador: si la mediana contradice al ganador,
-        # tomar la línea más probable del grid coherente con el ganador
-        def _pick(cond):
-            for s_, pr in top:
-                a_, b_ = (int(x) for x in s_.split("-"))
-                if cond(a_, b_):
-                    return s_, round(pr, 1)
-            return None, None
+        # SIN override (directiva 12-jun): el marcador oficial es la mediana
+        # de goles por equipo TAL CUAL la arrojan los datos. Si dice empate y
+        # el ganador más probable es otro, se reportan ambos por separado —
+        # nunca se fuerza el marcador para que coincida con el ganador.
         scoreline = f"{mh}-{ma}"
-        if winner == h_name and mh <= ma:
-            scoreline, _ = _pick(lambda x, y: x > y) or (f"{ma+1}-{ma}", None)
-        elif winner == a_name and ma <= mh:
-            scoreline, _ = _pick(lambda x, y: y > x) or (f"{mh}-{mh+1}", None)
-        elif winner == "Draw" and mh != ma:
-            scoreline, _ = _pick(lambda x, y: x == y) or (f"{min(mh,ma)}-{min(mh,ma)}", None)
-        if scoreline is None:
-            scoreline = f"{mh}-{ma}"
-        score_prob = _grid_prob(scoreline)
+        score_prob = next((round(pr, 1) for s_, pr in top if s_ == scoreline), None)
 
         # Siempre reemplaza — el modelo mejora cada día con bias actualizado.
         # Sella nombres + versión: si el fixture cambia bajo la predicción,
