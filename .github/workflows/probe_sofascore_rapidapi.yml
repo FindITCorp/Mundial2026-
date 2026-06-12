@@ -24,115 +24,19 @@ jobs:
       - run: pip install requests
 
       - name: Probe Sofascore RapidAPI hosts and endpoints
+        continue-on-error: true
         env:
           INPUT_API_KEY: ${{ github.event.inputs.api_key }}
           SECRET_API_KEY: ${{ secrets.SOFASCORE_RAPIDAPI_KEY }}
           TEAM_NAME: ${{ github.event.inputs.team_name }}
         run: |
-          python3 - <<'EOF'
-          import os, json, time, requests
-
-          API_KEY = os.environ.get("INPUT_API_KEY") or os.environ.get("SECRET_API_KEY", "")
-          TEAM = os.environ.get("TEAM_NAME", "Brazil")
-          RESULTS = {"api_key_prefix": API_KEY[:12] + "...", "team": TEAM, "hosts": {}, "winner": None, "sample_matches": []}
-
-          if not API_KEY:
-              print("ERROR: No API key provided.")
-              RESULTS["error"] = "No API key"
-              with open("scripts/sofascore_probe_results.json","w") as f:
-                  json.dump(RESULTS, f, indent=2)
-              exit(0)
-
-          def get(host, path, params=None):
-              url = f"https://{host}{path}"
-              headers = {"X-RapidAPI-Key": API_KEY, "X-RapidAPI-Host": host}
-              try:
-                  r = requests.get(url, headers=headers, params=params, timeout=15)
-                  try:
-                      body = r.json()
-                  except:
-                      body = r.text[:500]
-                  return r.status_code, body
-              except Exception as e:
-                  return None, str(e)
-
-          # Paso 1: Buscar host activo
-          HOSTS = [
-              "sofascore.p.rapidapi.com",
-              "sofascore3.p.rapidapi.com",
-              "sofascore-v1.p.rapidapi.com",
-              "api-sofascore.p.rapidapi.com",
-          ]
-
-          working_host = None
-          for host in HOSTS:
-              sc, data = get(host, "/api/v1/sport/football/scheduled-events/2026-06-12")
-              result = {"status": sc, "body_preview": str(data)[:200]}
-              RESULTS["hosts"][host] = result
-              print(f"{host}: HTTP {sc} | {str(data)[:120]}")
-              if sc in (200, 429):
-                  working_host = host
-                  RESULTS["winner"] = host
-                  break
-              time.sleep(0.5)
-
-          # Paso 2: Si ningún host, probar alternativas populares con datos de fútbol
-          if not working_host:
-              alt_hosts = [
-                  ("free-api-live-football-data.p.rapidapi.com", "/football-get-all-leagues", {}),
-                  ("footapi7.p.rapidapi.com", "/api/teams/search", {"name": TEAM}),
-                  ("football-live-scores2.p.rapidapi.com", "/fixtures/date/2026-06-12", {}),
-                  ("api-football-v1.p.rapidapi.com", "/v3/fixtures", {"date": "2026-06-12"}),
-                  ("sportscore1.p.rapidapi.com", "/sport-events", {}),
-              ]
-              for host, path, params in alt_hosts:
-                  sc, data = get(host, path, params or None)
-                  result = {"status": sc, "body_preview": str(data)[:200]}
-                  RESULTS["hosts"][host] = result
-                  print(f"ALT {host}: HTTP {sc} | {str(data)[:120]}")
-                  if sc in (200, 429):
-                      working_host = host
-                      RESULTS["winner"] = host
-                      break
-                  time.sleep(0.3)
-
-          # Paso 3: Si encontramos host, buscar equipo y últimos partidos
-          if working_host:
-              sc, data = get(working_host, f"/api/v1/teams/search", {"query": TEAM})
-              print(f"Search team: HTTP {sc}")
-              RESULTS["team_search"] = {"status": sc, "body": data}
-
-              team_id = 3  # Brasil en Sofascore
-              if sc == 200 and isinstance(data, dict):
-                  teams = data.get("teams", data.get("results", []))
-                  if teams and isinstance(teams, list):
-                      first = teams[0]
-                      team_id = first.get("id", 3)
-
-              sc2, data2 = get(working_host, f"/api/v1/team/{team_id}/near-events/0")
-              print(f"Near events: HTTP {sc2}")
-              RESULTS["near_events"] = {"status": sc2, "body_preview": str(data2)[:500]}
-
-              if sc2 == 200 and isinstance(data2, dict):
-                  events = data2.get("previousEvents", data2.get("events", []))
-                  for ev in (events or [])[-5:]:
-                      RESULTS["sample_matches"].append({
-                          "home": ev.get("homeTeam", {}).get("name"),
-                          "away": ev.get("awayTeam", {}).get("name"),
-                          "score_home": ev.get("homeScore", {}).get("current"),
-                          "score_away": ev.get("awayScore", {}).get("current"),
-                          "date": ev.get("startTimestamp"),
-                      })
-
-          with open("scripts/sofascore_probe_results.json", "w") as f:
-              json.dump(RESULTS, f, indent=2, ensure_ascii=False)
-          print("\nResultados guardados en scripts/sofascore_probe_results.json")
-          EOF
+          python3 scripts/probe_sofascore.py
 
       - name: Push results to repo
+        if: always()
         run: |
           git config user.email "noreply@anthropic.com"
           git config user.name "Claude"
-          git add scripts/sofascore_probe_results.json
+          git add scripts/sofascore_probe_results.json 2>/dev/null || true
           git diff --cached --quiet || git commit -m "data: sofascore rapidapi probe results"
-          git push origin main
+          git push origin main || true
