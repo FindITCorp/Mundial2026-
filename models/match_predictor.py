@@ -165,6 +165,13 @@ MINNOWS = {
 HOME_ADV_LAMBDA = 0.08   # +8% goles para el local
 BASE_GOALS = 1.22         # referencia goles/partido neutral — calibrado 2026-06-02 (Over2.5 real=53% vs pred=60%)
 
+# WC 2026 hosts: no se les aplica la penalización negativa de confederación
+# cuando juegan de local en fase de grupos. El offset histórico fue calibrado
+# con amistosos donde estos equipos no jugaban a máxima intensidad/plantilla.
+# Evidencia: USA 3-1 Paraguay (xG 1.34-0.47), Canada 1-0 Bosnia — ambos
+# superando ampliamente el Elo ajustado por confederación. (13-jun-2026)
+WC_HOST_IDS = {11, 12, 21}  # USA, Mexico, Canada
+
 # ── Goal Timing factors ───────────────────────────────────────────────────────
 # fatigue_conceded > 1.3 → equipo vulnerable en 2ª mitad → rival marca más
 # Escala: fatigue_conceded 1.0 → factor 1.0; 2.0 → factor 1.08 (max ±10%)
@@ -1216,6 +1223,13 @@ def predict_match(
                 # offset por equipo (blend propio↔confed) > offset de pool
                 h_confed_off = team_offs.get(home_id, offs.get(hc, 0.0))
                 a_confed_off = team_offs.get(away_id, offs.get(ac, 0.0))
+                # WC host playing at home in group stage: don't apply negative
+                # confederation offset — pre-WC friendlies underrepresent their
+                # home-tournament level. Evidence: USA 3-1 PAR, Canada 1-0 BIH.
+                if (not neutral and stage == "group"
+                        and home_id in WC_HOST_IDS
+                        and h_confed_off < 0):
+                    h_confed_off = 0.0
                 home_elo += h_confed_off
                 away_elo += a_confed_off
     home_form = _get_form(conn, home_id)
