@@ -147,50 +147,73 @@ def update_possession_from_stats(conn, team_id: int):
 
 
 def run_full_calibration(db_path=DB_PATH, verbose=True):
-    """Calibración completa: todos los equipos con partidos WC jugados."""
-    conn = sqlite3.connect(db_path)
+    """Calibración completa: todos los equipos con partidos WC jugados.
 
-    # Equipos que ya tienen resultado WC real (no amistosos)
-    played_teams = conn.execute("""
-        SELECT DISTINCT team_id FROM (
-            SELECT home_team_id AS team_id FROM wc_matches 
-            WHERE played=1 AND stage NOT LIKE '%Friendly%' AND id < 105
-            UNION
-            SELECT away_team_id FROM wc_matches 
-            WHERE played=1 AND stage NOT LIKE '%Friendly%' AND id < 105
+    Idempotente: wc_calibration_log registra los partidos ya procesados.
+    Cada partido aplica su ajuste Elo UNA sola vez — correr esto a diario
+    (workflow daily_improvement) no infla el Elo por re-aplicación.
+    """
+    conn = sqlite3.connect(db_path)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS wc_calibration_log (
+            match_id     INTEGER PRIMARY KEY,
+            processed_at TEXT NOT NULL
         )
+    """)
+
+    # Partidos WC jugados que aún NO fueron calibrados
+    new_matches = conn.execute("""
+        SELECT id FROM wc_matches
+        WHERE played=1 AND stage NOT LIKE '%Friendly%' AND id < 105
+          AND id NOT IN (SELECT match_id FROM wc_calibration_log)
+        ORDER BY date
     """).fetchall()
 
-    if not played_teams:
+    if not new_matches:
         if verbose:
-            print("Sin partidos WC reales todavía. Ejecutar cuando empiece el torneo (11 jun).")
+            print("Sin partidos WC nuevos por calibrar (todos procesados).")
         conn.close()
         return
 
+    # Equipos involucrados en los partidos nuevos → re-blend de goles/posesión
+    new_ids = [m[0] for m in new_matches]
+    qmarks = ",".join("?" * len(new_ids))
+    played_teams = conn.execute(f"""
+        SELECT DISTINCT team_id FROM (
+            SELECT home_team_id AS team_id FROM wc_matches WHERE id IN ({qmarks})
+            UNION
+            SELECT away_team_id FROM wc_matches WHERE id IN ({qmarks})
+        )
+    """, new_ids + new_ids).fetchall()
+
     for (tid,) in played_teams:
         n_matches = conn.execute("""
-            SELECT COUNT(*) FROM wc_matches 
-            WHERE (home_team_id=? OR away_team_id=?) AND played=1 
+            SELECT COUNT(*) FROM wc_matches
+            WHERE (home_team_id=? OR away_team_id=?) AND played=1
               AND stage NOT LIKE '%Friendly%' AND id < 105
         """, (tid, tid)).fetchone()[0]
         calibrate_team_goals(conn, tid, n_matches)
         update_possession_from_stats(conn, tid)
 
-    # Elo: recalcular para partidos WC que no hayan sido procesados aún
-    played_matches = conn.execute("""
-        SELECT id FROM wc_matches 
-        WHERE played=1 AND stage NOT LIKE '%Friendly%' AND id < 105
-        ORDER BY date
-    """).fetchall()
-    for (mid,) in played_matches:
+    # Elo: solo los partidos nuevos, y se marcan como procesados
+    from datetime import datetime
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    for (mid,) in new_matches:
         if verbose:
             print(f"Actualizando Elo match {mid}...")
         update_elo_after_match(conn, mid)
+        conn.execute(
+            "INSERT OR IGNORE INTO wc_calibration_log (match_id, processed_at) VALUES (?,?)",
+            (mid, now))
 
     conn.commit()
     conn.close()
     if verbose:
-        print("Calibración WC completada.")
+        print(f"Calibración WC completada ({len(new_matches)} partidos nuevos).")
+
+
+# Alias para el workflow daily_improvement.yml (importa `calibrate`)
+calibrate = run_full_calibration
 
 
 if __name__ == "__main__":
