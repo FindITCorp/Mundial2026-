@@ -57,8 +57,8 @@ print(f'Test OK: {r[\"predicted_score\"]} ({r[\"prob_home_win\"]}%/{r[\"prob_dra
    coincidir con el ganador más probable ni con ninguna expectativa. El
    marcador oficial y el ganador más probable son dos lecturas independientes
    de los mismos datos y se reportan POR SEPARADO cuando difieren.
-2. **Pronóstico oficial = marcador EXACTO del modelo** (mediana de goles por
-   equipo sobre los λ finales, sin overrides). Es la guía de alineación
+2. **Pronóstico oficial = ARGMAX del grid Dixon-Coles** (el marcador con mayor
+   probabilidad conjunta, nunca la mediana). Es la guía de alineación
    datos↔realidad. Siempre guardarlo en `pred_scoreline` + `pred_score_prob`.
 3. **No cambiar metodología por complacencia.** Cualquier cambio se decide
    por BACKTEST con regla pre-definida, se documenta aquí, y queda fijo
@@ -151,11 +151,11 @@ git push origin main
 | `player_ratings` | 2,010 | Ratings por partido 'nat' (agregados last-5 en el factor XI) |
 | `match_team_stats` | 168 | Stats equipo por partido (37 campos; 100% enlazadas a wc_matches) |
 | `match_player_stats` | 2,317 | Stats por jugador por partido (cargas del dueño, por nombre) |
-| `match_predictions` | 146 | Predicciones (v1.4-exacto: pred_scoreline + pred_score_prob) |
+| `match_predictions` | 145 | Predicciones (v1.5-argmax: argmax grid Dixon-Coles, no mediana) |
 | `match_lineups` | 1,709 | Alineaciones confirmadas (api-sports) |
 | `wc_matches` | 192 | Calendario OFICIAL 72 grupos (hora Panamá) + amistosos/quals con stats |
 | `wc_group_draw` | 48 | Grupos reales A-L — tournament.py operativo |
-| `model_evaluation_log` | 71 | Evaluaciones (accuracy 63.4%, exactos 16.9%, Brier 0.2879) |
+| `model_evaluation_log` | 74 | Evaluaciones (accuracy 64.9%, Brier 0.2866) |
 | `team_strengths` | 336 (42 equipos) | ★ Fortalezas/debilidades 8 ejes (z-scores) |
 | `confed_elo_offset` / `team_elo_offset` | 6 / 60 | Offsets inter-confederación (pool y por equipo) |
 | `team_performance_profile` | 68 | Perfiles agregados (xG for/against, aéreo, press) |
@@ -215,12 +215,13 @@ r = predict_match(home_id, away_id, neutral=True)
 - Draw boost W-5 framework (5 señales)
 - model_bias λ_scale 0.907-0.910 (refit continuo)
 
-### METODOLOGÍA DEL MARCADOR OFICIAL (12-jun, directiva del dueño + backtest)
-**pred_scoreline = MEDIANA de goles por equipo, SIN NINGÚN OVERRIDE.**
-Si la mediana dice empate y el ganador más probable es otro, SE REPORTAN
-AMBOS POR SEPARADO — nunca se fuerza el marcador a coincidir con el ganador.
-Backtest 259-278 pj/240d: **mediana pura 16.6% > mediana+override 15.8% >
-argmax 15.1%**. Cambios futuros solo con backtest superior.
+### METODOLOGÍA DEL MARCADOR OFICIAL (13-jun — revisión v1.5)
+**pred_scoreline = ARGMAX del grid conjunto Dixon-Coles** (pico real de la
+distribución bivariada, nunca la mediana marginal). Razón: la mediana de
+Poisson(λ) salta de 0→1 cuando λ>ln(2)≈0.693 aunque el MODO siga en 0,
+produciendo empates fantasma incoherentes con el ganador probable.
+Ejemplo: Haití(λ0.84) vs Escocia(λ1.46) → mediana daba 1-1, argmax da 0-1.
+Código: `top_scores[0][0]` en `models/match_predictor.py`; model_version='1.5-argmax'.
 
 ### Simulador Torneo: `models/tournament.py` / `simulate.py`
 ### Simulación 1 partido: `models/full_match_sim.py`
@@ -256,7 +257,7 @@ python3 scripts/sync_player_match_ratings.py  # ratings dueño → player_rating
 python3 scripts/team_strengths.py --report    # fortalezas/debilidades 8 ejes
 python3 scripts/clean_team_matches.py --apply # dedupe/anti-fabricados (idempotente)
 python3 scripts/fit_confederation_bias.py     # offsets confed + equipo
-python3 scripts/predict_upcoming.py           # sella oficiales (mediana pura)
+python3 scripts/predict_upcoming.py           # sella oficiales (argmax grid v1.5)
 python3 scripts/sync_confirmed_xi.py          # match_lineups → projected_lineups
 # Perfiles agregados:
 python3 -c "import sys,sqlite3; sys.path.insert(0,'scripts'); \
@@ -324,26 +325,22 @@ curl -X POST "https://api.github.com/repos/FindITCorp/Mundial2026-/actions/workf
 
 ## ESTADO ACTUAL
 
-**Última actualización:** 12 junio 2026 (~11:30 UTC / 06:30 Panamá — día 2)
+**Última actualización:** 13 junio 2026 — día 3 WC2026
 
-### Día 1 (11-jun) — guía de alineación:
+### Resultados cargados hasta 12-jun:
 ```
-✅ México 2-0 Sudáfrica (OFICIAL era 1-0 @28.9%, ganador ✓ 58.4%) — stats completas
-   cargadas (xG 1.41-0.07, 3 rojas); lectura del modelo CLAVADA (SA no generó nada)
-⏳ Corea del Sur vs Chequia: OFICIAL sellado 2-1 (62.5/22.4/15.1) con XI
-   confirmados (3-4-2-1 ambos; Kim Seung-gyu arco, sin Hwangs; CZ sin Červ/Hložek)
-   — RESULTADO PENDIENTE DE CARGAR (el cron no lo capturó; pedírselo al dueño)
-```
-
-### Hoy 12-jun (sellados, hora Panamá):
-```
-14:00 Canadá vs Bosnia:  MARCADOR 1-0 (24.8%) | GANADOR Canadá [52.2/34.5/13.3]
-20:00 EEUU vs Paraguay:  MARCADOR 1-1 (13.2%) | GANADOR EEUU  [37.1/32.4/30.5]
-       ↑ ejemplo de la regla: marcador empate + ganador EEUU, AMBOS se reportan
+✅ México 2-0 Sudáfrica    — stats completas (xG 1.41-0.07, 3 rojas)
+✅ EEUU 3-1 Paraguay       — stats completas (Balogun 2G, Reyna 1G; Mauricio 1G PAR)
+✅ Canadá 1-0 Bosnia       — ganador ✓
+⏳ Corea del Sur vs Chequia — resultado pendiente de cargar (pedir al dueño)
 ```
 
-### Calibración acumulada (71 partidos):
-accuracy 63.4% | **exactos 16.9%** (guía) | Brier 0.2879 (mejor histórico) | λ_scale 0.91
+### Predicciones activas (13-16 jun, v1.5-argmax):
+Argmax grid — pronósticos coherentes con ganador por construcción.
+Qatar-Suiza y Brasil-Marruecos: resultados del 12-jun pendientes de carga.
+
+### Calibración acumulada (74 partidos):
+accuracy **64.9%** | Brier **0.2866** (mejor histórico) | λ_scale 0.91 | v1.5-argmax
 
 ### Cobertura de datos (sesión 11-jun cargó ~20 partidos con stats):
 - 42 selecciones con perfil de fortalezas; matchup ON para: todos los del
@@ -355,10 +352,11 @@ accuracy 63.4% | **exactos 16.9%** (guía) | Brier 0.2879 (mejor histórico) | �
 
 ### TAREAS AL INICIAR NUEVA SESION
 1. Verificar hook + `git fetch` (importar datos remotos POR CONTENIDO si difieren)
-2. **Pedir al dueño el resultado + stats de Corea-Chequia si aún no está** (cierra día 1)
-3. Si hay partidos nuevos del dueño → cargar (regla 8) y recalibrar
-4. Re-sellar predicciones del día con alineaciones confirmadas cuando lleguen
-5. Actualizar este CLAUDE.md con cambios relevantes + commit + push
+2. **Pedir al dueño resultado + stats de Corea-Chequia** (día 1 sin cerrar)
+3. **Pedir Qatar-Suiza y Brasil-Marruecos** (partido del 12-jun, sin cargar aún)
+4. Si hay partidos nuevos → cargar (regla 8) y recalibrar
+5. Re-sellar predicciones del día con alineaciones confirmadas cuando lleguen
+6. Actualizar este CLAUDE.md con cambios relevantes + commit + push
 
 ---
 
