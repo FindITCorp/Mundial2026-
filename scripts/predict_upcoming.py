@@ -81,28 +81,27 @@ def store_predictions(db_path=DB, days_ahead=3):
         else:
             winner = "Draw"
 
-        # PRONÓSTICO OFICIAL (pedido 11-jun): el marcador que el modelo arroja
-        # integrando TODAS las variables. El argmax del grid favorece 1-0/0-1
-        # por artefacto (cada línea baja concentra más probabilidad individual)
-        # e ignora la forma de la distribución. Usamos la MEDIANA de goles por
-        # equipo sobre los λ finales (que ya sintetizan Elo+forma+XI+xG+balón
-        # parado+matchup+veterano+localía) + consistencia con el ganador.
-        import math
-        def _median_pois(lam):
-            prob = math.exp(-lam); cdf = prob; k = 0
-            while cdf < 0.5 and k < 10:
-                k += 1
-                prob *= lam / k
-                cdf += prob
-            return k
+        # PRONÓSTICO OFICIAL (directiva 13-jun): ARGMAX del grid conjunto
+        # Dixon-Coles = el marcador individualmente MÁS probable.
+        #
+        # Por qué se abandonó la mediana marginal (versión 12-jun): la mediana
+        # de una Poisson SALTA de 0 a 1 cuando λ > ln(2)≈0.693, aunque el MODO
+        # siga en 0. Para un favorito con λ≈0.84–1.0 (rival débil) eso producía
+        # "1-1" fantasma — un empate incoherente con el ganador real. Ejemplo:
+        # Haiti(λ0.84) vs Scotland(λ1.46) daba 1-1 cuando el marcador más
+        # probable real es 0-1 (Scotland 14.6% vs 1-1 12.3%).
+        #
+        # El argmax del grid es coherente con el ganador por construcción
+        # (toma el pico real de la conjunta, no la mediana de cada marginal)
+        # y es lo que cualquier casa reporta como 'most likely scoreline'.
         top = result.get("top_scores") or []
-        mh, ma = _median_pois(lh), _median_pois(la)
-        # SIN override (directiva 12-jun): el marcador oficial es la mediana
-        # de goles por equipo TAL CUAL la arrojan los datos. Si dice empate y
-        # el ganador más probable es otro, se reportan ambos por separado —
-        # nunca se fuerza el marcador para que coincida con el ganador.
-        scoreline = f"{mh}-{ma}"
-        score_prob = next((round(pr, 1) for s_, pr in top if s_ == scoreline), None)
+        if top:
+            scoreline = top[0][0]
+            score_prob = round(top[0][1], 1)
+        else:
+            # Fallback sin grid: MODO marginal (floor de λ), nunca la mediana
+            scoreline = f"{int(lh)}-{int(la)}"
+            score_prob = None
 
         # Siempre reemplaza — el modelo mejora cada día con bias actualizado.
         # Sella nombres + versión: si el fixture cambia bajo la predicción,
@@ -112,7 +111,7 @@ def store_predictions(db_path=DB, days_ahead=3):
               (match_id, predicted_at, home_win_prob, draw_prob, away_win_prob,
                pred_home_goals, pred_away_goals, pred_winner, pred_scoreline,
                pred_score_prob, model_version, home_team_name, away_team_name)
-            VALUES (?,?,?,?,?,?,?,?,?,?,'1.4-exacto',?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,'1.5-argmax',?,?)
             ON CONFLICT(match_id) DO UPDATE SET
               predicted_at    = excluded.predicted_at,
               home_win_prob   = excluded.home_win_prob,
