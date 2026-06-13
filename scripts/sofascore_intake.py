@@ -2,10 +2,15 @@
 """
 sofascore_intake.py — Carga datos copiados de Sofascore al DB.
 
-Uso interactivo:
-    python3 scripts/sofascore_intake.py
+MODO TEXTO (ahorra tokens — no necesitas construir JSON):
+    python3 scripts/sofascore_intake.py --text stats.txt --match-id 19
+    python3 scripts/sofascore_intake.py --text - --match-id 19        # stdin
+    python3 scripts/sofascore_intake.py --text jugadores.txt --match-id 19 --equipos USA,Paraguay
 
-O pasando un archivo JSON:
+  El script detecta automáticamente si el texto es stats de equipo o de jugadores.
+  match-id = wc_matches.id (ve: SELECT id, home_team_name, away_team_name FROM wc_matches)
+
+MODO JSON (legado):
     python3 scripts/sofascore_intake.py match.json
 
 Formato de entrada (JSON):
@@ -356,6 +361,129 @@ def load_match(data: dict, db_path=DB_PATH) -> bool:
     return True
 
 
+def load_from_text(conn, text: str, match_id: int, equipos: list | None = None) -> bool:
+    """
+    Parsea texto copiado de SofaScore y carga al DB.
+    Detecta automáticamente tipo (team stats o player stats).
+    match_id = wc_matches.id
+    """
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / "scripts"))
+    from sofascore_parser import detectar_tipo, parsear_jugadores, inferir_equipos, validar_jugadores
+    from load_sofascore_text import parse_blocks
+
+    row = conn.execute(
+        "SELECT home_team_id, away_team_id, home_team_name, away_team_name, date FROM wc_matches WHERE id=?",
+        (match_id,)
+    ).fetchone()
+    if not row:
+        print(f"ERROR: match_id={match_id} no existe en wc_matches")
+        return False
+    home_id, away_id, home_name, away_name, date = row
+    competition = "FIFA World Cup 2026"
+
+    tipo = detectar_tipo(text)
+    print(f"  [{tipo}] match_id={match_id} {home_name} vs {away_name} ({date})")
+
+    # ── Stats de equipo ───────────────────────────────────────────────────────
+    if tipo == "team":
+        blocks = parse_blocks(text)
+        if not blocks:
+            print("ERROR: no se encontró 'Resumen del partido' en el texto")
+            return False
+        home_dict, away_dict = blocks[0]
+        mapped = len(home_dict)
+        if mapped < 3:
+            print(f"ERROR: {mapped} métricas mapeadas — texto no parece stats de equipo SofaScore")
+            return False
+        insert_stats(conn, match_id, home_id, True, home_dict)
+        insert_stats(conn, match_id, away_id, False, away_dict)
+        kh = {k: home_dict[k] for k in ("possession", "xg", "shots_total") if k in home_dict}
+        ka = {k: away_dict[k] for k in ("possession", "xg", "shots_total") if k in away_dict}
+        print(f"  ✓ {mapped} métricas | {home_name}: {kh} | {away_name}: {ka}")
+        return True
+
+    # ── Stats de jugadores ────────────────────────────────────────────────────
+    if not equipos:
+        equipos = inferir_equipos(text)
+    if not equipos or len(equipos) < 2:
+        print(f"ERROR: no se pudieron inferir equipos. Usa --equipos '{home_name},{away_name}'")
+        return False
+
+    filas = parsear_jugadores(text, equipos)
+    if not filas:
+        print("ERROR: 0 jugadores parseados — revisa el texto y los nombres de equipo")
+        return False
+
+    # Validar campos críticos
+    errores = [f"  [ERR] sin minutos: {f['jugador']} ({f['equipo']})"
+               for f in filas if not f["minutos"]]
+    warns   = [f"  [WARN] sin posición: {f['jugador']} ({f['equipo']})"
+               for f in filas if not f["posicion"]]
+    for w in warns:
+        print(w)
+    if errores:
+        print("\n".join(errores))
+        print(f"ERROR: {len(errores)} jugadores sin minutos. Corrige antes de cargar.")
+        return False
+
+    # Validar conteo por equipo
+    counts: dict[str, int] = {}
+    for f in filas:
+        counts[f["equipo"]] = counts.get(f["equipo"], 0) + 1
+    for eq, n in counts.items():
+        if n < 11:
+            print(f"ERROR: {eq} tiene {n} jugadores (< 11). Texto incompleto.")
+            return False
+        if n > 14:
+            print(f"  [WARN] {eq} tiene {n} jugadores (muchos suplentes?)")
+
+    # Insertar
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    inserted = skipped = 0
+    for f in filas:
+        tid = find_team_id(conn, f["equipo"])
+        if tid is None:
+            print(f"ERROR: equipo '{f['equipo']}' no en teams. Agrega a aliases en find_team_id().")
+            return False
+        try:
+            conn.execute("""
+                INSERT OR REPLACE INTO match_player_stats
+                  (match_date, competition, home_team_id, away_team_id, team_id,
+                   player_name, position, minutes, goals, assists, rating,
+                   passes_accurate, passes_total, passes_pct,
+                   tackles_total, tackles_won, duels_total, duels_won,
+                   aerial_total, aerial_won, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                date, competition, home_id, away_id, tid,
+                f["jugador"], f["posicion"] or None,
+                int(f["minutos"]) if f["minutos"] else None,
+                int(f["goles"])   if f["goles"]   else 0,
+                int(f["asistencias"]) if f["asistencias"] else 0,
+                float(f["rating"])    if f["rating"]      else None,
+                int(f["pases_precisos"]) if f["pases_precisos"] else None,
+                int(f["pases_total"])    if f["pases_total"]    else None,
+                float(f["pases_pct"])    if f["pases_pct"]      else None,
+                int(f["entradas"])          if f["entradas"]          else None,
+                int(f["entradas_ganadas"])  if f["entradas_ganadas"]  else None,
+                int(f["duelos_total"])      if f["duelos_total"]      else None,
+                int(f["duelos_ganados"])    if f["duelos_ganados"]    else None,
+                int(f["duelos_aereos_total"])   if f["duelos_aereos_total"]   else None,
+                int(f["duelos_aereos_ganados"]) if f["duelos_aereos_ganados"] else None,
+                now,
+            ))
+            inserted += 1
+        except Exception as e:
+            print(f"  SKIP {f['jugador']}: {e}")
+            skipped += 1
+
+    counts_str = ", ".join(f"{eq}={n}" for eq, n in counts.items())
+    skip_str = f", {skipped} skip" if skipped else ""
+    print(f"  ✓ {inserted} jugadores ({counts_str}{skip_str})")
+    return True
+
+
 def rebuild_timing():
     """Reconstruye team_goal_timing y team_performance_profile después de cargar."""
     try:
@@ -421,6 +549,37 @@ TEMPLATE = {
 
 
 if __name__ == "__main__":
+
+    # ── Modo texto (SofaScore copy-paste → DB en un paso) ─────────────────────
+    if "--text" in sys.argv or (len(sys.argv) > 1 and sys.argv[1] == "-"):
+        def _flag(name):
+            if name in sys.argv:
+                i = sys.argv.index(name)
+                return sys.argv[i + 1] if i + 1 < len(sys.argv) else None
+            return None
+
+        src      = _flag("--text") or "-"
+        match_id = _flag("--match-id")
+        eq_arg   = _flag("--equipos")
+
+        if not match_id:
+            print("Uso: sofascore_intake.py --text FILE|'-' --match-id N [--equipos Home,Away]")
+            print("     FILE puede ser '-' para leer de stdin")
+            sys.exit(1)
+
+        text = (sys.stdin.read() if src == "-"
+                else Path(src).read_text(encoding="utf-8"))
+        equipos = eq_arg.split(",") if eq_arg else None
+
+        conn = sqlite3.connect(str(DB_PATH))
+        ok = load_from_text(conn, text, int(match_id), equipos=equipos)
+        if ok:
+            conn.commit()
+            rebuild_timing()
+        conn.close()
+        sys.exit(0 if ok else 1)
+
+    # ── Modo JSON (legado) ─────────────────────────────────────────────────────
     if len(sys.argv) > 1:
         # Cargar desde archivo
         files = sys.argv[1:]
