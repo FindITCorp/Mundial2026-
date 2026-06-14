@@ -267,12 +267,34 @@ r = predict_match(home_id, away_id, neutral=True)
   incertidumbre ⇒ r menor) — la 2ª intuición del dueño; requiere más resultados
   WC para calibrar sin sobreajuste.
 
+- ★ **Amplificación de favorito en mismatches (14-jun)** (`_MISMATCH_K/_T` +
+  subida de `FRIENDLY_LAMBDA_CAP` 2.60→3.50 en match_predictor.py): el dueño
+  detectó que Germany 64% vs Curaçao (gap Elo 276) y marcador 1-0 era irreal.
+  Backtest confirmó SUBESTIMACIÓN SISTEMÁTICA de favoritos (1508 part., por
+  brecha): e_home 0.78-0.84 pred 67% vs REAL 75%; 0.84-0.92 pred 75% vs 85%;
+  0.92+ pred 83% vs 96%. λ_favorito igual de comprimido (gap 400+: pred 2.22 vs
+  3.63 goles reales). **Causa raíz:** (1) el mapa Elo→λ `0.60+e·0.80` SATURA
+  (favorito techo 1.40×BASE, underdog piso 0.60×BASE) → goleada imposible por
+  construcción; (2) `FRIENDLY_LAMBDA_CAP=2.60` clavaba a Spain/France en λ~2.24;
+  (3) el DISCOUNT 0.88 al favorito (calibrado con 3 amistosos) se aplicaba a TODO.
+  **Fix:** amplificar λ del favorito sobre umbral de desbalance (edge=|e_home−0.5|·2;
+  si edge>T: λ_fav×(1+K·(edge−T)), cap 0.85) + subir el cap a 3.50. K=1.2, T=0.40
+  por backtest. El underdog NO se toca (su λ real≈predicho). El DISCOUNT se
+  mantiene (quitarlo baja acc/Brier, sobre todo amistosos). **Resultado (regla
+  pre-fijada):** acc 63.33→63.93% (+0.60pp), Brier 0.4872→0.4801 (−0.0071) —
+  mejora MAYOR que finishing. Favorito casi perfectamente calibrado (75/75,
+  86/85, 91/96); partidos parejos (edge≤T) INTACTOS. Germany→Curaçao ahora
+  76%/15%/9%, marcador 2-0. Flag A/B WC_MISMATCH; output _factors.mismatch_amp.
+
 **Parámetros calibrados:**
 - `BASE_GOALS = 1.22`
 - Neutral venue para WC EXCEPTO anfitriones en fase de grupos
 - Draw boost W-5 framework (5 señales)
 - model_bias λ_scale 0.907-0.910 (refit continuo)
 - `_DISP_R = 10` (Negative Binomial en grilla de marcador; Poisson en 1X2)
+- `_MISMATCH_K = 1.2`, `_MISMATCH_T = 0.40` (amplificación favorito en goleadas)
+- `FRIENDLY_LAMBDA_CAP = 3.50` (antes 2.60; sobre-suprimía goleadas)
+- `FRIENDLY_LAMBDA_DISCOUNT = 0.88` (−12% favorito claro; aplica global, valida bien)
 
 ### METODOLOGÍA DEL MARCADOR OFICIAL (13-jun — revisión v1.5)
 **pred_scoreline = ARGMAX del grid conjunto Dixon-Coles** (pico real de la

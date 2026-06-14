@@ -320,6 +320,23 @@ def _negbin(lam: float, k: int, r: float) -> float:
     )
 
 
+# ── Amplificador de mismatch (de-compresión del split Elo→λ) ─────────────────
+# El mapa Elo→λ (línea ~1490) SATURA: el favorito tiene techo 1.40×BASE_GOALS y
+# el underdog piso 0.60×BASE_GOALS, así que por más grande que sea la brecha, la
+# goleada es imposible por construcción. Backtest (1508 part., brecha Elo↑):
+#   e_home 0.78-0.84: P(fav gana) pred 67% vs REAL 75%; λ_fav 1.65 vs 2.15 goles
+#   e_home 0.84-0.92: pred 75% vs REAL 85%;             λ_fav 1.93 vs 2.68
+#   e_home 0.92+   : pred 83% vs REAL 96%;             λ_fav 2.22 vs 3.76
+# El error está SOLO en el favorito (el underdog real≈predicho). Se amplifica λ
+# del favorito por encima de un umbral de desbalance _MISMATCH_T, escala K.
+# Calibrado K=1.2, T=0.40 por backtest: acc +0.20pp, Brier −0.0066, favorito
+# casi perfectamente calibrado (75/75, 86/85, 94/96). NO toca partidos parejos
+# (edge≤T). Ortogonal a finishing/stars. Flag A/B: WC_MISMATCH (1=on).
+_MISMATCH_K   = float(os.environ.get("WC_MISMATCH_K", "1.2"))   # escala del boost
+_MISMATCH_T   = float(os.environ.get("WC_MISMATCH_T", "0.40"))  # umbral de desbalance
+_MISMATCH_CAP = 0.85                                            # tope de seguridad
+
+
 def _get_elo(conn, team_id: int) -> float:
     row = conn.execute(
         "SELECT elo FROM team_elo WHERE team_id=?", (team_id,)
@@ -334,11 +351,15 @@ SOS_PIVOT       = 1550.0   # Elo de rival "neutro"
 SOS_EXP         = 1.5      # calibrado 04-jun-2026: reducido de 2.0 → más crédito al ritmo
                             # vs rivales débiles (evidencia: Mexico 4W 2D 0L vs WC sin inflar)
 
-# Calibración amistosos 06-jun-2026:
-# Evidencia: Spain 82%→empate, France 62%→perdió, Panama 66%→empate
-# En amistosos hay rotaciones y baja intensidad → reducir lambdas del favorito
-FRIENDLY_LAMBDA_DISCOUNT = 0.88  # aplica a lambda_home cuando es el favorito claro
-FRIENDLY_LAMBDA_CAP      = 2.60  # cap más conservador que el estándar 3.50
+# Calibración favorito 06-jun (amistosos) + re-backtest 14-jun (1508 part.):
+# El DISCOUNT 0.88 al favorito claro ayuda en TODO el set (quitarlo baja acc y
+# Brier, sobre todo en amistosos) → se mantiene. El CAP, en cambio, estaba en
+# 2.60 ("conservador amistoso") y clavaba a los favoritos fuertes (Spain/France
+# en λ~2.24) impidiendo goleadas que el dato respalda (gap Elo 400+: 3.63 goles
+# reales). Subido a 3.50 (estándar): acc 63.86→63.93%, Brier 0.4809→0.4801,
+# mejora competitivos Y amistosos. Combinado con el amplificador de mismatch.
+FRIENDLY_LAMBDA_DISCOUNT = 0.88  # −12% al favorito claro (lh_raw>la_raw·1.5); aplica global
+FRIENDLY_LAMBDA_CAP      = 3.50  # techo estándar de λ (antes 2.60, sobre-suprimía goleadas)
 # Regularización bayesiana: prior que regresa los promedios hacia la media
 PRIOR_N         = 3.0      # reducido 4.0→3.0: confiar más en forma reciente real
 PRIOR_GF        = 1.35
@@ -1355,6 +1376,7 @@ def predict_match(
     use_finishing: bool | None = None,  # conversión + portería (None → env WC_FINISHING)
     use_stars: bool | None = None,    # jugadores diferenciadores (None → env WC_STARS)
     use_dispersion: bool | None = None,  # sobredispersión NB (None → env WC_DISPERSION)
+    use_mismatch: bool | None = None,  # amplificación de favorito (None → env WC_MISMATCH)
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -1696,6 +1718,22 @@ def predict_match(
         * (1 - away_absence)
     )
 
+    # ── 9a. Amplificación de mismatch: de-comprime el split Elo en goleadas ───
+    # El mapa Elo→λ satura y subestima al favorito en brechas grandes (backtest:
+    # gap 275 → pred 64% real 84%). Se amplifica SOLO el λ del favorito cuando el
+    # desbalance supera el umbral. Partidos parejos (edge≤T) quedan intactos.
+    if use_mismatch is None:
+        use_mismatch = os.environ.get("WC_MISMATCH", "1") != "0"
+    mismatch_amp = 0.0
+    if use_mismatch:
+        _edge = abs(e_home - 0.5) * 2.0          # 0 (parejo) … 1 (mismatch total)
+        if _edge > _MISMATCH_T:
+            mismatch_amp = min(_MISMATCH_CAP, _MISMATCH_K * (_edge - _MISMATCH_T))
+            if e_home > 0.5:
+                lh_raw *= (1.0 + mismatch_amp)   # local favorito
+            else:
+                la_raw *= (1.0 + mismatch_amp)   # visitante favorito
+
     # ── 9b. Ajuste por timing defensivo (fatiga en 2ª mitad) ─────────────────
     # Si el equipo defensor colapsa tarde, el atacante marca un poco más de lo
     # que indican forma + Elo solos → convierte "2-0 probable" en "2-1 probable"
@@ -2019,6 +2057,7 @@ def predict_match(
             "star_factor_home": round(h_star_f, 4),
             "star_factor_away": round(a_star_f, 4),
             "dispersion_r":     disp_r,   # >0 ⇒ NB en grilla de marcador; 0 ⇒ Poisson
+            "mismatch_amp":     round(mismatch_amp, 4),  # boost λ favorito en goleadas
             "vet_exp_home":     round(h_vet["exp_score"], 3),
             "vet_exp_away":     round(a_vet["exp_score"], 3),
             # Rendimiento real del XI — StatsBomb
