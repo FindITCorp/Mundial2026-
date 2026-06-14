@@ -307,6 +307,16 @@ def _poisson(lam: float, k: int) -> float:
 # y ganador probable son lecturas independientes. Flag A/B: WC_DISPERSION (1=on).
 _DISP_R = float(os.environ.get("WC_DISPERSION_R", "10.0"))   # ≤0 ⇒ Poisson puro
 
+# Corrección de goles TOTALES en la grilla de MARCADOR (no en el 1X2) ─────────
+# El model_bias aplica un término SUSTRACTIVO (≈0.13 neutral) que recorta más a
+# los marcadores bajos (−27% a un λ=0.7 vs −14% a un λ=2.5) → el modelo subestima
+# los goles totales, peor en pronósticos bajos (backtest 1508 part.: λ_tot pred
+# 1.52 vs real 2.03; global 2.47 vs 2.75). Para el MARCADOR se DESHACE ese término
+# (se suma de vuelta, con tope) → log-loss de marcador 2.8520→2.8084, exact-hit
+# estable. El 1X2 mantiene la λ deflactada (mejor calibrada para ganador/empate;
+# añadir totales ahí dañaba Brier). Flag A/B: WC_SCORE_TOTALS (1=on).
+_SCORE_TOTALS_CAP = 0.15   # máximo λ que se añade de vuelta por equipo al marcador
+
 
 def _negbin(lam: float, k: int, r: float) -> float:
     """P(K=k) Negative Binomial con media=lam y dispersión r (Var=lam+lam²/r).
@@ -1377,6 +1387,7 @@ def predict_match(
     use_stars: bool | None = None,    # jugadores diferenciadores (None → env WC_STARS)
     use_dispersion: bool | None = None,  # sobredispersión NB (None → env WC_DISPERSION)
     use_mismatch: bool | None = None,  # amplificación de favorito (None → env WC_MISMATCH)
+    use_score_totals: bool | None = None,  # des-deflactar totales en marcador (None → env WC_SCORE_TOTALS)
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -1763,6 +1774,7 @@ def predict_match(
     # que penalizar al nominal away introduce una ventaja falsa. En neutral se
     # usa el promedio de ambos sesgos para conservar el nivel de goles sin
     # favorecer a ninguno. (fix 14-jun)
+    sub_h = sub_a = 0.0   # término SUSTRACTIVO aplicado (se deshace en el marcador)
     try:
         from scripts.evaluate_model import load_model_bias
         _bias = load_model_bias(db_path)
@@ -1771,9 +1783,11 @@ def predict_match(
         _ab = _bias.get("away_lambda_bias", 0.0)
         if neutral:
             _avg = (_hb + _ab) / 2.0
+            sub_h = sub_a = _avg
             lh = max(0.20, lh * _scale - _avg)
             la = max(0.20, la * _scale - _avg)
         else:
+            sub_h, sub_a = _hb, _ab
             lh = max(0.20, lh * _scale - _hb)
             la = max(0.20, la * _scale - _ab)
     except Exception:
@@ -1795,10 +1809,19 @@ def predict_match(
     total = ph + pd + pa
     ph /= total; pd /= total; pa /= total
 
+    # Marcador: λ con el sesgo SUSTRACTIVO deshecho (corrige subestimación de
+    # goles totales, peor en pronósticos bajos). El 1X2 de arriba mantiene la λ
+    # deflactada. Tope _SCORE_TOTALS_CAP por equipo. Flag WC_SCORE_TOTALS.
+    if use_score_totals is None:
+        use_score_totals = os.environ.get("WC_SCORE_TOTALS", "1") != "0"
+    add_h = min(sub_h, _SCORE_TOTALS_CAP) if use_score_totals else 0.0
+    add_a = min(sub_a, _SCORE_TOTALS_CAP) if use_score_totals else 0.0
+    sl_h, sl_a = lh + add_h, la + add_a
+
     probs = {}                                            # marcador desde NB
     for i in range(8):
         for j in range(8):
-            probs[(i, j)] = _negbin(lh, i, disp_r) * _negbin(la, j, disp_r)
+            probs[(i, j)] = _negbin(sl_h, i, disp_r) * _negbin(sl_a, j, disp_r)
 
     # ── 10b. Rebalanceo de empates — calibrado 04-jun-2026 ───────────────
     # Evidencia: 4/4 empates predichos el 02-jun resultaron ganador claro.
@@ -2058,6 +2081,7 @@ def predict_match(
             "star_factor_away": round(a_star_f, 4),
             "dispersion_r":     disp_r,   # >0 ⇒ NB en grilla de marcador; 0 ⇒ Poisson
             "mismatch_amp":     round(mismatch_amp, 4),  # boost λ favorito en goleadas
+            "score_totals_add": round(add_h, 4),  # λ devuelto al marcador (des-deflación)
             "vet_exp_home":     round(h_vet["exp_score"], 3),
             "vet_exp_away":     round(a_vet["exp_score"], 3),
             # Rendimiento real del XI — StatsBomb

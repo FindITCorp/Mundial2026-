@@ -295,6 +295,19 @@ r = predict_match(home_id, away_id, neutral=True)
 - `_MISMATCH_K = 1.2`, `_MISMATCH_T = 0.40` (amplificación favorito en goleadas)
 - `FRIENDLY_LAMBDA_CAP = 3.50` (antes 2.60; sobre-suprimía goleadas)
 - `FRIENDLY_LAMBDA_DISCOUNT = 0.88` (−12% favorito claro; aplica global, valida bien)
+- `_SCORE_TOTALS_CAP = 0.15` (deshace el sesgo sustractivo en el marcador; 1X2 intacto)
+
+### Corrección de goles TOTALES en el marcador (14-jun, WC_SCORE_TOTALS)
+El dueño detectó que CIV-Ecuador 0-0 era bajo para equipos anotadores. Backtest:
+el modelo SUBESTIMA goles totales 2.47 vs 2.75 real, PEOR en pronósticos bajos
+(λ_tot 1.5 → real 2.03). Causa: el `model_bias` resta un término (≈0.13 neutral)
+que recorta más a marcadores bajos (−27% a λ=0.7 vs −14% a λ=2.5). Fix: la grilla
+de MARCADOR deshace ese término sustractivo (lo suma de vuelta, tope 0.15/equipo);
+el 1X2 mantiene la λ deflactada. log-loss marcador 2.8520→2.8084, exact-hit
+estable, **1X2 EXACTAMENTE intacto** (guard). CIV-Ecuador: 0-0 baja 22%→17%, el
+cluster 0-0/1-0/0-1/1-1 se empareja. Nota verdad-de-datos: Ecuador NO es anotador
+(GF 0.75, defensa elite GA 0.42); CIV sí (GF 2.42). El score bajo es real (defensa
+de Ecuador), el fix solo corrige la sobre-deflación.
 
 ### METODOLOGÍA DEL MARCADOR OFICIAL (13-jun — revisión v1.5)
 **pred_scoreline = ARGMAX del grid conjunto Dixon-Coles** (pico real de la
