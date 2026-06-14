@@ -406,48 +406,62 @@ curl -X POST "https://api.github.com/repos/FindITCorp/Mundial2026-/actions/workf
 
 ## ESTADO ACTUAL
 
-**Última actualización:** 14 junio 2026 — día 4 WC2026
+**Última actualización:** 14 junio 2026 — día 5 WC2026
 
 ### Cargados en sesión 14-jun:
 ```
 ✅ Colombia 1-3 France (amistoso 29-mar) — 33 jugadores + team stats (xG 1.12-1.63)
 ✅ Haití 0-1 Escocia (WC Grupo C, 13-jun) — 30 jugadores + team stats (xG 1.21-1.05)
-   → Haití dominó xG y posesión pero McGinn (83') decidió: caso testigo del
-     hallazgo de eficiencia/portería (Escocia GK para 0.61× el xGA).
+✅ Senegal 0-0 Saudi Arabia (9-jun, match_id=146) — 41 jug + team stats (xG NO
+   publicado: SofaScore muestra xG-/xGOT-). Finishing de Senegal sigue n=2.
+✅ Australia 2-0 Turkey (WC Grupo D, 13-jun, match_id=20) — 32 jug + team stats
+   (xG AUS 1.18 / TUR 1.36; Turquía 30 tiros, 72% pos, 0 goles). UPSET: el
+   modelo daba Turquía favorita 46.6% → caso testigo de incertidumbre del marcador.
 ```
 
-### Evolución del modelo (14-jun): dos factores nuevos
+### Evolución del modelo (14-jun): CUATRO factores nuevos
 1. **Eficiencia conversión + portería** (`_finishing_gk_factor`, WC_FINISHING):
-   diagnóstico → el modelo no veía empates bajos/0-0 por ignorar la DESVIACIÓN
-   goles↔xG y goles_concedidos↔xGA. Backtest CLARO (Brier cobertura −0.0073).
-   FIJADO y activo.
+   ignora la DESVIACIÓN goles↔xG. Backtest Brier cobertura −0.0073. FIJADO.
 2. **Jugadores diferenciadores** (`star_players` + `_star_off/def_factor`,
-   WC_STARS): lista de 100 cracks del dueño. Backtest cumplió la regla
-   pre-fijada (canónico Brier mejora, acc −0.1pp) → FIJADO, pero señal DÉBIL
-   (doble-conteo con Elo/XI; backtest anacrónico subestima). Re-evaluar con WC
-   real. Loader: `python3 scripts/load_star_players.py` (re-correr si cambia la
-   lista o se cargan plantillas de Georgia/Nigeria).
-Predicciones 14-17 jun re-selladas con ambos factores.
+   WC_STARS): 100 cracks del dueño. Señal DÉBIL (doble-conteo Elo/XI). FIJADO,
+   re-evaluar con WC real. Loader: `python3 scripts/load_star_players.py`.
+3. **Sobredispersión de goles** (`_negbin` + `_DISP_R=10`, WC_DISPERSION):
+   goles reales sobredispersos vs Poisson (φ_home=1.40). NB SOLO en grilla de
+   MARCADOR (log-loss 2.9169→2.9072, acierto exacto 15.3→15.7%); el 1X2 queda
+   en Poisson (ahí ensanchar dañaba Brier — favoritos ganan más de lo predicho).
+   FIJADO. Próximo: ligar r a calidad/disponibilidad del plantel (2ª intuición
+   del dueño, data-gated).
+4. **Amplificación de favorito en mismatches** (`_MISMATCH_K=1.2/_T=0.40` +
+   `FRIENDLY_LAMBDA_CAP` 2.60→3.50, WC_MISMATCH): el dueño detectó Germany 64%
+   vs Curaçao + marcador 1-0 irreal. Backtest probó SUBESTIMACIÓN sistemática
+   de favoritos (gap 275: pred 67% real 75%; gap 400+: 83% real 96%). Causa:
+   mapa Elo→λ satura + cap 2.60 + discount 0.88 global. Fix amplifica λ_fav (no
+   toca underdog). **acc 63.33→63.93% (+0.60pp), Brier 0.4872→0.4801 (−0.0071)**
+   — la mejora MÁS fuerte. Favorito casi perfecto (75/75, 86/85, 91/96), parejos
+   intactos. Germany→Curaçao ahora 76%/15%/9% marcador 2-0. FIJADO.
 
-### Calibración acumulada (77 partidos selladas histórico):
-accuracy **62.3%** | Brier **0.2975** | away_bias +0.207 | λ_scale 0.911 | v1.5-argmax
-(histórico de predicciones viejas; el factor nuevo mejora calibración a futuro)
+### Predicciones selladas 14-jun (modelo con los 4 factores):
+```
+[12:00] Germany 76% / E 15% / Curaçao 9%       → 2-0
+[15:00] Netherlands 25% / E 28% / Japan 47%    → 1-1 (ganador modal Japan)
+[18:00] Ivory Coast 38% / E 36% / Ecuador 26%  → 0-0 (ganador modal CIV)
+[21:00] Sweden 28% / E 26% / Tunisia 47%       → 1-1 (ganador modal Tunisia)
+```
+Marcador oficial = argmax grid (NB); ganador = argmax 1X2. Lecturas independientes
+(reglas #1/#2): en partidos parejos el marcador modal puede ser empate aunque el
+ganador modal sea un equipo. NADA forzado. Pendiente: cargar resultados → evaluate.
 
-### Cobertura de datos (sesión 11-jun cargó ~20 partidos con stats):
-- 42 selecciones con perfil de fortalezas; matchup ON para: todos los del
-  12-13 jun salvo Escocia/Australia (n=2); Jordania/Túnez/Egipto/Brasil/
-  Marruecos/Suiza/Qatar/Haití listos
+### Cobertura de datos:
+- 42 selecciones con perfil de fortalezas; matchup gate n≥3 ambos lados
 - Calendario oficial completo: 72 partidos de grupos con fecha/hora Panamá/grupo
-  (24 fixtures venían con local/visitante INVERTIDO — corregidos)
-- Pendientes de convocatoria oficial: Escocia, Sudáfrica ya jugó, resto a demanda
+- Senegal: 26 convocados en projected_lineups; finishing n=2 (falta 3er xG)
 
 ### TAREAS AL INICIAR NUEVA SESION
 1. Verificar hook + `git fetch` (importar datos remotos POR CONTENIDO si difieren)
-2. **Pedir al dueño resultado + stats de Corea-Chequia** (día 1 sin cerrar)
-3. **Pedir Qatar-Suiza y Brasil-Marruecos** (partido del 12-jun, sin cargar aún)
-4. Si hay partidos nuevos → cargar (regla 8) y recalibrar
-5. Re-sellar predicciones del día con alineaciones confirmadas cuando lleguen
-6. Actualizar este CLAUDE.md con cambios relevantes + commit + push
+2. Cargar resultados de los 4 partidos del 14-jun cuando el dueño los dé → evaluate
+3. Si hay partidos nuevos → cargar (regla 8) y recalibrar
+4. Re-sellar predicciones del día con alineaciones confirmadas cuando lleguen
+5. Actualizar este CLAUDE.md con cambios relevantes + commit + push
 
 ---
 
