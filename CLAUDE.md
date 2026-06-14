@@ -224,6 +224,22 @@ r = predict_match(home_id, away_id, neutral=True)
   low) era de bias OBSOLETO; el modelo vivo con model_bias ya está en λ_tot 2.27
   / 36% low (real 27%) — model_bias auto-corrige el grueso; este factor afina la
   EFICIENCIA por equipo que el promedio global no captura.
+- ★ **Jugadores diferenciadores / techo individual (14-jun)** (`scripts/
+  load_star_players.py` → tabla `star_players`; `_star_off_factor`/
+  `_star_def_factor` en match_predictor.py): lista curada del dueño (100 cracks
+  con ranking). rank→tier_weight, posición→eje (FWD/MID = OFF sube λ propio;
+  DEF/GK = DEF baja λ rival), × disponibilidad en projected_lineups (titular 1.0,
+  suplente 0.4). Rendimientos decrecientes tanh; cap OFF +7% (scale 2.5), DEF
+  −5% (scale 1.2). Flag A/B WC_STARS. **Backtest (misma regla pre-fijada):**
+  955 part. acc 64.7→64.6% (−0.1pp, dentro de umbral), Brier 0.4806→0.4805 ✓
+  → REGLA CUMPLIDA, FIJADO. PERO señal DÉBIL (set WC: Brier 0.5176→0.5165,
+  log-loss −0.0018, pero accuracy −0.7pp; cobertura Brier −0.0019, 4× más flojo
+  que finishing). Causa: doble-conteo parcial — Elo + factor XI YA capturan que
+  los grandes son fuertes. ⚠ El backtest es ANACRÓNICO (XI 2026 sobre partidos
+  2024-25) y SUBESTIMA el factor para WC2026 con XI contemporáneo. Re-evaluar con
+  resultados WC reales; si daña accuracy → WC_STARS=0. 95/100 matchean directo;
+  Georgia (Kvara, Mamardashvili) y Boniface sin plantilla cargada (player_id
+  NULL, se activan al cargarla).
 
 **Parámetros calibrados:**
 - `BASE_GOALS = 1.22`
@@ -351,12 +367,18 @@ curl -X POST "https://api.github.com/repos/FindITCorp/Mundial2026-/actions/workf
      hallazgo de eficiencia/portería (Escocia GK para 0.61× el xGA).
 ```
 
-### Evolución del modelo (14-jun): factor eficiencia conversión + portería
-Diagnóstico con datos: el modelo casi no veía empates bajos/0-0. Causa raíz =
-ignoraba la DESVIACIÓN goles↔xG (finishing) y goles_concedidos↔xGA (portero).
-Se añadió `_finishing_gk_factor` (±10%, gate n≥3, WC_FINISHING). Backtest con
-regla pre-fijada lo validó (ver ARQUITECTURA DEL MODELO). FIJADO y activo.
-Predicciones 14-17 jun re-selladas con el factor.
+### Evolución del modelo (14-jun): dos factores nuevos
+1. **Eficiencia conversión + portería** (`_finishing_gk_factor`, WC_FINISHING):
+   diagnóstico → el modelo no veía empates bajos/0-0 por ignorar la DESVIACIÓN
+   goles↔xG y goles_concedidos↔xGA. Backtest CLARO (Brier cobertura −0.0073).
+   FIJADO y activo.
+2. **Jugadores diferenciadores** (`star_players` + `_star_off/def_factor`,
+   WC_STARS): lista de 100 cracks del dueño. Backtest cumplió la regla
+   pre-fijada (canónico Brier mejora, acc −0.1pp) → FIJADO, pero señal DÉBIL
+   (doble-conteo con Elo/XI; backtest anacrónico subestima). Re-evaluar con WC
+   real. Loader: `python3 scripts/load_star_players.py` (re-correr si cambia la
+   lista o se cargan plantillas de Georgia/Nigeria).
+Predicciones 14-17 jun re-selladas con ambos factores.
 
 ### Calibración acumulada (77 partidos selladas histórico):
 accuracy **62.3%** | Brier **0.2975** | away_bias +0.207 | λ_scale 0.911 | v1.5-argmax

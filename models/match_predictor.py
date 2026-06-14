@@ -1199,6 +1199,61 @@ def _finishing_gk_factor(att: tuple | None, deff: tuple | None) -> float:
     return max(1.0 - _FINISH_CAP, min(1.0 + _FINISH_CAP, f))
 
 
+# ── Jugadores diferenciadores / "techo individual" (14-jun) ───────────────────
+# El factor XI promedia ratings de selección recientes (escasos para muchos). No
+# captura el TECHO de un crack mundial que decide partidos cerrados. star_players
+# (lista curada del dueño) pondera por tier de ranking × disponibilidad en el XI
+# proyectado × posición: OFF (FWD/MID) sube el λ propio; DEF (DEF/GK) baja el λ
+# rival. Rendimientos decrecientes (tanh), caps chicos. Doble-conteo con factor XI
+# y Elo lo arbitra el backtest (regla pre-fijada).
+_STARS_CACHE: dict[str, dict[int, tuple]] = {}
+_STAR_CAP_OFF   = 0.07   # tope boost ofensivo del λ propio
+_STAR_SCALE_OFF = 2.5    # escala tanh ofensiva (off_score mediana ~1.1)
+_STAR_CAP_DEF   = 0.05   # tope reducción del λ rival por solidez/portería estrella
+_STAR_SCALE_DEF = 1.2    # escala tanh defensiva (def_score mediana ~0.75)
+_STAR_SUB_AVAIL = 0.4    # peso de un crack suplente (impacto desde el banco)
+
+
+def _get_star_scores(conn, db_key: str) -> dict[int, tuple]:
+    """{team_id: (off_score, def_score)} ponderando tier × disponibilidad en el
+    XI proyectado. Solo cuentan estrellas con player_id presente en
+    projected_lineups (respeta lesiones/no-convocatorias). Neutral si la tabla
+    no existe."""
+    if db_key not in _STARS_CACHE:
+        out: dict[int, list] = {}
+        try:
+            avail: dict[tuple, float] = {}
+            for tid, pid, st in conn.execute(
+                    "SELECT team_id, player_id, is_starter FROM projected_lineups"):
+                avail[(tid, pid)] = 1.0 if st == 1 else _STAR_SUB_AVAIL
+            for tid, pid, tw, pg in conn.execute(
+                    "SELECT team_id, player_id, tier_weight, pos_group FROM star_players"):
+                if pid is None or pg is None:
+                    continue
+                a = avail.get((tid, pid), 0.0)
+                if a == 0.0:
+                    continue
+                acc = out.setdefault(tid, [0.0, 0.0])
+                if pg == "OFF":
+                    acc[0] += tw * a
+                elif pg == "DEF":
+                    acc[1] += tw * a
+        except Exception:
+            out = {}
+        _STARS_CACHE[db_key] = {t: tuple(v) for t, v in out.items()}
+    return _STARS_CACHE[db_key]
+
+
+def _star_off_factor(off_score: float) -> float:
+    """Boost del λ propio por concentración de cracks ofensivos (cap +7%)."""
+    return 1.0 + _STAR_CAP_OFF * math.tanh(off_score / _STAR_SCALE_OFF)
+
+
+def _star_def_factor(def_score: float) -> float:
+    """Reducción del λ rival por cracks defensivos/portería (cap −5%)."""
+    return 1.0 - _STAR_CAP_DEF * math.tanh(def_score / _STAR_SCALE_DEF)
+
+
 def _strengths_matchup(att: dict | None, deff: dict | None) -> float:
     """Multiplicador del λ atacante cuando sus fortalezas golpean debilidades
     del rival (pedido 11-jun: 'defensa débil vs ataque fuerte → goleada').
@@ -1263,6 +1318,7 @@ def predict_match(
     use_confed_adj: bool = True, # corregir Elo por sesgo de confederación (A/B testing)
     use_matchup: bool | None = None,  # fortalezas vs debilidades (None → env WC_MATCHUP)
     use_finishing: bool | None = None,  # conversión + portería (None → env WC_FINISHING)
+    use_stars: bool | None = None,    # jugadores diferenciadores (None → env WC_STARS)
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -1355,6 +1411,19 @@ def predict_match(
         _fin = _get_finishing(conn, db_key)
         h_fin_f = _finishing_gk_factor(_fin.get(home_id), _fin.get(away_id))
         a_fin_f = _finishing_gk_factor(_fin.get(away_id), _fin.get(home_id))
+
+    # Jugadores diferenciadores: OFF sube λ propio; DEF rival baja λ propio
+    if use_stars is None:
+        import os
+        use_stars = os.environ.get("WC_STARS", "1") != "0"
+    h_star_f = a_star_f = 1.0
+    if use_stars:
+        _stars = _get_star_scores(conn, db_key)
+        h_off, h_def = _stars.get(home_id, (0.0, 0.0))
+        a_off, a_def = _stars.get(away_id, (0.0, 0.0))
+        # λ local = boost por sus cracks ofensivos × reducción por defensa estrella rival
+        h_star_f = _star_off_factor(h_off) * _star_def_factor(a_def)
+        a_star_f = _star_off_factor(a_off) * _star_def_factor(h_def)
 
     _hn = conn.execute("SELECT name FROM teams WHERE id=?", (home_id,)).fetchone()
     _an = conn.execute("SELECT name FROM teams WHERE id=?", (away_id,)).fetchone()
@@ -1558,6 +1627,7 @@ def predict_match(
         * h_perf_aerial_f                            # aerial dominance set-piece edge
         * h_str_mu                                   # fortalezas vs debilidades (±8%)
         * h_fin_f                                    # finishing propio × portería rival (±10%)
+        * h_star_f                                   # cracks ofensivos propios × defensa estrella rival
     )
     la_raw = (
         BASE_GOALS
@@ -1580,6 +1650,7 @@ def predict_match(
         * a_perf_aerial_f                            # aerial dominance set-piece edge
         * a_str_mu                                   # fortalezas vs debilidades (±8%)
         * a_fin_f                                    # finishing propio × portería rival (±10%)
+        * a_star_f                                   # cracks ofensivos propios × defensa estrella rival
         * (1 - away_absence)
     )
 
@@ -1895,6 +1966,8 @@ def predict_match(
             "strengths_mu_away": round(a_str_mu, 4),
             "finishing_factor_home": round(h_fin_f, 4),
             "finishing_factor_away": round(a_fin_f, 4),
+            "star_factor_home": round(h_star_f, 4),
+            "star_factor_away": round(a_star_f, 4),
             "vet_exp_home":     round(h_vet["exp_score"], 3),
             "vet_exp_away":     round(a_vet["exp_score"], 3),
             # Rendimiento real del XI — StatsBomb
