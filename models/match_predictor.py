@@ -1132,6 +1132,73 @@ def _get_strengths(conn, db_key: str) -> dict[int, dict]:
     return _STRENGTHS_CACHE[db_key]
 
 
+# ── Eficiencia de conversión + shot-stopping del portero (14-jun) ─────────────
+# Hallazgo (eval 77 partidos): el modelo COMPRIME λ hacia arriba. Solo 9% de
+# partidos con λ_total<2.0 vs 25% reales low-scoring; en empates esperaba 2.84
+# goles, cayeron 1.65. Causa: el λ usa VOLUMEN de xG pero ignora la DESVIACIÓN
+# sistemática goles↔xG (finishing) y goles_concedidos↔xGA (portero). Egipto
+# convierte 2.03× su xG y su GK para a 0.49× el xGA → 0-0 ante España; Escocia
+# GK 0.61× → 0-1 a Haití pese a xG inferior. Estas señales bajan el λ de
+# derrochadores/defensas sólidas y dejan emerger los empates bajos y los 1-0.
+_FINISHING_CACHE: dict[str, dict[int, tuple]] = {}
+_FINISH_K   = 6.0    # shrinkage hacia 1.0: w = n/(n+K)  (n=4 → w=0.40)
+_FINISH_CAP = 0.10   # cap del producto finishing×GK: ±10%
+
+
+def _get_finishing(conn, db_key: str) -> dict[int, tuple]:
+    """Perfil de conversión y portería por equipo desde match_team_stats.
+    {team_id: (n, xg_for, goals_for, xg_against, goals_against)} con xG real
+    de ambos lados del mismo partido. SOS-neutral por ahora (volumen lo cubre
+    el blend xG del λ); esto mide solo la EFICIENCIA, ortogonal al volumen."""
+    if db_key not in _FINISHING_CACHE:
+        out: dict[int, tuple] = {}
+        try:
+            rows = conn.execute("""
+                SELECT ts.team_id, COUNT(*) n, SUM(ts.xg) xgf,
+                       SUM(CASE WHEN ts.is_home=1 THEN wm.score_home
+                                ELSE wm.score_away END) gf,
+                       SUM(opp.xg) xga,
+                       SUM(CASE WHEN ts.is_home=1 THEN wm.score_away
+                                ELSE wm.score_home END) ga
+                FROM match_team_stats ts
+                JOIN wc_matches wm ON wm.id = ts.match_id
+                JOIN match_team_stats opp
+                     ON opp.match_id = ts.match_id AND opp.team_id != ts.team_id
+                WHERE ts.xg IS NOT NULL AND opp.xg IS NOT NULL
+                  AND wm.score_home IS NOT NULL
+                GROUP BY ts.team_id
+            """).fetchall()
+            for tid, n, xgf, gf, xga, ga in rows:
+                out[tid] = (n, xgf, gf, xga, ga)
+        except Exception:
+            pass
+        _FINISHING_CACHE[db_key] = out
+    return _FINISHING_CACHE[db_key]
+
+
+def _finishing_gk_factor(att: tuple | None, deff: tuple | None) -> float:
+    """Multiplicador del λ del atacante = finishing_propio × permeabilidad_GK_rival.
+      finishing = goles/xG del atacante  (>1 clínico, <1 derrochador)
+      gk_perm   = goles_concedidos/xGA del defensor  (>1 GK permeable, <1 muralla)
+    Ambos con shrinkage hacia 1.0; producto capeado ±10%. Neutral (1.0) si algún
+    lado tiene n<3 o xG agregado nulo — nunca penaliza por falta de datos."""
+    if not att or not deff:
+        return 1.0
+    na, xgf, gf, _, _ = att
+    nd, _, _, xga, ga = deff
+    if na < 3 or nd < 3 or not xgf or not xga:
+        return 1.0
+
+    def _shrink(raw: float, n: int) -> float:
+        w = n / (n + _FINISH_K)
+        return 1.0 + (raw - 1.0) * w
+
+    finish  = _shrink(gf / xgf, na)
+    gk_perm = _shrink(ga / xga, nd)
+    f = finish * gk_perm
+    return max(1.0 - _FINISH_CAP, min(1.0 + _FINISH_CAP, f))
+
+
 def _strengths_matchup(att: dict | None, deff: dict | None) -> float:
     """Multiplicador del λ atacante cuando sus fortalezas golpean debilidades
     del rival (pedido 11-jun: 'defensa débil vs ataque fuerte → goleada').
@@ -1195,6 +1262,7 @@ def predict_match(
     use_veteran: bool = True,    # activar factor experiencia mundialista (A/B testing)
     use_confed_adj: bool = True, # corregir Elo por sesgo de confederación (A/B testing)
     use_matchup: bool | None = None,  # fortalezas vs debilidades (None → env WC_MATCHUP)
+    use_finishing: bool | None = None,  # conversión + portería (None → env WC_FINISHING)
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -1277,6 +1345,16 @@ def predict_match(
         _str = _get_strengths(conn, db_key)
         h_str_mu = _strengths_matchup(_str.get(home_id), _str.get(away_id))
         a_str_mu = _strengths_matchup(_str.get(away_id), _str.get(home_id))
+
+    # Conversión (goles/xG) + portería rival (GA/xGA) — eficiencia, no volumen
+    if use_finishing is None:
+        import os
+        use_finishing = os.environ.get("WC_FINISHING", "1") != "0"
+    h_fin_f = a_fin_f = 1.0
+    if use_finishing:
+        _fin = _get_finishing(conn, db_key)
+        h_fin_f = _finishing_gk_factor(_fin.get(home_id), _fin.get(away_id))
+        a_fin_f = _finishing_gk_factor(_fin.get(away_id), _fin.get(home_id))
 
     _hn = conn.execute("SELECT name FROM teams WHERE id=?", (home_id,)).fetchone()
     _an = conn.execute("SELECT name FROM teams WHERE id=?", (away_id,)).fetchone()
@@ -1479,6 +1557,7 @@ def predict_match(
         * h_perf_press_f                             # high-press vs low-possession bonus
         * h_perf_aerial_f                            # aerial dominance set-piece edge
         * h_str_mu                                   # fortalezas vs debilidades (±8%)
+        * h_fin_f                                    # finishing propio × portería rival (±10%)
     )
     la_raw = (
         BASE_GOALS
@@ -1500,6 +1579,7 @@ def predict_match(
         * a_perf_press_f                             # high-press vs low-possession bonus
         * a_perf_aerial_f                            # aerial dominance set-piece edge
         * a_str_mu                                   # fortalezas vs debilidades (±8%)
+        * a_fin_f                                    # finishing propio × portería rival (±10%)
         * (1 - away_absence)
     )
 
@@ -1813,6 +1893,8 @@ def predict_match(
             "vet_factor_away":  round(a_vet_f, 4),
             "strengths_mu_home": round(h_str_mu, 4),
             "strengths_mu_away": round(a_str_mu, 4),
+            "finishing_factor_home": round(h_fin_f, 4),
+            "finishing_factor_away": round(a_fin_f, 4),
             "vet_exp_home":     round(h_vet["exp_score"], 3),
             "vet_exp_away":     round(a_vet["exp_score"], 3),
             # Rendimiento real del XI — StatsBomb

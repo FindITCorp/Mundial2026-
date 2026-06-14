@@ -208,6 +208,22 @@ r = predict_match(home_id, away_id, neutral=True)
   el dueño en match_player_stats fluyen a player_ratings 'nat' (matching
   multi-clave: acentos/guiones/orden — variantes coreanas). El factor XI
   agrega los últimos 5 ratings por jugador (antes el JOIN explotaba filas).
+- ★ **Eficiencia conversión + portería (14-jun)** (`_finishing_gk_factor` en
+  match_predictor.py): λ del atacante × (goles/xG propio) × (GA/xGA del GK
+  rival). Mide EFICIENCIA (desviación goles↔xG), ortogonal al VOLUMEN que ya
+  da el blend xG. Shrinkage w=n/(n+6), cap producto ±10%, gate n≥3 ambos lados,
+  neutral sin datos. A/B con WC_FINISHING=0. **Hallazgo que lo motivó** (eval 77
+  partidos): el modelo no veía empates bajos (0/17) ni 0-0 (1 pred vs 6 reales)
+  porque ignoraba que Egipto convierte 2.03× su xG + GK para a 0.49× (→0-0 vs
+  España) o que Escocia GK 0.61× (→0-1 a Haití pese a xG inferior). **Backtest
+  (regla pre-fijada: fijar si acc no cae >0.2pp Y Brier mejora):** 955 part.
+  acc 64.5→64.7%, Brier 0.4809→0.4806 ✓; set WC 140 part. Brier 0.5206→0.5176,
+  log-loss 0.8756→0.8703; en los 58 con cobertura Brier −0.0073 (2.4× más
+  fuerte). Accuracy plana (−0.7pp = 1 partido, ruido); gana CALIBRACIÓN. FIJADO.
+  Nota: la inflación de λ que se vio en predicciones selladas (λ_tot 2.89, 9%
+  low) era de bias OBSOLETO; el modelo vivo con model_bias ya está en λ_tot 2.27
+  / 36% low (real 27%) — model_bias auto-corrige el grueso; este factor afina la
+  EFICIENCIA por equipo que el promedio global no captura.
 
 **Parámetros calibrados:**
 - `BASE_GOALS = 1.22`
@@ -325,22 +341,26 @@ curl -X POST "https://api.github.com/repos/FindITCorp/Mundial2026-/actions/workf
 
 ## ESTADO ACTUAL
 
-**Última actualización:** 13 junio 2026 — día 3 WC2026
+**Última actualización:** 14 junio 2026 — día 4 WC2026
 
-### Resultados cargados hasta 12-jun:
+### Cargados en sesión 14-jun:
 ```
-✅ México 2-0 Sudáfrica    — stats completas (xG 1.41-0.07, 3 rojas)
-✅ EEUU 3-1 Paraguay       — stats completas (Balogun 2G, Reyna 1G; Mauricio 1G PAR)
-✅ Canadá 1-0 Bosnia       — ganador ✓
-⏳ Corea del Sur vs Chequia — resultado pendiente de cargar (pedir al dueño)
+✅ Colombia 1-3 France (amistoso 29-mar) — 33 jugadores + team stats (xG 1.12-1.63)
+✅ Haití 0-1 Escocia (WC Grupo C, 13-jun) — 30 jugadores + team stats (xG 1.21-1.05)
+   → Haití dominó xG y posesión pero McGinn (83') decidió: caso testigo del
+     hallazgo de eficiencia/portería (Escocia GK para 0.61× el xGA).
 ```
 
-### Predicciones activas (13-16 jun, v1.5-argmax):
-Argmax grid — pronósticos coherentes con ganador por construcción.
-Qatar-Suiza y Brasil-Marruecos: resultados del 12-jun pendientes de carga.
+### Evolución del modelo (14-jun): factor eficiencia conversión + portería
+Diagnóstico con datos: el modelo casi no veía empates bajos/0-0. Causa raíz =
+ignoraba la DESVIACIÓN goles↔xG (finishing) y goles_concedidos↔xGA (portero).
+Se añadió `_finishing_gk_factor` (±10%, gate n≥3, WC_FINISHING). Backtest con
+regla pre-fijada lo validó (ver ARQUITECTURA DEL MODELO). FIJADO y activo.
+Predicciones 14-17 jun re-selladas con el factor.
 
-### Calibración acumulada (74 partidos):
-accuracy **64.9%** | Brier **0.2866** (mejor histórico) | λ_scale 0.91 | v1.5-argmax
+### Calibración acumulada (77 partidos selladas histórico):
+accuracy **62.3%** | Brier **0.2975** | away_bias +0.207 | λ_scale 0.911 | v1.5-argmax
+(histórico de predicciones viejas; el factor nuevo mejora calibración a futuro)
 
 ### Cobertura de datos (sesión 11-jun cargó ~20 partidos con stats):
 - 42 selecciones con perfil de fortalezas; matchup ON para: todos los del
