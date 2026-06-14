@@ -156,6 +156,12 @@ def evaluate(db_path=DB, verbose=True) -> dict:
     lambda_scale = (total_real / total_pred2) if total_pred2 > 0 else 1.0
     lambda_scale = max(0.80, min(1.20, lambda_scale))  # clamp ±20%
 
+    # Nota (14-jun): se evaluó ACUMULAR el sesgo (converger a corrección completa
+    # en vez de la mitad). El backtest directo sobre 519 partidos lo descartó:
+    # el modelo ya sub-predice goles en el set amplio, así que aumentar la
+    # corrección sobre-corrige. Se mantiene REEMPLAZO: el punto fijo en ~D/2 actúa
+    # como amortiguación conservadora y mantiene la calibración sana.
+
     # ── Persistir ────────────────────────────────────────────────────────────
     # Limpiar log anterior y reinsertar (para tener siempre el estado más fresco)
     # INSERT OR REPLACE — preserva historial, solo actualiza partidos ya evaluados

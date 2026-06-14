@@ -1525,12 +1525,26 @@ def predict_match(
     la = min(max(la_raw * a_timing_boost, 0.20), _lambda_cap)
 
     # ── 9b. Aplicar ajuste aprendido de model_bias ────────────────────────
+    # La escala global (lambda_scale) corrige la inflación total de goles y
+    # aplica SIEMPRE. El sesgo local/visitante es una asimetría de cancha: solo
+    # aplica cuando hay localía real (anfitriones en grupos). En cancha neutral
+    # —todo el Mundial salvo USA/México/Canadá— no existe "visitante" real, así
+    # que penalizar al nominal away introduce una ventaja falsa. En neutral se
+    # usa el promedio de ambos sesgos para conservar el nivel de goles sin
+    # favorecer a ninguno. (fix 14-jun)
     try:
         from scripts.evaluate_model import load_model_bias
         _bias = load_model_bias(db_path)
         _scale = _bias.get("lambda_scale", 1.0)
-        lh = max(0.20, lh * _scale - _bias.get("home_lambda_bias", 0.0))
-        la = max(0.20, la * _scale - _bias.get("away_lambda_bias", 0.0))
+        _hb = _bias.get("home_lambda_bias", 0.0)
+        _ab = _bias.get("away_lambda_bias", 0.0)
+        if neutral:
+            _avg = (_hb + _ab) / 2.0
+            lh = max(0.20, lh * _scale - _avg)
+            la = max(0.20, la * _scale - _avg)
+        else:
+            lh = max(0.20, lh * _scale - _hb)
+            la = max(0.20, la * _scale - _ab)
     except Exception:
         pass
 
