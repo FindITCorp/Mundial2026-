@@ -241,11 +241,38 @@ r = predict_match(home_id, away_id, neutral=True)
   Georgia (Kvara, Mamardashvili) y Boniface sin plantilla cargada (player_id
   NULL, se activan al cargarla).
 
+- ★ **Sobredispersión de goles / incertidumbre del marcador (14-jun)**
+  (`_negbin` + `_DISP_R=10` en match_predictor.py): los goles reales están
+  SOBREDISPERSOS respecto a Poisson (Var>media). Medido con el propio modelo
+  sobre 350 partidos: residuos estandarizados (G−λ)/√λ dan φ_home=1.40,
+  φ_away=1.06 (Poisson daría φ=1.0) → el grid Poisson puro es DEMASIADO ESTRECHO
+  y subestima marcadores atípicos/upsets (caso testigo: Australia 2-0 Turquía,
+  13-jun — Turquía 30 tiros/xG 1.36 y 0 goles; el modelo daba Turquía favorita
+  46.6%). La Negative Binomial conserva la media λ y ENSANCHA la cola
+  (Var=λ+λ²/r); r→∞ recupera Poisson. **Hallazgo clave del backtest (set
+  canónico 1508 part.):** la dispersión SOLO ayuda al MARCADOR (log-loss
+  2.9169→2.9072, acierto exacto del grid 15.3%→15.7% con r óptimo≈10). En el
+  **1X2 la calibración ya es buena** (los favoritos ganan algo MÁS de lo predicho:
+  gaps +2..+6pp), así que ensanchar la distribución daña Brier W/D/L (+0.0018) y
+  accuracy (−0.27pp) → **NO PASA el guard para 1X2.** Decisión guiada por datos
+  (coherente con "marcador y ganador = lecturas independientes"): **NB se aplica
+  SOLO a la grilla de marcador** (top_scores/predicted_score/goleada band, donde
+  mejora la calibración) y **el 1X2 se mantiene en Poisson** (donde está mejor
+  calibrado). Backtest del híbrido: W/D/L EXACTAMENTE intacto (Δacc=0, Δbrier=0,
+  guard ✅) + cola de marcador más realista. `predicted_score` casi no cambia
+  (−0.3pp ≈ ruido) porque está winner-gated; lo que mejora es la INCERTIDUMBRE
+  reportada (pred_score_prob y top_scores). Flag A/B: WC_DISPERSION (1=on),
+  WC_DISPERSION_R (valor de r). **Próximo paso (data-gated):** ligar r a la
+  calidad/disponibilidad del plantel (menos cracks disponibles ⇒ más
+  incertidumbre ⇒ r menor) — la 2ª intuición del dueño; requiere más resultados
+  WC para calibrar sin sobreajuste.
+
 **Parámetros calibrados:**
 - `BASE_GOALS = 1.22`
 - Neutral venue para WC EXCEPTO anfitriones en fase de grupos
 - Draw boost W-5 framework (5 señales)
 - model_bias λ_scale 0.907-0.910 (refit continuo)
+- `_DISP_R = 10` (Negative Binomial en grilla de marcador; Poisson en 1X2)
 
 ### METODOLOGÍA DEL MARCADOR OFICIAL (13-jun — revisión v1.5)
 **pred_scoreline = ARGMAX del grid conjunto Dixon-Coles** (pico real de la

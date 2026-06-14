@@ -15,6 +15,7 @@ Uso:
     print(r)
 """
 
+import os
 import sqlite3
 import math
 import logging
@@ -283,6 +284,40 @@ def _timing_lambda_boost(defender_timing: dict) -> float:
 
 def _poisson(lam: float, k: int) -> float:
     return (lam ** k * math.exp(-lam)) / math.factorial(k)
+
+
+# ── Sobredispersión: Negative Binomial en vez de Poisson ─────────────────────
+# Los goles reales están SOBREDISPERSOS respecto a Poisson (Var > media). Medido
+# sobre 350 partidos WC2026 con el propio modelo: φ_home=1.40, φ_away=1.06
+# (residuos estandarizados (G−λ)/√λ; Poisson daría φ=1.0). El grid Poisson puro
+# es por tanto DEMASIADO ESTRECHO: subestima marcadores atípicos y goleadas/
+# upsets (caso Australia 2-0 Turkey, 13-jun: Turquía 30 tiros/xG 1.36 y 0 goles).
+# La Negative Binomial conserva la media λ y ENSANCHA la cola: Var = λ + λ²/r.
+# r → ∞ recupera Poisson exacto. r=10 calibrado por BACKTEST (regla del proyecto),
+# no por momento (set canónico 1508 part.: log-loss de marcador 2.9169→2.9072,
+# acierto de marcador exacto 15.3%→15.7%). Ortogonal a los factores de λ: no toca
+# la media, cambia la INCERTIDUMBRE alrededor de ella.
+#
+# ⚠ HALLAZGO CLAVE DEL BACKTEST: la sobredispersión SOLO ayuda al MARCADOR. En el
+# 1X2 la calibración ya es buena (los favoritos ganan algo MÁS de lo predicho:
+# gaps +2..+6pp), así que ensanchar daña Brier W/D/L (+0.0018) y accuracy (−0.27pp)
+# → NO PASA el guard para 1X2. Por eso NB se aplica SOLO a la grilla de marcador
+# (top_scores/predicted_score, donde mejora) y el 1X2 se mantiene en Poisson (donde
+# está mejor calibrado). Coherente con la filosofía del proyecto: marcador oficial
+# y ganador probable son lecturas independientes. Flag A/B: WC_DISPERSION (1=on).
+_DISP_R = float(os.environ.get("WC_DISPERSION_R", "10.0"))   # ≤0 ⇒ Poisson puro
+
+
+def _negbin(lam: float, k: int, r: float) -> float:
+    """P(K=k) Negative Binomial con media=lam y dispersión r (Var=lam+lam²/r).
+    r≤0 o None ⇒ Poisson puro (límite r→∞)."""
+    if not r or r <= 0:
+        return _poisson(lam, k)
+    p = r / (r + lam)                       # P(k)=Γ(k+r)/(k!Γ(r))·p^r·(1−p)^k
+    return math.exp(
+        math.lgamma(k + r) - math.lgamma(r) - math.lgamma(k + 1)
+        + r * math.log(p) + k * math.log1p(-p)
+    )
 
 
 def _get_elo(conn, team_id: int) -> float:
@@ -1319,6 +1354,7 @@ def predict_match(
     use_matchup: bool | None = None,  # fortalezas vs debilidades (None → env WC_MATCHUP)
     use_finishing: bool | None = None,  # conversión + portería (None → env WC_FINISHING)
     use_stars: bool | None = None,    # jugadores diferenciadores (None → env WC_STARS)
+    use_dispersion: bool | None = None,  # sobredispersión NB (None → env WC_DISPERSION)
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -1424,6 +1460,12 @@ def predict_match(
         # λ local = boost por sus cracks ofensivos × reducción por defensa estrella rival
         h_star_f = _star_off_factor(h_off) * _star_def_factor(a_def)
         a_star_f = _star_off_factor(a_off) * _star_def_factor(h_def)
+
+    # Sobredispersión de goles: Negative Binomial (cola más ancha que Poisson).
+    # No toca la media λ; modela la INCERTIDUMBRE alrededor de ella.
+    if use_dispersion is None:
+        use_dispersion = os.environ.get("WC_DISPERSION", "1") != "0"
+    disp_r = _DISP_R if use_dispersion else 0.0   # 0 ⇒ Poisson puro
 
     _hn = conn.execute("SELECT name FROM teams WHERE id=?", (home_id,)).fetchone()
     _an = conn.execute("SELECT name FROM teams WHERE id=?", (away_id,)).fetchone()
@@ -1699,18 +1741,26 @@ def predict_match(
     except Exception:
         pass
 
-    # ── 10. Distribución Poisson ──────────────────────────────────────────
-    probs = {}
+    # ── 10. Distribución de goles ──────────────────────────────────────────
+    # DOS lecturas independientes de la misma λ (filosofía del proyecto):
+    #  (a) 1X2 (ph/pd/pa): Poisson — mejor calibrado para ganador/empate (backtest).
+    #  (b) Grilla de MARCADOR (probs→top_scores/predicted_score): Negative Binomial
+    #      con disp_r>0 — corrige la sobredispersión medida (φ≈1.1-1.4), mejor
+    #      log-loss y acierto de marcador exacto. disp_r=0 ⇒ Poisson (A/B WC_DISPERSION).
     ph = pd = pa = 0.0
     for i in range(8):
         for j in range(8):
-            p = _poisson(lh, i) * _poisson(la, j)
-            probs[(i, j)] = p
+            p = _poisson(lh, i) * _poisson(la, j)        # 1X2 desde Poisson
             if i > j:   ph += p
             elif i == j: pd += p
             else:        pa += p
-    total = sum(probs.values())
+    total = ph + pd + pa
     ph /= total; pd /= total; pa /= total
+
+    probs = {}                                            # marcador desde NB
+    for i in range(8):
+        for j in range(8):
+            probs[(i, j)] = _negbin(lh, i, disp_r) * _negbin(la, j, disp_r)
 
     # ── 10b. Rebalanceo de empates — calibrado 04-jun-2026 ───────────────
     # Evidencia: 4/4 empates predichos el 02-jun resultaron ganador claro.
@@ -1968,6 +2018,7 @@ def predict_match(
             "finishing_factor_away": round(a_fin_f, 4),
             "star_factor_home": round(h_star_f, 4),
             "star_factor_away": round(a_star_f, 4),
+            "dispersion_r":     disp_r,   # >0 ⇒ NB en grilla de marcador; 0 ⇒ Poisson
             "vet_exp_home":     round(h_vet["exp_score"], 3),
             "vet_exp_away":     round(a_vet["exp_score"], 3),
             # Rendimiento real del XI — StatsBomb
