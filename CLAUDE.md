@@ -410,6 +410,8 @@ curl -X POST "https://api.github.com/repos/FindITCorp/Mundial2026-/actions/workf
 | Amistosos sin evaluar | fetch escribe team_matches, evaluate lee wc_matches | `sync_friendly_results.py` |
 | Filas dobles/fabricadas en team_matches | loaders múltiples + lote sintético ids 1-100 | `clean_team_matches.py --apply` (idempotente, en workflow) |
 | **Stats huérfanas (11-jun)** | loader viejo usó match_id de team_matches; el modelo lee wc_matches | `fix_stats_links.py` (52→0 huérfanos; en workflow) |
+| **Resultados sin espejar a team_matches (14-jun)** | dumps del dueño cargan wc_matches/match_team_stats pero NO team_matches → el factor FORMA no ve los partidos recientes (15 faltaban, incl. todo el 13-jun) | espejar wc_matches jugados → team_matches (ambas perspectivas, comp WC, venue neutral/host) + rebuild strengths/perfiles. Verificar `MAX(date)` de team_matches vs wc_matches tras cada carga |
+| **match_player_stats sin rating (14-jun)** | dumps recientes traen posición pero no Valoración Sofascore numérica → player_ratings no se refresca, XI usa ratings viejos | al pegar dumps, capturar la columna de rating; luego `sync_player_match_ratings.py` |
 | Ratings cargados ignorados | match_player_stats sin puente a player_ratings + JOIN explosivo | `sync_player_match_ratings.py` + agregado last-5 en `_get_xi_rating` |
 | Ejes con -2.5σ falsos | campos NULL diluían promedios | denominadores por métrica en team_strengths (NULL→z neutral) |
 | SIGPIPE mata scripts | `python3 script | head -N` | redirigir a archivo: `> /tmp/x.log 2>&1` |
