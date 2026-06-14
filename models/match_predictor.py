@@ -671,7 +671,7 @@ def _get_xi_rating(conn, team_id: int) -> float:
     """
     rows = conn.execute("""
         SELECT p.caps, p.position, p.club_league,
-               pr.rating,
+               pr.rating, pr.n_obs,
                pcs.xg,
                pcs.shots_on_target,
                pcs.key_passes,
@@ -682,11 +682,10 @@ def _get_xi_rating(conn, team_id: int) -> float:
         FROM projected_lineups pl
         JOIN players p ON p.id = pl.player_id
         LEFT JOIN (
-            -- player_ratings guarda UNA FILA POR PARTIDO: sin agregar, el join
-            -- explotaba (cada titular contaba N veces y ratings viejos diluían
-            -- a los nuevos — reclamo usuario 11-jun: stats cargados ignorados).
-            -- Promedio de los últimos 5 ratings 'nat' por jugador.
-            SELECT player_id, AVG(rating) AS rating FROM (
+            -- Promedio de los últimos 5 ratings 'nat' por jugador + nº observaciones
+            -- para aplicar shrinkage bayesiano: con pocas obs el rating se tira
+            -- hacia la media de posición y evitar que un buen partido friendly infle.
+            SELECT player_id, AVG(rating) AS rating, COUNT(*) AS n_obs FROM (
                 SELECT player_id, rating,
                        ROW_NUMBER() OVER (PARTITION BY player_id
                                           ORDER BY computed_at DESC, id DESC) AS rn
@@ -731,7 +730,17 @@ def _get_xi_rating(conn, team_id: int) -> float:
                 lq = val
                 break
 
-        rating_n = min(1.0, r["rating"] / RATING_MAX) if r["rating"] else None
+        # Shrinkage bayesiano: con pocas observaciones nat, el rating se corrige
+        # hacia la media de la posición (GK 7.0 / DEF 6.8 / MID 6.9 / FWD 7.1).
+        # k=3 → con 1 obs se mueve ~75% hacia el prior; con 5 obs solo ~37%.
+        if r["rating"] is not None:
+            _POS_PRIOR = {"GK": 7.0, "DEF": 6.8, "MID": 6.9, "FWD": 7.1}
+            _prior = _POS_PRIOR.get((r["position"] or "").upper(), 6.9)
+            _k, _n = 3, int(r["n_obs"] or 1)
+            _adj = (_n * r["rating"] + _k * _prior) / (_n + _k)
+            rating_n = min(1.0, _adj / RATING_MAX)
+        else:
+            rating_n = None
         # xG ajustado por calidad de liga — 0.5 xG/p en PL vale más que en liga panameña
         xg_n     = min(1.0, (r["xg"] or 0.0) * lq / club_m / XG_PER_GAME_MAX)
         caps_n   = min(1.0, (r["caps"] or 0) / CAPS_MAX)
@@ -938,16 +947,31 @@ def _xi_matchup(att_creative: dict, def_defensive: dict) -> float:
 
 
 def _get_star_factor(conn, team_id: int) -> float:
-    """Factor multiplicador por presencia de jugadores élite en el XI (rating >= 8.5/10)."""
+    """Factor multiplicador por presencia de jugadores élite en el XI (rating >= 8.5/10).
+
+    Fix (14-jun-2026): query anterior sin GROUP BY contaba a un jugador N veces
+    si tenía N ratings nat — inflaba el bonus. Ahora agrega por jugador primero.
+    Umbral de 8.5 se aplica sobre el PROMEDIO de los últimos 5 ratings (no raw).
+    """
     rows = conn.execute("""
-        SELECT pr.rating FROM projected_lineups pl
-        LEFT JOIN player_ratings pr ON pr.player_id = pl.player_id AND pr.context = 'nat'
-        WHERE pl.team_id = ? AND pl.is_starter = 1 AND pr.rating IS NOT NULL
+        SELECT AVG(pr.rating) AS avg_rating
+        FROM projected_lineups pl
+        LEFT JOIN (
+            SELECT player_id, rating FROM (
+                SELECT player_id, rating,
+                       ROW_NUMBER() OVER (PARTITION BY player_id
+                                          ORDER BY computed_at DESC, id DESC) AS rn
+                FROM player_ratings WHERE context = 'nat' AND rating IS NOT NULL
+            ) WHERE rn <= 5
+        ) pr ON pr.player_id = pl.player_id
+        WHERE pl.team_id = ? AND pl.is_starter = 1
+        GROUP BY pl.player_id
+        HAVING avg_rating IS NOT NULL
     """, (team_id,)).fetchall()
     if not rows:
         return 1.0
-    stars = sum(1 for r in rows if r["rating"] >= 8.5)
-    elite = sum(1 for r in rows if r["rating"] >= 9.0)
+    stars = sum(1 for r in rows if r["avg_rating"] >= 8.5)
+    elite = sum(1 for r in rows if r["avg_rating"] >= 9.0)
     # Cada estrella suma 1.5%, cada élite suma 2.5% extra
     bonus = stars * 0.015 + elite * 0.025
     return min(1.12, 1.0 + bonus)
