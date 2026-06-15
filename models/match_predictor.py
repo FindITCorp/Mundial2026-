@@ -690,6 +690,103 @@ def _get_team_possession_from_stats(conn, team_id: int, n: int = 8) -> float | N
     return sum(r[0] for r in rows) / len(rows)
 
 
+# ── WC tournament goals (SOS-weighted) ───────────────────────────────────────
+# Goles a favor/contra del equipo en partidos YA jugados del Mundial actual.
+# Complementa la forma histórica con evidencia real del torneo en curso.
+# SOS-weighted (mismo exponente que _get_form) para igualar el valor de un gol
+# vs Alemania frente a un gol vs un equipo débil.
+
+_WC_GF_AVG_CACHE: dict = {"value": None}
+
+
+def _wc_avg_goals(conn) -> float:
+    """Media de goles por equipo por partido en el WC actual. Cacheado por proceso."""
+    if _WC_GF_AVG_CACHE["value"] is not None:
+        return _WC_GF_AVG_CACHE["value"]
+    r = conn.execute("""
+        SELECT AVG(g) FROM (
+            SELECT score_home AS g FROM wc_matches WHERE played=1 AND score_home IS NOT NULL
+            UNION ALL
+            SELECT score_away FROM wc_matches WHERE played=1 AND score_away IS NOT NULL
+        )
+    """).fetchone()
+    avg = float((r[0] if r and r[0] else None) or 1.35)
+    _WC_GF_AVG_CACHE["value"] = max(0.80, min(2.50, avg))
+    return _WC_GF_AVG_CACHE["value"]
+
+
+def _get_wc_goals(conn, team_id: int, n: int = 10) -> dict | None:
+    """Goles marcados/encajados en el WC actual, SOS-weighted por Elo del rival.
+    Devuelve {gf, ga, n} o None si el equipo aún no disputó ningún partido WC."""
+    rows = conn.execute("""
+        SELECT
+            CASE WHEN wm.home_team_id=? THEN wm.score_home ELSE wm.score_away END AS gf,
+            CASE WHEN wm.home_team_id=? THEN wm.score_away ELSE wm.score_home END AS ga,
+            CASE WHEN wm.home_team_id=? THEN wm.away_team_id ELSE wm.home_team_id END AS opp_id
+        FROM wc_matches wm
+        WHERE (wm.home_team_id=? OR wm.away_team_id=?)
+          AND wm.score_home IS NOT NULL AND wm.played=1
+        ORDER BY wm.date DESC LIMIT ?
+    """, (team_id,) * 5 + (n,)).fetchall()
+    if not rows:
+        return None
+    tot_gf = tot_ga = tot_w = 0.0
+    for r in rows:
+        oe = conn.execute("SELECT elo FROM team_elo WHERE team_id=?",
+                          (r["opp_id"],)).fetchone()
+        opp_elo = oe["elo"] if oe else SOS_DEFAULT_ELO
+        w = min(2.0, max(0.35, (opp_elo / SOS_PIVOT) ** SOS_EXP))
+        tot_gf += r["gf"] * w
+        tot_ga += r["ga"] * w
+        tot_w  += w
+    return {"gf": tot_gf / tot_w, "ga": tot_ga / tot_w, "n": len(rows)}
+
+
+# ── Line ratings from WC match data (GK / DEF / MID / FWD) ──────────────────
+# player_ratings(context='nat') ya incluyen el ajuste por resultado del partido
+# (sync_player_match_ratings.py). Agrupando por línea obtenemos señales más
+# específicas que el xi_rating global: GK débil → rival marca más; FWD fuerte
+# → equipo marca más. Complementa xi_rating sin reemplazarlo (xi = calidad total,
+# line_ratings = dónde está la fortaleza/debilidad).
+
+_LINE_NEUTRAL = {"GK": 7.00, "DEF": 6.85, "MID": 6.95, "FWD": 7.10}
+
+
+def _get_line_ratings(conn, team_id: int) -> dict:
+    """Factor por línea (GK/DEF/MID/FWD) desde player_ratings(context='nat').
+    Devuelve {pos: factor} donde factor = avg_rating / neutral_pivot_for_pos.
+    Devuelve {} si no hay datos de ratings para el equipo."""
+    def _np(p: str) -> str:
+        p = (p or "").strip().upper()
+        if p in ("G", "GK"):              return "GK"
+        if p in ("D", "DEF", "DF"):       return "DEF"
+        if p in ("M", "MID", "MF"):       return "MID"
+        if p in ("F", "FWD", "FW", "ST"): return "FWD"
+        return "MID"
+
+    rows = conn.execute("""
+        SELECT p.position, pr.rating
+        FROM player_ratings pr
+        JOIN players p ON p.id = pr.player_id
+        WHERE pr.context='nat' AND p.team_id=?
+          AND p.position IS NOT NULL AND pr.rating IS NOT NULL
+        ORDER BY pr.computed_at DESC LIMIT 200
+    """, (team_id,)).fetchall()
+    if not rows:
+        return {}
+    by_pos: dict[str, list] = {}
+    for r in rows:
+        pos = _np(r["position"])
+        by_pos.setdefault(pos, []).append(float(r["rating"]))
+    out = {}
+    for pos, vals in by_pos.items():
+        recent = vals[:15]   # hasta 15 ratings más recientes por posición
+        avg    = sum(recent) / len(recent)
+        neutral = _LINE_NEUTRAL.get(pos, 7.0)
+        out[pos] = round(avg / neutral, 4)
+    return out
+
+
 def _get_xi_rating(conn, team_id: int, _raw: bool = False) -> float:
     """
     Puntuación compuesta del XI titular (0–1) — métricas posicionalmente neutras.
@@ -1788,6 +1885,42 @@ def predict_match(
     venue_h = 1.0 if neutral else (1.0 + HOME_ADV_LAMBDA)
     venue_a = 1.0 if neutral else (1.0 - HOME_ADV_LAMBDA * 0.7)
 
+    # ── 8b. Evidencia real del torneo: goles WC (SOS-weighted) ───────────
+    # Para equipos que ya jugaron partidos, sus goles reales en el WC son la
+    # señal más fiable de su nivel ACTUAL. Peso proporcional a partidos jugados
+    # (0 partidos → neutro 1.0; 1 partido → 17%; 2 → 34%; 3+ → 45%).
+    # Distingue "gol a Holanda" de "gol a Nicaragua" via SOS-weight idéntico al
+    # usado en _get_form y _get_attack_defense_strength.
+    _wc_avg = _wc_avg_goals(conn)
+    h_wc    = _get_wc_goals(conn, home_id)
+    a_wc    = _get_wc_goals(conn, away_id)
+
+    def _wc_f(wc: dict | None, key: str) -> float:
+        if not wc:
+            return 1.0
+        w = min(0.45, wc["n"] * 0.17)
+        ratio = wc[key] / max(0.5, _wc_avg)
+        return float(max(0.75, min(1.40, 1.0 + w * (ratio - 1.0))))
+
+    h_wc_gf_f = _wc_f(h_wc, "gf")   # local marcó bien → ↑λ_h
+    a_wc_ga_f = _wc_f(a_wc, "ga")   # rival concedió → ↑λ_h (defensa porosa del rival)
+    a_wc_gf_f = _wc_f(a_wc, "gf")   # rival marcó bien → ↑λ_a
+    h_wc_ga_f = _wc_f(h_wc, "ga")   # local concedió → ↑λ_a (defensa porosa del local)
+
+    # ── 8c. Evaluación línea por línea desde ratings WC ──────────────────
+    # player_ratings(nat) ya corregidos por resultado → GK débil = portero que
+    # concedió mucho; FWD fuerte = delantero que anotó/tuvo impacto real en WC.
+    # Complementa xi_rating (calidad total) con la dimensión ataque/defensa.
+    h_line = _get_line_ratings(conn, home_id)
+    a_line = _get_line_ratings(conn, away_id)
+
+    # Línea ofensiva: FWD (65%) + MID (35%) — quiénes finalizan vs quiénes crean
+    h_line_att_f = h_line.get("FWD", 1.0) ** 0.65 * h_line.get("MID", 1.0) ** 0.35
+    a_line_att_f = a_line.get("FWD", 1.0) ** 0.65 * a_line.get("MID", 1.0) ** 0.35
+    # Línea defensiva: GK (55%) + DEF (45%) — último recurso vs bloque
+    h_line_def_f = h_line.get("GK", 1.0) ** 0.55 * h_line.get("DEF", 1.0) ** 0.45
+    a_line_def_f = a_line.get("GK", 1.0) ** 0.55 * a_line.get("DEF", 1.0) ** 0.45
+
     # ── 9. Combinar con pesos ─────────────────────────────────────────────
     w = WEIGHTS
     ELO_LAMBDA_EXP = 1.10
@@ -1815,6 +1948,10 @@ def predict_match(
         * h_str_mu                                   # fortalezas vs debilidades (±8%)
         * h_fin_f                                    # finishing propio × portería rival (±10%)
         * h_star_f                                   # cracks ofensivos propios × defensa estrella rival
+        * h_wc_gf_f                                  # goles marcados en este WC (evidencia real)
+        * a_wc_ga_f                                  # goles encajados por rival en este WC
+        * h_line_att_f ** 0.25                       # calidad FWD+MID local (ratings WC por línea)
+        * (1.0 / max(0.90, a_line_def_f)) ** 0.25   # calidad GK+DEF rival (↑ = más difícil anotar)
     )
     la_raw = (
         BASE_GOALS
@@ -1839,6 +1976,10 @@ def predict_match(
         * a_fin_f                                    # finishing propio × portería rival (±10%)
         * a_star_f                                   # cracks ofensivos propios × defensa estrella rival
         * (1 - away_absence)
+        * a_wc_gf_f                                  # goles marcados por rival en este WC
+        * h_wc_ga_f                                  # goles encajados por local en este WC
+        * a_line_att_f ** 0.25                       # calidad FWD+MID del rival
+        * (1.0 / max(0.90, h_line_def_f)) ** 0.25   # calidad GK+DEF local (↑ = más difícil anotar)
     )
 
     # ── 9a. Amplificación de mismatch: de-comprime el split Elo en goleadas ───
