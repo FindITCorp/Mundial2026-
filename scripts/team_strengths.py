@@ -111,6 +111,66 @@ def _collect(conn) -> dict[int, dict]:
     return acc
 
 
+# Importancia de competición (paridad con match_predictor): el amistoso informa
+# menos que una eliminatoria o un torneo, pero informa. No se descarta.
+_CI = (
+    ("world cup qualif", 0.88), ("euro qualif", 0.85), ("qualif", 0.84),
+    ("world cup", 1.00), ("euro", 1.00), ("copa am", 1.00),
+    ("nations league", 0.90), ("african cup", 0.95), ("afcon", 0.95),
+    ("asian cup", 0.92), ("gold cup", 0.90), ("confeder", 0.88),
+    ("gulf cup", 0.70), ("arab cup", 0.70), ("nordic", 0.55), ("friendly", 0.45),
+)
+
+
+def _ci(comp: str) -> float:
+    if not comp:
+        return 0.60
+    c = comp.lower()
+    for kw, w in _CI:
+        if kw in c:
+            return w
+    return 0.65
+
+
+def _collect_historical(conn) -> dict[int, tuple]:
+    """Esencia GOLEADORA histórica (ataque/defensa) desde team_matches — los
+    24,840 partidos del histórico, no solo los ~125 con stats detallados.
+
+    Sirve para backfillear la esencia de selecciones SIN stats Sofascore cargados
+    (Argentina, Italia, Cabo Verde…): sin esto, _strengths_matchup no dispara para
+    ellas y su 'ataque fuerte vs defensa débil = goleada' nunca se considera.
+
+    SOS-ajustada (marcar/encajar vs fuertes pesa distinto que vs débiles) +
+    ponderada por importancia de competición. Devuelve {tid: (atk_raw, def_raw, n)}.
+    """
+    wc_ids = [r[0] for r in conn.execute(
+        "SELECT id FROM teams WHERE wc_group IS NOT NULL")]
+    elo = {r[0]: r[1] for r in conn.execute("SELECT team_id, elo FROM team_elo")}
+    out: dict[int, tuple] = {}
+    for tid in wc_ids:
+        rows = conn.execute("""
+            SELECT goals_for, goals_against, opponent_id, competition
+            FROM team_matches
+            WHERE team_id=? AND goals_for IS NOT NULL AND opponent_id IS NOT NULL
+            ORDER BY date DESC LIMIT 40
+        """, (tid,)).fetchall()
+        if len(rows) < 5:
+            continue
+        num_a = den_a = num_d = den_d = 0.0
+        for gf, ga, opp, comp in rows:
+            oe = elo.get(opp) or 1430.0
+            sos = min(2.0, max(0.35, (oe / SOS_PIVOT) ** SOS_EXP))
+            ci = _ci(comp)
+            num_a += gf * sos * ci         # marcar vs fuerte vale más
+            den_a += ci
+            num_d += ga / sos * ci          # encajar vs débil pesa más (peor)
+            den_d += ci
+        atk = num_a / den_a if den_a else None
+        dfn = -(num_d / den_d) if den_d else None   # menos goles encajados → z+
+        out[tid] = (atk, dfn, len(rows))
+    return out
+
+
 def _axes(d: dict) -> dict[str, float | None] | None:
     n = d["n"]
     if n < MIN_MATCHES:
@@ -163,7 +223,41 @@ def build(conn, report: bool = False) -> int:
             conn.execute("INSERT INTO team_strengths VALUES (?,?,?,?,?,?)",
                          (tid, ax, round(z, 3),
                           round(p[ax], 3) if p[ax] is not None else None, n, now))
+
+    # ── Backfill esencia goleadora histórica (ataque/defensa) ────────────────
+    # Equipos SIN stats detallados usables (n<3 desde match_team_stats) quedaban
+    # sin esencia → _strengths_matchup nunca disparaba para Argentina, Italia,
+    # Cabo Verde, etc. Se les deriva ataque/defensa del histórico de goles
+    # (team_matches, SOS-ajustado). No toca la esencia detallada de quienes sí la
+    # tienen (≥3 partidos Sofascore): solo rellena el hueco. Para los thin se
+    # borran sus filas ralas (axes de 2 partidos, ruidosos) y se escriben solo
+    # ataque/defensa históricos —robustos— con n≥5 para que el cruce dispare.
+    hist = _collect_historical(conn)
+    detailed_n = {tid: n for tid, (_p, n) in profiles.items()}
+    thin = [tid for tid in hist if detailed_n.get(tid, 0) < 3]
+    mu_sd = {}
+    for ax_name, idx in (("ataque", 0), ("defensa", 1)):
+        vals = [hist[t][idx] for t in hist if hist[t][idx] is not None]
+        if vals:
+            mu = sum(vals) / len(vals)
+            sd = (sum((v - mu) ** 2 for v in vals) / len(vals)) ** 0.5 or 1.0
+            mu_sd[ax_name] = (mu, sd, idx)
+    backfilled = 0
+    for tid in thin:
+        if hist[tid][0] is None and hist[tid][1] is None:
+            continue
+        conn.execute("DELETE FROM team_strengths WHERE team_id=?", (tid,))
+        n_hist = hist[tid][2]
+        for ax_name, (mu, sd, idx) in mu_sd.items():
+            v = hist[tid][idx]
+            if v is None:
+                continue
+            conn.execute("INSERT INTO team_strengths VALUES (?,?,?,?,?,?)",
+                         (tid, ax_name, round((v - mu) / sd, 3), round(v, 3), n_hist, now))
+        backfilled += 1
     conn.commit()
+    if report:
+        print(f"[team_strengths] backfill histórico: {backfilled} equipos sin stats detallados")
 
     if report:
         wc_teams = {r[0] for r in conn.execute(
