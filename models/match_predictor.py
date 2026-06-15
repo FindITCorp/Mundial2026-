@@ -482,7 +482,9 @@ def _get_attack_defense_strength(conn, team_id: int, db_key: str) -> dict:
 
     def _sos_weight(opp_elo):
         elo = opp_elo if opp_elo else SOS_DEFAULT_ELO
-        return min(1.5, max(0.4, (elo / SOS_PIVOT) ** 1.0))
+        # SOS_EXP (1.5) hace que goles vs rivales fuertes pesen 2× más que vs débiles.
+        # Cap 2.0 (antes 1.5): goleadas vs élite ya no se reprimen.
+        return min(2.0, max(0.35, (elo / SOS_PIVOT) ** SOS_EXP))
 
     def _weighted_goals(rows_list):
         result = []
@@ -2076,14 +2078,19 @@ def predict_match(
     dominant = home_name if lh > la else away_name
     dominant_lambda = max(lh, la)
     weak_lambda = min(lh, la)
-    if elo_diff_abs > 350 and dominant_lambda > 2.5:
+    # Trigger primario: brecha Elo extrema (>350).
+    # Trigger secundario: ratio λ_dom/λ_weak > 3.5 con dom > 2.0 — captura mismatches
+    # donde el Elo comprime la brecha (ej. Curaçao Elo=1577) pero el modelo ya ve
+    # dominancia clara en ataque/defensa/forma.
+    _lambda_ratio = dominant_lambda / weak_lambda if weak_lambda > 0.05 else 50.0
+    _goleada_trigger = (elo_diff_abs > 350 or _lambda_ratio > 3.5) and dominant_lambda > 2.0
+    if _goleada_trigger:
         # Acumular probabilidad de marcadores con ≥3 goles del dominante y ≤1 del débil
         goleada_probs = {}
         for (h, a), p in probs.items():
             dom_g = h if lh > la else a
             weak_g = a if lh > la else h
             if dom_g >= 3 and weak_g <= 1:
-                s = f"{h}-{a}" if lh > la else f"{h}-{a}"
                 goleada_probs[(h, a)] = p
         if goleada_probs:
             goleada_total = sum(goleada_probs.values()) / prob_total_raw * 100
@@ -2094,6 +2101,12 @@ def predict_match(
                 "top_scores": [(f"{h}-{a}", round(p/prob_total_raw*100, 1))
                                for (h, a), p in goleada_top],
             }
+            # Usar el score más probable de la banda goleada como predicted_score.
+            # Es más preciso que el modo NB (que subestima al dominante) y más
+            # representativo que round(λ_weak) que puede añadir un gol innecesario.
+            _gs = goleada_band["top_scores"][0][0]   # ej. "3-0"
+            _gh, _ga = map(int, _gs.split("-"))
+            pred = (_gh, _ga)
 
     return {
         # Identidad

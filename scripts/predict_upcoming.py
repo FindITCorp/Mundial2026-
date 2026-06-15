@@ -81,25 +81,20 @@ def store_predictions(db_path=DB, days_ahead=3):
         else:
             winner = "Draw"
 
-        # PRONÓSTICO OFICIAL (directiva 13-jun): ARGMAX del grid conjunto
-        # Dixon-Coles = el marcador individualmente MÁS probable.
-        #
-        # Por qué se abandonó la mediana marginal (versión 12-jun): la mediana
-        # de una Poisson SALTA de 0 a 1 cuando λ > ln(2)≈0.693, aunque el MODO
-        # siga en 0. Para un favorito con λ≈0.84–1.0 (rival débil) eso producía
-        # "1-1" fantasma — un empate incoherente con el ganador real. Ejemplo:
-        # Haiti(λ0.84) vs Scotland(λ1.46) daba 1-1 cuando el marcador más
-        # probable real es 0-1 (Scotland 14.6% vs 1-1 12.3%).
-        #
-        # El argmax del grid es coherente con el ganador por construcción
-        # (toma el pico real de la conjunta, no la mediana de cada marginal)
-        # y es lo que cualquier casa reporta como 'most likely scoreline'.
+        # PRONÓSTICO OFICIAL: predicted_score del modelo (puede ser goleada_band
+        # top score cuando hay mismatch extremo, o argmax del grid en partidos normales).
+        # Se prefiere result["predicted_score"] que ya incorpora la lógica de goleada.
         top = result.get("top_scores") or []
-        if top:
+        pred_score = result.get("predicted_score")
+        if pred_score:
+            scoreline = pred_score
+            # Buscar probabilidad exacta de este marcador en el top_scores
+            score_prob_val = next((p for s, p in top if s == pred_score), None)
+            score_prob = round(score_prob_val, 1) if score_prob_val is not None else (round(top[0][1], 1) if top else None)
+        elif top:
             scoreline = top[0][0]
             score_prob = round(top[0][1], 1)
         else:
-            # Fallback sin grid: MODO marginal (floor de λ), nunca la mediana
             scoreline = f"{int(lh)}-{int(la)}"
             score_prob = None
 
