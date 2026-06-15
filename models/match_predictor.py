@@ -476,9 +476,24 @@ def _get_attack_defense_strength(conn, team_id: int, db_key: str) -> dict:
         ORDER BY tm.date DESC LIMIT 60
     """, (team_id,)).fetchall()
 
+    # Selección de muestra TARGETED (15-jun-2026): antes se descartaba TODO
+    # amistoso, dejando a selecciones africanas/Oceanía —Egipto 10, Cabo Verde 16,
+    # Senegal 15— con fuerza calculada sobre muestra competitiva rancia (2+ años).
+    # Ahora:
+    #   · datos ricos (≥ _RICH_COMP competitivos): competitivo-solo, IDÉNTICO al
+    #     comportamiento original (backtest validado, no se toca lo que funciona).
+    #   · datos pobres: se complementa con amistosos recientes, ponderados por
+    #     importancia de competición (0.45) — recencia real ≫ competitivo rancio.
+    # El amistoso informa menos, pero un amistoso reciente informa más que un
+    # qualifier de hace 3 años. Solo aplica a los equipos starved.
+    _RICH_COMP = 15
     comp = [r for r in rows if _is_competitive(r["competition"])]
-    if len(comp) < MIN_COMP_MATCHES:
-        comp = list(rows[:20])
+    if len(comp) >= _RICH_COMP:
+        sample, use_ci = comp, False                 # ruta original (flat)
+    elif len(comp) >= MIN_COMP_MATCHES:
+        sample, use_ci = list(rows), True            # starved: añade amistosos
+    else:
+        sample, use_ci = list(rows[:20]), True        # casi sin datos: ventana corta
 
     def _sos_weight(opp_elo):
         elo = opp_elo if opp_elo else SOS_DEFAULT_ELO
@@ -486,58 +501,36 @@ def _get_attack_defense_strength(conn, team_id: int, db_key: str) -> dict:
         # Cap 2.0 (antes 1.5): goleadas vs élite ya no se reprimen.
         return min(2.0, max(0.35, (elo / SOS_PIVOT) ** SOS_EXP))
 
-    def _weighted_goals(rows_list):
-        result = []
-        for r in rows_list:
-            w = _sos_weight(r["opp_elo"])
-            result.append(r["goals_for"] * w)
-        return result
-
-    def _weighted_ga(rows_list):
-        result = []
-        for r in rows_list:
-            w = _sos_weight(r["opp_elo"])
-            result.append(r["goals_against"] * w)
-        return result
-
-    home_matches = [r for r in comp if r["venue"] == "home"]
-    away_matches  = [r for r in comp if r["venue"] == "away"]
-    neut_matches  = [r for r in comp if r["venue"] not in ("home","away")]
-
-    home_gf = _weighted_goals(home_matches)
-    home_ga = _weighted_ga(home_matches)
-    away_gf = _weighted_goals(away_matches)
-    away_ga = _weighted_ga(away_matches)
-    neut_gf = _weighted_goals(neut_matches)
-    neut_ga = _weighted_ga(neut_matches)
+    home_matches = [r for r in sample if r["venue"] == "home"]
+    away_matches = [r for r in sample if r["venue"] == "away"]
+    neut_matches = [r for r in sample if r["venue"] not in ("home", "away")]
 
     g = _cached_global_avg(conn, db_key)
 
-    def _norm_att(vals, global_avg, prior_gf=PRIOR_GF):
-        n = len(vals)
-        if n == 0:
+    def _strength(buckets, field, global_avg, prior):
+        """Fuerza normalizada de ataque (field='goals_for') o defensa
+        (field='goals_against'). num = Σ goles·sos·peso (SOS escala el VALOR del
+        gol: crédito por marcar/encajar vs rivales fuertes). En ruta starved, peso
+        = importancia de competición (amistoso aporta menos); en ruta rica, peso=1
+        (flat, idéntico al modelo original). den = Σ peso. Regularización bayesiana."""
+        num = den = 0.0
+        for b in buckets:
+            for r in b:
+                sos = _sos_weight(r["opp_elo"])
+                ci = _comp_importance(r["competition"]) if use_ci else 1.0
+                num += r[field] * sos * ci
+                den += ci
+        if den == 0:
             return 1.0
-        raw = (sum(vals) / n * n + prior_gf * PRIOR_N) / (n + PRIOR_N)
+        raw = (num + prior * PRIOR_N) / (den + PRIOR_N)
         return raw / global_avg if global_avg else 1.0
 
-    def _norm_def(vals, global_avg, prior_ga=PRIOR_GA):
-        n = len(vals)
-        if n == 0:
-            return 1.0
-        raw = (sum(vals) / n * n + prior_ga * PRIOR_N) / (n + PRIOR_N)
-        return raw / global_avg if global_avg else 1.0
-
-    # Combinar neutral con home/away (neutral cuenta como ~0.5 de cada uno)
-    all_gf = home_gf + neut_gf * 1 + away_gf
-    all_ga = home_ga + neut_ga * 1 + away_ga
-
-    HAS = _norm_att(home_gf + neut_gf, g["avg_h"])
-    HDS = _norm_def(home_ga + neut_ga, g["avg_a"])
-    AAS = _norm_att(away_gf + neut_gf, g["avg_a"])
-    ADS = _norm_def(away_ga + neut_ga, g["avg_h"])
-    # General (neutral, por si acaso)
-    GAS = _norm_att(all_gf, g["avg_n"])
-    GDS = _norm_def(all_ga, g["avg_n"])
+    HAS = _strength([home_matches, neut_matches], "goals_for",     g["avg_h"], PRIOR_GF)
+    HDS = _strength([home_matches, neut_matches], "goals_against", g["avg_a"], PRIOR_GA)
+    AAS = _strength([away_matches, neut_matches], "goals_for",     g["avg_a"], PRIOR_GF)
+    ADS = _strength([away_matches, neut_matches], "goals_against", g["avg_h"], PRIOR_GA)
+    GAS = _strength([home_matches, neut_matches, away_matches], "goals_for",     g["avg_n"], PRIOR_GF)
+    GDS = _strength([home_matches, neut_matches, away_matches], "goals_against", g["avg_n"], PRIOR_GA)
 
     # Shots-on-target ratio desde player_club_stats (proxy de presión ofensiva)
     sot_rows = conn.execute("""
@@ -556,7 +549,7 @@ def _get_attack_defense_strength(conn, team_id: int, db_key: str) -> dict:
         "AAS": round(AAS, 4), "ADS": round(ADS, 4),
         "GAS": round(GAS, 4), "GDS": round(GDS, 4),
         "sot_factor": round(sot_factor, 4),
-        "n_home": len(home_gf), "n_away": len(away_gf),
+        "n_home": len(home_matches), "n_away": len(away_matches),
     }
 
 
