@@ -1866,15 +1866,8 @@ def predict_match(
     #  (b) Grilla de MARCADOR (probs→top_scores/predicted_score): Negative Binomial
     #      con disp_r>0 — corrige la sobredispersión medida (φ≈1.1-1.4), mejor
     #      log-loss y acierto de marcador exacto. disp_r=0 ⇒ Poisson (A/B WC_DISPERSION).
+    # ph/pd/pa se derivan de la grilla NB después del draw_boost (ver abajo).
     ph = pd = pa = 0.0
-    for i in range(8):
-        for j in range(8):
-            p = _poisson(lh, i) * _poisson(la, j)        # 1X2 desde Poisson
-            if i > j:   ph += p
-            elif i == j: pd += p
-            else:        pa += p
-    total = ph + pd + pa
-    ph /= total; pd /= total; pa /= total
 
     # Marcador: λ con el sesgo SUSTRACTIVO deshecho (corrige subestimación de
     # goles totales, peor en pronósticos bajos). El 1X2 de arriba mantiene la λ
@@ -1953,20 +1946,32 @@ def predict_match(
         similarity_boost = 0.04 * (1 - elo_diff_abs / 100)
         draw_boost = min(0.10, draw_boost + similarity_boost)
 
-    # Redistribuir proporcionalmente de p_home y p_away
+    # FIX-2: propagar draw_boost también a la grilla de marcadores (antes solo
+    # se aplicaba a ph/pd/pa — ahora los dos caminos son coherentes).
     if draw_boost > 0.001:
-        steal_h = draw_boost * (ph / (ph + pa)) if (ph + pa) > 0 else draw_boost / 2
-        steal_a = draw_boost * (pa / (ph + pa)) if (ph + pa) > 0 else draw_boost / 2
-        ph = max(0.05, ph - steal_h)
-        pa = max(0.05, pa - steal_a)
-        pd = min(0.55, pd + draw_boost)
-        # Renormalizar
-        _t = ph + pd + pa
-        ph /= _t; pd /= _t; pa /= _t
+        _ph_g = sum(v for (i,j),v in probs.items() if i > j)
+        _pd_g = sum(v for (i,j),v in probs.items() if i == j)
+        _pa_g = sum(v for (i,j),v in probs.items() if i < j)
+        if _pd_g > 0 and (_ph_g + _pa_g) > 0:
+            _s_h = draw_boost * _ph_g / (_ph_g + _pa_g)
+            _s_a = draw_boost * _pa_g / (_ph_g + _pa_g)
+            probs = {
+                (i,j): (v * (1 + draw_boost / _pd_g) if i == j
+                        else v * max(0.05, 1 - _s_h / _ph_g) if i > j
+                        else v * max(0.05, 1 - _s_a / _pa_g))
+                for (i,j), v in probs.items()
+            }
+            _pt = sum(probs.values())
+            probs = {k: v / _pt for k,v in probs.items()}
+
+    # FIX-1: derivar ph/pd/pa desde la grilla NB (ya boosteada) para que
+    # la distribución 1X2 y la de marcadores provengan de la misma fuente.
+    ph = sum(v for (i,j),v in probs.items() if i > j)
+    pd = sum(v for (i,j),v in probs.items() if i == j)
+    pa = sum(v for (i,j),v in probs.items() if i < j)
 
     top_scores = sorted(probs.items(), key=lambda x: x[1], reverse=True)[:8]
-    # Re-normalizar probs dict para que top_scores use escala consistente
-    prob_total_raw = sum(probs.values())
+    prob_total_raw = 1.0  # probs ya normalizado
 
     # ── 11. Posesión proyectada ───────────────────────────────────────────
     h_poss_raw = home_club["possession"] + (home_xi - away_xi) * 10 \
@@ -2015,25 +2020,11 @@ def predict_match(
         winner = home_name
     else:
         winner = away_name
-    # Predicted score: cuando hay ganador claro, evitar que 1-1 (draw) "robe" el top spot
-    # Si winner != DRAW pero el marcador más probable es empate, buscar el mejor W del ganador
-    raw_pred = top_scores[0][0]
-    if winner == "DRAW":
-        pred = raw_pred
-    else:
-        is_home_winner = (winner == home_name)
-        if (is_home_winner and raw_pred[0] <= raw_pred[1]) or \
-           (not is_home_winner and raw_pred[1] <= raw_pred[0]):
-            # Top score contradice al ganador — buscar mejor score consistente con el ganador
-            for (h, a), _p in top_scores:
-                if is_home_winner and h > a:
-                    pred = (h, a); break
-                elif not is_home_winner and a > h:
-                    pred = (h, a); break
-            else:
-                pred = raw_pred  # fallback
-        else:
-            pred = raw_pred
+    # FIX-3: predicted_score = siempre el marcador más probable de la grilla.
+    # winner se deriva de ph/pd/pa (probabilidad agregada) y puede diferir
+    # legítimamente: si 1-1 es el score más probable pero ph > pa, significa
+    # "el local es favorito en conjunto pero el empate es el marcador más probable."
+    pred = top_scores[0][0]
 
     # ── Goleada band: cuando la diferencia Elo es extrema (>350) ─────────────
     # En vez de reportar un solo marcador, se reporta la banda de goleada más probable
