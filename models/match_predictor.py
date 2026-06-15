@@ -377,7 +377,38 @@ PRIOR_GA        = 1.20
 
 # Media real del score XI entre equipos WC (WC2022 + Euro2024 + CA2024 + WC2018).
 # Usada como pivote del factor XI y como destino del shrink por cobertura.
+# NOTA (15-jun-2026): este valor fue calibrado con datos nat ESCASOS. Cuando se
+# cargan ratings densos (Sofascore de cada partido), la mediana real de los 48
+# equipos sube (~0.46) y el factor xi/PIVOT satura en el cap 1.40 para casi todos
+# → el componente XI (18%) deja de discriminar. Por eso el pivote ahora se
+# AUTO-CALIBRA contra la mediana viva de los 48 equipos WC (ver _xi_pivot()).
+# Este 0.312 queda solo como fallback de arranque si no se puede computar.
 XI_PIVOT        = 0.312
+
+# Cache de proceso para el pivote XI auto-calibrado (mediana viva de los 48 WC).
+# Se computa una vez por ejecución; los datos no cambian a mitad de una corrida.
+_XI_PIVOT_CACHE = {"value": None}
+
+
+def _xi_pivot(conn) -> float:
+    """Pivote del factor XI = mediana del xi CRUDO (pre-shrink) de los 48 equipos
+    WC. Auto-calibrante: conforme cargan más partidos, se re-centra solo y evita
+    que el factor xi/PIVOT sature. Cacheado por proceso. Fallback: XI_PIVOT."""
+    if _XI_PIVOT_CACHE["value"] is not None:
+        return _XI_PIVOT_CACHE["value"]
+    try:
+        import statistics
+        vals = []
+        for (tid,) in conn.execute(
+                "SELECT id FROM teams WHERE wc_group IS NOT NULL").fetchall():
+            vals.append(_get_xi_rating(conn, tid, _raw=True))
+        pivot = statistics.median(vals) if len(vals) >= 10 else XI_PIVOT
+        # Banda de seguridad: nunca alejarse demasiado del prior calibrado
+        pivot = max(0.30, min(0.55, pivot))
+    except Exception:
+        pivot = XI_PIVOT
+    _XI_PIVOT_CACHE["value"] = pivot
+    return pivot
 
 
 def _is_competitive(competition: str) -> bool:
@@ -657,9 +688,12 @@ def _get_team_possession_from_stats(conn, team_id: int, n: int = 8) -> float | N
     return sum(r[0] for r in rows) / len(rows)
 
 
-def _get_xi_rating(conn, team_id: int) -> float:
+def _get_xi_rating(conn, team_id: int, _raw: bool = False) -> float:
     """
     Puntuación compuesta del XI titular (0–1) — métricas posicionalmente neutras.
+
+    _raw=True devuelve el xi ANTES del shrink por cobertura (lo usa _xi_pivot
+    para computar la mediana de los 48 sin recursión sobre el pivote).
 
     Pesos:
       rating(30%) + xG(20%) + key_passes(15%) + progressive_carries(15%)
@@ -822,7 +856,14 @@ def _get_xi_rating(conn, team_id: int) -> float:
                  or (r["xg"] or 0) > 0
                  or r["rating"] is not None)
     cov = signal / len(rows)
-    xi = cov * xi + (1 - cov) * XI_PIVOT
+
+    # _raw: devolver antes del shrink (lo necesita _xi_pivot sin recursión)
+    if _raw:
+        return xi
+
+    # Shrink por cobertura hacia el pivote vivo (mediana de los 48 WC)
+    pivot = _xi_pivot(conn)
+    xi = cov * xi + (1 - cov) * pivot
 
     return xi
 
@@ -1673,13 +1714,15 @@ def predict_match(
     h_form_f = 0.80 + 0.40 * home_form["form_score"]
     a_form_f = 0.80 + 0.40 * away_form["form_score"]
 
-    # ── 4. Rating XI (12%) ────────────────────────────────────────────────
-    # Factor XI: normalizado contra la media real de todos los equipos WC (0.265)
-    # Equipos sobre la media reciben bonus, bajo la media reciben penalización
-    # Cap 0.75–1.40 para evitar distorsiones por cobertura incompleta de datos
-    # (XI_PIVOT es constante de módulo — también destino del shrink de cobertura)
-    h_xi_f     = min(1.40, max(0.75, home_xi / XI_PIVOT))
-    a_xi_f     = min(1.40, max(0.75, away_xi / XI_PIVOT))
+    # ── 4. Rating XI (18%) ────────────────────────────────────────────────
+    # Factor XI: normalizado contra el pivote VIVO (mediana de los 48 equipos WC,
+    # auto-calibrado en _xi_pivot). Equipos sobre la mediana reciben bonus, bajo
+    # ella penalización. Cap 0.75–1.40 para evitar distorsiones por cobertura
+    # incompleta. El pivote dinámico evita la saturación que producía el 0.312 fijo
+    # cuando se cargan ratings densos (Sofascore por partido).
+    _xi_piv    = _xi_pivot(conn)
+    h_xi_f     = min(1.40, max(0.75, home_xi / _xi_piv))
+    a_xi_f     = min(1.40, max(0.75, away_xi / _xi_piv))
 
     # ── 5. Set pieces (10%) ───────────────────────────────────────────────
     avg_sp    = (home_club["set_piece_idx"] + away_club["set_piece_idx"]) / 2 or 3.5
