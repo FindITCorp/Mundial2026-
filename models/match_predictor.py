@@ -682,15 +682,38 @@ def _get_xi_rating(conn, team_id: int) -> float:
         FROM projected_lineups pl
         JOIN players p ON p.id = pl.player_id
         LEFT JOIN (
-            -- Promedio de los últimos 5 ratings 'nat' por jugador + nº observaciones
-            -- para aplicar shrinkage bayesiano: con pocas obs el rating se tira
-            -- hacia la media de posición y evitar que un buen partido friendly infle.
-            SELECT player_id, AVG(rating) AS rating, COUNT(*) AS n_obs FROM (
-                SELECT player_id, rating,
-                       ROW_NUMBER() OVER (PARTITION BY player_id
-                                          ORDER BY computed_at DESC, id DESC) AS rn
-                FROM player_ratings
-                WHERE context = 'nat' AND rating IS NOT NULL
+            -- Promedio PONDERADO por calidad de competición de los últimos 5 ratings nat.
+            -- WC group/knockout=1.00 · qualifier=0.88 · AFCON/GoldCup=0.90
+            -- · friendly=0.72 · histórico sin match_id=0.80
+            -- n_obs = SUM(cq): 5 amistosos → 3.6 obs efectivas vs 5 qualifiers → 4.4.
+            -- Ese n_obs efectivo se pasa al shrinkage bayesiano para que la incertidumbre
+            -- refleje la calidad competitiva, no solo el conteo de partidos.
+            SELECT player_id,
+                   SUM(rating * cq) / SUM(cq) AS rating,
+                   SUM(cq)                     AS n_obs
+            FROM (
+                SELECT pr.player_id, pr.rating,
+                       CASE
+                           WHEN lower(m.stage) = 'group'                  THEN 1.00
+                           WHEN lower(m.stage) LIKE '%knockout%'
+                             OR lower(m.stage) LIKE '%final%'
+                             OR lower(m.stage) LIKE '%semi%'
+                             OR lower(m.stage) LIKE '%quarter%'
+                             OR lower(m.stage) LIKE '%round%'             THEN 1.00
+                           WHEN lower(m.stage) LIKE '%qualifier%'
+                             OR lower(m.stage) LIKE '%qualification%'     THEN 0.88
+                           WHEN m.stage IN ('AFCON','Gold Cup','Arab Cup') THEN 0.90
+                           WHEN lower(m.stage) LIKE '%friendly%'
+                             OR lower(m.stage) LIKE '%int.%'
+                             OR lower(m.stage) LIKE '%international%'     THEN 0.72
+                           WHEN m.stage IS NULL                           THEN 0.80
+                           ELSE                                                0.82
+                       END AS cq,
+                       ROW_NUMBER() OVER (PARTITION BY pr.player_id
+                                          ORDER BY pr.computed_at DESC, pr.id DESC) AS rn
+                FROM player_ratings pr
+                LEFT JOIN wc_matches m ON m.id = pr.match_id
+                WHERE pr.context = 'nat' AND pr.rating IS NOT NULL
             ) WHERE rn <= 5
             GROUP BY player_id
         ) pr ON pr.player_id = pl.player_id
@@ -736,7 +759,7 @@ def _get_xi_rating(conn, team_id: int) -> float:
         if r["rating"] is not None:
             _POS_PRIOR = {"GK": 7.0, "DEF": 6.8, "MID": 6.9, "FWD": 7.1}
             _prior = _POS_PRIOR.get((r["position"] or "").upper(), 6.9)
-            _k, _n = 3, int(r["n_obs"] or 1)
+            _k, _n = 3.0, float(r["n_obs"] or 0.80)
             _adj = (_n * r["rating"] + _k * _prior) / (_n + _k)
             rating_n = min(1.0, _adj / RATING_MAX)
         else:
@@ -954,19 +977,39 @@ def _get_star_factor(conn, team_id: int) -> float:
     Umbral de 8.5 se aplica sobre el PROMEDIO de los últimos 5 ratings (no raw).
     """
     rows = conn.execute("""
-        SELECT AVG(pr.rating) AS avg_rating
+        SELECT pr.rating AS avg_rating
         FROM projected_lineups pl
         LEFT JOIN (
-            SELECT player_id, rating FROM (
-                SELECT player_id, rating,
-                       ROW_NUMBER() OVER (PARTITION BY player_id
-                                          ORDER BY computed_at DESC, id DESC) AS rn
-                FROM player_ratings WHERE context = 'nat' AND rating IS NOT NULL
+            -- cq-weighted average of last 5 nat ratings per player
+            SELECT player_id,
+                   SUM(rating * cq) / SUM(cq) AS rating
+            FROM (
+                SELECT pr.player_id, pr.rating,
+                       CASE
+                           WHEN lower(m.stage) = 'group'              THEN 1.00
+                           WHEN lower(m.stage) LIKE '%knockout%'
+                             OR lower(m.stage) LIKE '%final%'
+                             OR lower(m.stage) LIKE '%semi%'
+                             OR lower(m.stage) LIKE '%quarter%'
+                             OR lower(m.stage) LIKE '%round%'         THEN 1.00
+                           WHEN lower(m.stage) LIKE '%qualifier%'
+                             OR lower(m.stage) LIKE '%qualification%' THEN 0.88
+                           WHEN m.stage IN ('AFCON','Gold Cup','Arab Cup') THEN 0.90
+                           WHEN lower(m.stage) LIKE '%friendly%'
+                             OR lower(m.stage) LIKE '%int.%'
+                             OR lower(m.stage) LIKE '%international%' THEN 0.72
+                           WHEN m.stage IS NULL                       THEN 0.80
+                           ELSE                                            0.82
+                       END AS cq,
+                       ROW_NUMBER() OVER (PARTITION BY pr.player_id
+                                          ORDER BY pr.computed_at DESC, pr.id DESC) AS rn
+                FROM player_ratings pr
+                LEFT JOIN wc_matches m ON m.id = pr.match_id
+                WHERE pr.context = 'nat' AND pr.rating IS NOT NULL
             ) WHERE rn <= 5
+            GROUP BY player_id
         ) pr ON pr.player_id = pl.player_id
-        WHERE pl.team_id = ? AND pl.is_starter = 1
-        GROUP BY pl.player_id
-        HAVING avg_rating IS NOT NULL
+        WHERE pl.team_id = ? AND pl.is_starter = 1 AND pr.rating IS NOT NULL
     """, (team_id,)).fetchall()
     if not rows:
         return 1.0
