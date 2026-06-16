@@ -1,53 +1,37 @@
 """
-apisports_fetch_match_stats.py — Fetchea resultados + team stats + player stats
-de partidos WC desde api-sports para fechas dadas.
+apisports_fetch_match_stats.py — Fetchea resultados + stats de partidos WC
+para fechas históricas usando el pipeline existente del proyecto.
 
 Uso:
   python scripts/apisports_fetch_match_stats.py                  # hoy + ayer
   python scripts/apisports_fetch_match_stats.py 2026-06-15
   python scripts/apisports_fetch_match_stats.py 2026-06-15,2026-06-16
 """
-import os, sys, sqlite3, time, requests
+import os, sys, sqlite3, json
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 ROOT    = Path(__file__).parent.parent
 DB_PATH = ROOT / "data" / "mundial2026.db"
-KEY     = os.getenv("APISPORTS_KEY", "")
-BASE    = "https://v3.football.api-sports.io"
-MAX_REQ = 80
+sys.path.insert(0, str(ROOT))
 
 NAME_MAP = {
     "United States": "USA", "Korea Republic": "South Korea",
-    "Cote d'Ivoire": "Ivory Coast", "Cabo Verde": "Cape Verde",
+    "Cote d'Ivoire": "Ivory Coast", "Côte d'Ivoire": "Ivory Coast",
+    "Cabo Verde": "Cape Verde", "Cape Verde Islands": "Cape Verde",
     "Bosnia": "Bosnia and Herzegovina", "Czech Republic": "Czechia",
-    "Congo DR": "DR Congo",
+    "Congo DR": "DR Congo", "Türkiye": "Turkey",
+    "Bosnia-Herzegovina": "Bosnia and Herzegovina",
+    "Rep. Of Ireland": "Republic of Ireland",
 }
-
-_reqs = [0]
-
-def api_get(path, params):
-    if _reqs[0] >= MAX_REQ:
-        print(f"  [LIMITE] {MAX_REQ} requests alcanzado")
-        return None
-    h = {"x-apisports-key": KEY}
-    try:
-        r = requests.get(f"{BASE}{path}", headers=h, params=params, timeout=20)
-        _reqs[0] += 1
-        print(f"  [{_reqs[0]}] {path} {params} -> {r.status_code}")
-        if r.status_code == 200:
-            return r.json()
-    except Exception as e:
-        print(f"  error: {e}")
-    return None
 
 def resolve(name):
     return NAME_MAP.get(name, name)
 
 def get_team_id(conn, name):
     n = resolve(name)
-    row = conn.execute("SELECT id FROM teams WHERE LOWER(name)=LOWER(?)", (n,)).fetchone()
-    return row[0] if row else None
+    r = conn.execute("SELECT id FROM teams WHERE LOWER(name)=LOWER(?)", (n,)).fetchone()
+    return r[0] if r else None
 
 def val(raw, key, default=None):
     v = raw.get(key, default)
@@ -58,202 +42,150 @@ def val(raw, key, default=None):
     except Exception:
         return default
 
-def run(target_dates):
-    if not KEY:
-        print("APISPORTS_KEY no configurada.")
-        return
+def process_date(target_date, conn):
+    print(f"\n=== {target_date} ===")
 
+    # Usar el fetcher existente del proyecto (ya sabe el formato correcto de api-sports)
+    try:
+        from scripts.fetch_apisports_today import run as fetch_run
+        data = fetch_run(target_date=target_date)
+    except Exception as e:
+        print(f"  fetch_apisports_today falló: {e}")
+        return 0, 0
+
+    if not data:
+        print("  Sin datos de api-sports")
+        return 0, 0
+
+    if data.get("error"):
+        print(f"  Error api-sports: {data['error']}")
+        return 0, 0
+
+    fixtures = data.get("fixtures", [])
+    print(f"  {data.get('wc_fixtures_count', 0)} fixtures WC encontrados")
+
+    # Guardar el JSON actualizado para que store_apisports_today.py pueda usarlo
+    out = ROOT / "data" / "lineups" / "apisports_today.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+    # Cargar lineups y player_nat_stats con el script existente
+    try:
+        from scripts.store_apisports_today import run as store_run
+        store_run()
+    except Exception as e:
+        print(f"  store_apisports_today: {e}")
+
+    # Adicionalmente: actualizar wc_matches + match_team_stats + match_player_stats
+    scores_saved = 0
+    players_saved = 0
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+
+    for fix in fixtures:
+        if fix.get("status") not in ("FT", "AET", "PEN"):
+            print(f"  {fix.get('home')} vs {fix.get('away')}: status={fix.get('status')}, skip")
+            continue
+
+        home_name = fix["home"]
+        away_name = fix["away"]
+        home_id   = get_team_id(conn, home_name)
+        away_id   = get_team_id(conn, away_name)
+
+        if not home_id or not away_id:
+            print(f"  Equipos no encontrados: {home_name}({home_id}) vs {away_name}({away_id})")
+            continue
+
+        score_str = fix.get("score", "None-None")
+        parts = score_str.split("-")
+        try:
+            sh = int(parts[0])
+            sa = int(parts[1])
+        except Exception:
+            print(f"  Score inválido: {score_str}")
+            continue
+
+        # Buscar match en wc_matches
+        wm = conn.execute(
+            "SELECT id FROM wc_matches WHERE home_team_id=? AND away_team_id=? AND date=?",
+            (home_id, away_id, target_date)
+        ).fetchone()
+
+        if not wm:
+            print(f"  No en wc_matches: {home_name} vs {away_name}")
+            continue
+
+        wm_id = wm[0]
+
+        # Actualizar resultado
+        conn.execute(
+            "UPDATE wc_matches SET score_home=?, score_away=?, played=1 WHERE id=?",
+            (sh, sa, wm_id)
+        )
+        # Espejo en team_matches
+        for tid, opp_id, opp_name, gf, ga, venue in [
+            (home_id, away_id, resolve(away_name), sh, sa, "home"),
+            (away_id, home_id, resolve(home_name), sa, sh, "away"),
+        ]:
+            res = "W" if gf > ga else ("D" if gf == ga else "L")
+            conn.execute("""
+                INSERT OR IGNORE INTO team_matches
+                  (team_id, opponent_id, opponent_name, date, competition,
+                   goals_for, goals_against, result, venue)
+                VALUES (?,?,?,?,?,?,?,?,?)
+            """, (tid, opp_id, opp_name, target_date,
+                  "FIFA World Cup 2026", gf, ga, res, venue))
+        scores_saved += 1
+        print(f"  [{wm_id}] {home_name} {sh}-{sa} {away_name} -> guardado")
+
+        # Team stats desde los lineups del fixture (si los hay)
+        # match_player_stats desde players del fixture
+        for tdata in fix.get("players", []):
+            t_id = get_team_id(conn, tdata["team"])
+            if not t_id:
+                continue
+            for p in tdata.get("players", []):
+                if not p.get("name") or not p.get("minutes"):
+                    continue
+                POS = {"G": "GK", "D": "DEF", "M": "MID", "F": "FWD"}
+                pos = POS.get((p.get("position") or "")[:1], p.get("position", ""))
+                conn.execute("""
+                    INSERT OR REPLACE INTO match_player_stats
+                      (match_date, competition, home_team_id, away_team_id, team_id,
+                       player_name, position, minutes, goals, assists, rating, created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    target_date, "FIFA World Cup 2026",
+                    home_id, away_id, t_id,
+                    p["name"], pos, p.get("minutes", 0),
+                    p.get("goals") or 0, p.get("assists") or 0,
+                    float(p["rating"]) if p.get("rating") else None,
+                    now,
+                ))
+                players_saved += 1
+
+    conn.commit()
+    return scores_saved, players_saved
+
+
+def run(target_dates):
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
 
-    total_fixtures = 0
-    total_players  = 0
-
-    for target_date in target_dates:
-        print(f"\n=== {target_date} ===")
-
-        wc_matches = conn.execute(
-            "SELECT id, home_team_name, away_team_name, home_team_id, away_team_id, score_home, score_away "
-            "FROM wc_matches WHERE date=? AND wc_group IS NOT NULL",
-            (target_date,)
-        ).fetchall()
-
-        if not wc_matches:
-            wc_matches = conn.execute(
-                "SELECT id, home_team_name, away_team_name, home_team_id, away_team_id, score_home, score_away "
-                "FROM wc_matches WHERE date=?",
-                (target_date,)
-            ).fetchall()
-
-        print(f"  {len(wc_matches)} partidos WC en la DB para {target_date}")
-        if not wc_matches:
-            continue
-
-        # Sin league/season — api-sports bloquea el Mundial 2026 por temporada
-        fixtures_data = api_get("/fixtures", {"date": target_date, "timezone": "UTC"})
-        time.sleep(0.5)
-        if not fixtures_data or not fixtures_data.get("response"):
-            print(f"  Sin fixtures en api-sports para {target_date}")
-            continue
-
-        # Filtrar solo partidos donde al menos un equipo sea WC
-        WC_TEAMS = set(NAME_MAP.values()) | {
-            "Algeria","Argentina","Australia","Austria","Belgium","Bolivia",
-            "Bosnia and Herzegovina","Brazil","Canada","Cape Verde","Colombia",
-            "Costa Rica","Croatia","Curacao","Czechia","DR Congo","Ecuador",
-            "Egypt","England","France","Germany","Ghana","Haiti","Iran","Iraq",
-            "Ivory Coast","Japan","Jordan","Mexico","Morocco","Netherlands",
-            "New Zealand","Norway","Panama","Paraguay","Portugal","Qatar",
-            "Saudi Arabia","Scotland","Senegal","South Africa","South Korea",
-            "Spain","Sweden","Switzerland","Tunisia","Turkey","USA","Uruguay",
-            "Uzbekistan","Venezuela",
-        }
-        all_fixtures = fixtures_data["response"]
-        fixtures = [
-            f for f in all_fixtures
-            if resolve(f["teams"]["home"]["name"]) in WC_TEAMS
-            or resolve(f["teams"]["away"]["name"]) in WC_TEAMS
-        ]
-        print(f"  {len(all_fixtures)} fixtures totales, {len(fixtures)} con equipos WC")
-
-        for wm in wc_matches:
-            wm_id     = wm["id"]
-            home_name = wm["home_team_name"]
-            away_name = wm["away_team_name"]
-            home_id   = wm["home_team_id"]
-            away_id   = wm["away_team_id"]
-
-            existing = conn.execute(
-                "SELECT COUNT(*) FROM match_player_stats WHERE home_team_id=? AND match_date=?",
-                (home_id, target_date)
-            ).fetchone()[0]
-            if existing > 10:
-                print(f"  [{wm_id}] {home_name} vs {away_name}: {existing} player stats ya cargados, skip")
-                continue
-
-            fix = None
-            for f in fixtures:
-                fh = resolve(f["teams"]["home"]["name"])
-                fa = resolve(f["teams"]["away"]["name"])
-                if home_name.lower() in fh.lower() and away_name.lower() in fa.lower():
-                    fix = f
-                    break
-
-            if not fix:
-                print(f"  [{wm_id}] {home_name} vs {away_name}: no encontrado en api-sports")
-                continue
-
-            fix_id = fix["fixture"]["id"]
-            sh     = fix["goals"]["home"]
-            sa     = fix["goals"]["away"]
-            status = fix["fixture"]["status"]["short"]
-            print(f"\n  [{wm_id}] {home_name} {sh}-{sa} {away_name} (fix={fix_id}, {status})")
-
-            # Resultado
-            if status == "FT" and sh is not None:
-                conn.execute(
-                    "UPDATE wc_matches SET score_home=?, score_away=?, played=1 WHERE id=?",
-                    (sh, sa, wm_id)
-                )
-                for tid, opp_id, opp_name, gf, ga, venue in [
-                    (home_id, away_id, away_name, sh, sa, "home"),
-                    (away_id, home_id, home_name, sa, sh, "away"),
-                ]:
-                    res = "W" if gf > ga else ("D" if gf == ga else "L")
-                    conn.execute("""
-                        INSERT OR IGNORE INTO team_matches
-                          (team_id, opponent_id, opponent_name, date, competition,
-                           goals_for, goals_against, result, venue)
-                        VALUES (?,?,?,?,?,?,?,?,?)
-                    """, (tid, opp_id, opp_name, target_date,
-                          "FIFA World Cup 2026", gf, ga, res, venue))
-                print(f"    resultado: {sh}-{sa}")
-
-            # Team stats
-            stats_data = api_get("/fixtures/statistics", {"fixture": fix_id})
-            time.sleep(0.5)
-            if stats_data and stats_data.get("response"):
-                for ts in stats_data["response"]:
-                    t_id = get_team_id(conn, ts["team"]["name"])
-                    if not t_id:
-                        continue
-                    raw = {s["type"]: s["value"] for s in ts["statistics"]}
-                    conn.execute("""
-                        INSERT OR REPLACE INTO match_team_stats
-                          (match_id, team_id, is_home, possession, shots_total,
-                           shots_on_target, corners, fouls, yellow_cards, red_cards,
-                           passes_total, passes_accurate, passes_pct, saves)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                    """, (
-                        wm_id, t_id, int(t_id == home_id),
-                        val(raw,"Ball Possession"), val(raw,"Total Shots"),
-                        val(raw,"Shots on Goal"),   val(raw,"Corner Kicks"),
-                        val(raw,"Fouls"),            val(raw,"Yellow Cards"),
-                        val(raw,"Red Cards"),        val(raw,"Total passes"),
-                        val(raw,"Passes accurate"),  val(raw,"Passes %"),
-                        val(raw,"Goalkeeper Saves"),
-                    ))
-                    print(f"    team_stats {ts['team']['name']}: poss={val(raw,'Ball Possession')} shots={val(raw,'Total Shots')}")
-
-            # Player stats
-            players_data = api_get("/fixtures/players", {"fixture": fix_id})
-            time.sleep(0.5)
-            if players_data and players_data.get("response"):
-                now = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
-                p_ins = 0
-                POS = {"G": "GK", "D": "DEF", "M": "MID", "F": "FWD"}
-                for tb in players_data["response"]:
-                    t_id = get_team_id(conn, tb["team"]["name"])
-                    if not t_id:
-                        continue
-                    for p in tb.get("players", []):
-                        pi   = p.get("player", {})
-                        st   = (p.get("statistics") or [{}])[0]
-                        g    = st.get("games", {})
-                        mins = g.get("minutes") or 0
-                        if not mins:
-                            continue
-                        pos  = POS.get((g.get("position") or "")[:1], g.get("position",""))
-                        gls  = st.get("goals", {})
-                        pas  = st.get("passes", {})
-                        tck  = st.get("tackles", {})
-                        dls  = st.get("duels", {})
-                        air  = st.get("aerial", {})
-                        sht  = st.get("shots", {})
-                        conn.execute("""
-                            INSERT OR REPLACE INTO match_player_stats
-                              (match_date, competition, home_team_id, away_team_id, team_id,
-                               player_name, position, minutes, goals, assists, rating,
-                               shots_total, shots_on_target,
-                               passes_total, passes_accurate, passes_pct,
-                               tackles_total, duels_total, duels_won,
-                               aerial_total, aerial_won, created_at)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                        """, (
-                            target_date, "FIFA World Cup 2026",
-                            home_id, away_id, t_id,
-                            pi.get("name",""), pos, mins,
-                            gls.get("total") or 0, gls.get("assists") or 0,
-                            g.get("rating"),
-                            sht.get("total"), sht.get("on"),
-                            pas.get("total"), pas.get("accuracy"), pas.get("accuracy"),
-                            tck.get("total"), dls.get("total"), dls.get("won"),
-                            air.get("total"), air.get("won"), now,
-                        ))
-                        p_ins += 1
-                total_players += p_ins
-                total_fixtures += 1
-                print(f"    {p_ins} player stats")
-
-            conn.commit()
+    total_scores  = 0
+    total_players = 0
+    for d in target_dates:
+        s, p = process_date(d, conn)
+        total_scores  += s
+        total_players += p
 
     conn.close()
-    print(f"\nTotal: {total_fixtures} fixtures, {total_players} player stats | {_reqs[0]} requests")
+    print(f"\nTotal: {total_scores} resultados, {total_players} player stats")
+
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    if args:
-        dates = [d.strip() for d in ",".join(args).split(",")]
+    if args and args[0]:
+        dates = [d.strip() for d in ",".join(args).split(",") if d.strip()]
     else:
         today = date.today()
         dates = [(today - timedelta(days=1)).isoformat(), today.isoformat()]
