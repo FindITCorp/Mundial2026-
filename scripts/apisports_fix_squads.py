@@ -72,7 +72,7 @@ def run():
         team_db_id = team_row["id"]
         print(f"\nFetcheando squad: {team_name}")
 
-        data = api_get("/teams", {"name": team_name, "league": "1", "season": "2026"})
+        data = api_get("/teams", {"name": team_name})
         if not data or not data.get("response"):
             alt = {v: k for k, v in NAME_MAP.items()}.get(team_name, team_name)
             data = api_get("/teams", {"name": alt})

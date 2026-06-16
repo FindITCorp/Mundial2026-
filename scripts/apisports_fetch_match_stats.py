@@ -89,14 +89,32 @@ def run(target_dates):
         if not wc_matches:
             continue
 
-        fixtures_data = api_get("/fixtures", {"date": target_date, "league": "1", "season": "2026"})
+        # Sin league/season — api-sports bloquea el Mundial 2026 por temporada
+        fixtures_data = api_get("/fixtures", {"date": target_date, "timezone": "UTC"})
         time.sleep(0.5)
         if not fixtures_data or not fixtures_data.get("response"):
             print(f"  Sin fixtures en api-sports para {target_date}")
             continue
 
-        fixtures = fixtures_data["response"]
-        print(f"  {len(fixtures)} fixtures de api-sports")
+        # Filtrar solo partidos donde al menos un equipo sea WC
+        WC_TEAMS = set(NAME_MAP.values()) | {
+            "Algeria","Argentina","Australia","Austria","Belgium","Bolivia",
+            "Bosnia and Herzegovina","Brazil","Canada","Cape Verde","Colombia",
+            "Costa Rica","Croatia","Curacao","Czechia","DR Congo","Ecuador",
+            "Egypt","England","France","Germany","Ghana","Haiti","Iran","Iraq",
+            "Ivory Coast","Japan","Jordan","Mexico","Morocco","Netherlands",
+            "New Zealand","Norway","Panama","Paraguay","Portugal","Qatar",
+            "Saudi Arabia","Scotland","Senegal","South Africa","South Korea",
+            "Spain","Sweden","Switzerland","Tunisia","Turkey","USA","Uruguay",
+            "Uzbekistan","Venezuela",
+        }
+        all_fixtures = fixtures_data["response"]
+        fixtures = [
+            f for f in all_fixtures
+            if resolve(f["teams"]["home"]["name"]) in WC_TEAMS
+            or resolve(f["teams"]["away"]["name"]) in WC_TEAMS
+        ]
+        print(f"  {len(all_fixtures)} fixtures totales, {len(fixtures)} con equipos WC")
 
         for wm in wc_matches:
             wm_id     = wm["id"]
