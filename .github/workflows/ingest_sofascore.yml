@@ -1,0 +1,315 @@
+name: Ingestar datos Sofascore
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Permite cargar stats de Sofascore (jugadores o equipo) SIN abrir Claude.
+#
+# USO DESDE LA UI DE GITHUB:
+#   Actions → "Ingestar datos Sofascore" → Run workflow → llenar campos
+#
+# USO ALTERNATIVO (archivo):
+#   1. Guarda el texto en data/intake/NOMBRE.txt
+#   2. Haz commit + push → este workflow corre automáticamente
+#      Nombre del archivo: <match_id>_players.txt  o  <match_id>_team.txt
+#      Ejemplo: 19_players.txt  (match_id=19, stats de jugadores)
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      match_id:
+        description: 'ID del partido en wc_matches (ej: 19). Ver: SELECT id,home_team_name,away_team_name FROM wc_matches'
+        required: true
+        type: string
+      data_type:
+        description: 'Tipo de datos a cargar'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - players
+          - team
+      equipos:
+        description: 'Nombres de equipos separados por coma (ej: Brazil,France). Solo para jugadores si auto-detección falla.'
+        required: false
+        type: string
+      raw_text:
+        description: 'Texto copiado de Sofascore (pega aquí el dump completo)'
+        required: false
+        type: string
+      score:
+        description: 'Resultado del partido ej: 2-1 (si aún no está en la DB como jugado)'
+        required: false
+        type: string
+
+  push:
+    paths:
+      - 'data/intake/*.txt'
+      - 'data/intake/*.json'
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Crear directorios necesarios
+        run: mkdir -p data/intake data/intake/processed
+
+      # ── Modo workflow_dispatch: texto pegado en el input ──────────────────
+      - name: Procesar input directo (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch' && inputs.raw_text != ''
+        run: |
+          python - <<'PYEOF'
+          import os, sys, sqlite3
+          sys.path.insert(0, '.')
+
+          match_id  = int(os.environ['INPUT_MATCH_ID'])
+          data_type = os.environ['INPUT_DATA_TYPE']   # auto/players/team
+          equipos   = os.environ.get('INPUT_EQUIPOS', '').strip()
+          raw_text  = os.environ['INPUT_RAW_TEXT']
+          score     = os.environ.get('INPUT_SCORE', '').strip()
+
+          conn = sqlite3.connect('data/mundial2026.db')
+
+          # Marcar resultado si se proporcionó
+          if score and '-' in score:
+              parts = score.split('-')
+              try:
+                  gh, ga = int(parts[0].strip()), int(parts[1].strip())
+                  existing = conn.execute(
+                      "SELECT played FROM wc_matches WHERE id=?", (match_id,)
+                  ).fetchone()
+                  if existing and not existing[0]:
+                      conn.execute(
+                          "UPDATE wc_matches SET goals_home=?, goals_away=?, played=1 WHERE id=?",
+                          (gh, ga, match_id)
+                      )
+                      print(f"✓ Resultado registrado: {gh}-{ga}")
+              except Exception as e:
+                  print(f"⚠ No se pudo registrar resultado: {e}")
+
+          # Forzar tipo si se especificó
+          if data_type != 'auto':
+              original = raw_text
+              if data_type == 'team' and 'Posesión de balón' not in raw_text:
+                  # Inyectar señal para que el detector lo reconozca como team
+                  raw_text = 'Posesión de balón\n' + raw_text
+              elif data_type == 'players' and 'Valoración Sofascore' not in raw_text:
+                  raw_text = 'Valoración Sofascore\n' + raw_text
+
+          from scripts.sofascore_intake import load_from_text
+          eq_list = [e.strip() for e in equipos.split(',')] if equipos else None
+          ok = load_from_text(conn, raw_text, match_id, equipos=eq_list)
+          if ok:
+              conn.commit()
+              print(f"✓ Datos cargados para match_id={match_id}")
+          else:
+              print(f"✗ Error al cargar datos para match_id={match_id}")
+              sys.exit(1)
+          conn.close()
+          PYEOF
+        env:
+          INPUT_MATCH_ID: ${{ inputs.match_id }}
+          INPUT_DATA_TYPE: ${{ inputs.data_type }}
+          INPUT_EQUIPOS: ${{ inputs.equipos }}
+          INPUT_RAW_TEXT: ${{ inputs.raw_text }}
+          INPUT_SCORE: ${{ inputs.score }}
+
+      # ── Modo archivo: archivos .txt/.json en data/intake/ ────────────────
+      - name: Procesar archivos en data/intake/
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PYEOF'
+          import os, sys, sqlite3, re, json
+          from pathlib import Path
+          sys.path.insert(0, '.')
+
+          intake_dir   = Path('data/intake')
+          processed    = Path('data/intake/processed')
+          processed.mkdir(exist_ok=True)
+
+          files = sorted(intake_dir.glob('*.txt')) + sorted(intake_dir.glob('*.json'))
+          if not files:
+              print("No hay archivos pendientes en data/intake/")
+              sys.exit(0)
+
+          conn = sqlite3.connect('data/mundial2026.db')
+          errors = []
+
+          for fpath in files:
+              name = fpath.stem  # ej: "19_players" o "19_team" o "19"
+              text = fpath.read_text(encoding='utf-8')
+
+              # ── Formato JSON ──────────────────────────────────────────────
+              if fpath.suffix == '.json':
+                  try:
+                      from scripts.sofascore_intake import load_match
+                      data = json.loads(text)
+                      matches = data if isinstance(data, list) else [data]
+                      for m in matches:
+                          load_match(m)
+                      conn.commit()
+                      print(f"✓ {fpath.name}: {len(matches)} partido(s) JSON cargado(s)")
+                      fpath.rename(processed / fpath.name)
+                  except Exception as e:
+                      print(f"✗ {fpath.name}: {e}")
+                      errors.append(str(fpath.name))
+                  continue
+
+              # ── Formato texto SofaScore ───────────────────────────────────
+              # Nombre esperado: <match_id>[_players|_team][_Home,Away].txt
+              m = re.match(r'^(\d+)', name)
+              if not m:
+                  print(f"⚠ {fpath.name}: no se puede inferir match_id del nombre. Usar formato: 19_players.txt")
+                  errors.append(str(fpath.name))
+                  continue
+
+              match_id = int(m.group(1))
+
+              # Equipos opcionales en el nombre: 19_players_Brazil,France.txt
+              eq_list = None
+              eq_m = re.search(r'_([A-Za-z]+,[A-Za-z ]+)$', name)
+              if eq_m:
+                  eq_list = [e.strip() for e in eq_m.group(1).split(',')]
+
+              from scripts.sofascore_intake import load_from_text
+              ok = load_from_text(conn, text, match_id, equipos=eq_list)
+              if ok:
+                  conn.commit()
+                  print(f"✓ {fpath.name}: match_id={match_id} cargado")
+                  fpath.rename(processed / fpath.name)
+              else:
+                  print(f"✗ {fpath.name}: error al parsear")
+                  errors.append(str(fpath.name))
+
+          conn.close()
+          if errors:
+              print(f"\n✗ Archivos con error: {', '.join(errors)}")
+              sys.exit(1)
+          PYEOF
+
+      # ── Pipeline post-ingesta: recalibrar y actualizar predicciones ──────
+      - name: Espejo wc_matches → team_matches
+        run: |
+          python - <<'PYEOF'
+          import sys, sqlite3
+          sys.path.insert(0, '.')
+          try:
+              from scripts.sync_friendly_results import sync
+              conn = sqlite3.connect('data/mundial2026.db')
+              n = sync(conn); conn.commit(); conn.close()
+              print(f"sync_friendly_results: {n} resultados")
+          except Exception as e:
+              print(f"sync_friendly_results skipped: {e}")
+          PYEOF
+
+      - name: Actualizar fortalezas/debilidades de equipos
+        run: |
+          python scripts/team_strengths.py || echo "team_strengths skipped"
+
+      - name: Recalibrar sesgo de confederación
+        run: |
+          python scripts/fit_confederation_bias.py || echo "confed fit skipped"
+
+      - name: Sincronizar ratings de jugadores
+        run: |
+          python - <<'PYEOF'
+          import sys, sqlite3
+          sys.path.insert(0, '.')
+          try:
+              from scripts.sync_player_match_ratings import sync
+              conn = sqlite3.connect('data/mundial2026.db')
+              sync(conn); conn.commit(); conn.close()
+              print("sync_player_match_ratings OK")
+          except Exception as e:
+              print(f"skipped: {e}")
+          PYEOF
+
+      - name: Sellar predicciones actualizadas
+        run: |
+          python - <<'PYEOF'
+          import sys
+          sys.path.insert(0, '.')
+          try:
+              from scripts.predict_upcoming import store_predictions
+              store_predictions(days_ahead=4)
+              print("predict_upcoming OK")
+          except Exception as e:
+              print(f"skipped: {e}")
+          PYEOF
+
+      - name: Evaluar modelo y refit lambda
+        run: |
+          python - <<'PYEOF'
+          import sys
+          sys.path.insert(0, '.')
+          try:
+              from scripts.evaluate_model import evaluate
+              r = evaluate(verbose=True)
+              if r:
+                  print(f"Accuracy: {r.get('accuracy',0)*100:.1f}% | Brier: {r.get('avg_brier',0):.4f} | λ-scale: {r.get('lambda_scale',1):.3f}")
+          except Exception as e:
+              print(f"skipped: {e}")
+          PYEOF
+
+      - name: Construir perfiles de rendimiento
+        run: |
+          python - <<'PYEOF'
+          import sys, sqlite3
+          sys.path.insert(0, '.')
+          try:
+              from scripts.build_goal_timing import build_team_performance_profile
+              conn = sqlite3.connect('data/mundial2026.db')
+              build_team_performance_profile(conn)
+              conn.commit(); conn.close()
+              print("team_performance_profile OK")
+          except Exception as e:
+              print(f"skipped: {e}")
+          PYEOF
+
+      # ── Commit y push ──────────────────────────────────────────────────────
+      - name: Commit y push DB actualizada
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config commit.gpgsign false
+
+          # Guardar DB recalibrada
+          cp data/mundial2026.db /tmp/ingested.db
+
+          # Sincronizar con remoto
+          git fetch origin main
+          git reset --hard origin/main
+
+          # Aplicar DB + archivos procesados
+          cp /tmp/ingested.db data/mundial2026.db
+          git add data/mundial2026.db
+          git add data/intake/processed/ 2>/dev/null || true
+          git rm data/intake/*.txt data/intake/*.json 2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "Sin cambios que commitear."
+          else
+            MATCH="${{ inputs.match_id }}"
+            MSG="ingest: sofascore match_id=${MATCH:-archivo} $(date -u +%Y-%m-%d\ %H:%M) UTC"
+            git commit -m "$MSG"
+            git push origin main
+            echo "✓ DB pusheada a main."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
