@@ -1,16 +1,10 @@
 name: Completar convocados y stats de partidos
 
-# Resuelve dos problemas en una sola corrida:
-#   1. Completa los 26 convocados de equipos incompletos (USA, Egypt, Algeria, DR Congo)
-#   2. Fetchea stats de jugadores de partidos recientes que faltan
-#
-# Trigger: manual o automático diario durante el torneo
-
 on:
   workflow_dispatch:
     inputs:
       dates:
-        description: 'Fechas a procesar ej: 2026-06-15,2026-06-16 (vacío = hoy + ayer)'
+        description: 'Fechas a procesar ej: 2026-06-15,2026-06-16 (vacio = hoy + ayer)'
         required: false
         type: string
       fix_squads:
@@ -20,8 +14,8 @@ on:
         type: choice
         options: ['true', 'false']
   schedule:
-    - cron: '0 6 * 6 *'   # 6am UTC diario en junio
-    - cron: '0 6 * 7 *'   # 6am UTC diario en julio
+    - cron: '0 6 * 6 *'
+    - cron: '0 6 * 7 *'
 
 jobs:
   fix:
@@ -31,7 +25,6 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
-      FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
 
     steps:
       - uses: actions/checkout@v4.2.2
@@ -48,464 +41,32 @@ jobs:
       - name: Crear directorios
         run: mkdir -p data/lineups data/cache/api_football data/logs
 
-      # ── FASE 1: Completar convocados incompletos via api-sports ──────────
-      - name: Completar convocados incompletos (squads < 23 jugadores)
+      - name: Completar convocados incompletos
         if: inputs.fix_squads != 'false'
+        run: python scripts/apisports_fix_squads.py
+
+      - name: Fetchear stats de partidos WC recientes
+        run: python scripts/apisports_fetch_match_stats.py "${{ inputs.dates }}"
+
+      - name: Recalibrar modelo
         run: |
-          python - <<'PYEOF'
-          import os, sys, sqlite3, time, requests
-          sys.path.insert(0, '.')
+          python scripts/fix_stats_links.py        || true
+          python scripts/team_strengths.py          || true
+          python scripts/fit_confederation_bias.py  || true
+          python scripts/sync_player_match_ratings.py || true
+          python -c "
+          import sys; sys.path.insert(0,'.')
+          from scripts.predict_upcoming import store_predictions
+          store_predictions(days_ahead=4)
+          print('predict_upcoming OK')
+          " || true
 
-          KEY  = os.getenv("APISPORTS_KEY", "")
-          BASE = "https://v3.football.api-sports.io"
-
-          NAME_MAP = {
-              "United States": "USA", "Korea Republic": "South Korea",
-              "Cote d'Ivoire": "Ivory Coast", "Cabo Verde": "Cape Verde",
-              "Bosnia": "Bosnia and Herzegovina", "Czech Republic": "Czechia",
-              "Congo DR": "DR Congo", "Republic of Ireland": "Republic of Ireland",
-          }
-
-          conn = sqlite3.connect('data/mundial2026.db')
-          conn.row_factory = sqlite3.Row
-
-          # Identificar equipos WC con menos de 23 en projected_lineups
-          incomplete = conn.execute("""
-              SELECT t.id, t.name, COUNT(pl.player_id) as n
-              FROM teams t
-              LEFT JOIN projected_lineups pl ON pl.team_id = t.id
-              WHERE t.id IN (
-                  SELECT home_team_id FROM wc_matches WHERE date >= '2026-06-11'
-                  UNION
-                  SELECT away_team_id FROM wc_matches WHERE date >= '2026-06-11'
-              )
-              GROUP BY t.id, t.name
-              HAVING n < 23
-              ORDER BY n
-          """).fetchall()
-
-          if not incomplete:
-              print("Todos los equipos tienen 23+ convocados. Nada que hacer.")
-              conn.close()
-              exit(0)
-
-          print(f"Equipos con convocados incompletos: {len(incomplete)}")
-          for row in incomplete:
-              print(f"  {row['name']}: {row['n']} jugadores")
-
-          if not KEY:
-              print("APISPORTS_KEY no configurada, saltando fetch de squads.")
-              conn.close()
-              exit(0)
-
-          req_count = 0
-          MAX_REQ = 80  # dejar margen para otros workflows
-
-          def api_get(path, params):
-              nonlocal req_count
-              if req_count >= MAX_REQ:
-                  return None
-              h = {"x-apisports-key": KEY}
-              try:
-                  r = requests.get(f"{BASE}{path}", headers=h, params=params, timeout=20)
-                  req_count += 1
-                  print(f"  [{req_count}] {path} {params} -> {r.status_code}")
-                  if r.status_code == 200:
-                      return r.json()
-              except Exception as e:
-                  print(f"  error: {e}")
-              return None
-
-          # Buscar team_id de api-sports para cada equipo incompleto
-          for team_row in incomplete:
-              team_name = team_row['name']
-              team_db_id = team_row['id']
-              print(f"\nFetcheando squad: {team_name}")
-
-              # Buscar el team_id en api-sports
-              data = api_get("/teams", {"name": team_name, "league": "1", "season": "2026"})
-              if not data or not data.get("response"):
-                  # intentar con nombre alternativo
-                  alt = {v: k for k, v in NAME_MAP.items()}.get(team_name, team_name)
-                  data = api_get("/teams", {"name": alt})
-
-              if not data or not data.get("response"):
-                  print(f"  No encontrado en api-sports: {team_name}")
-                  continue
-
-              api_team_id = data["response"][0]["team"]["id"]
-              time.sleep(0.5)
-
-              # Traer squad
-              squad_data = api_get("/players/squads", {"team": api_team_id})
-              if not squad_data or not squad_data.get("response"):
-                  print(f"  Sin squad en api-sports para {team_name} (id={api_team_id})")
-                  continue
-
-              players = squad_data["response"][0].get("players", []) if squad_data["response"] else []
-              print(f"  {len(players)} jugadores encontrados en api-sports")
-
-              inserted = 0
-              for p in players:
-                  pid   = p.get("id")
-                  name  = p.get("name", "")
-                  pos   = p.get("position", "")
-                  age   = p.get("age")
-                  number = p.get("number")
-
-                  # Mapear posicion
-                  pos_map = {"Goalkeeper": "GK", "Defender": "DEF",
-                             "Midfielder": "MID", "Attacker": "FWD"}
-                  pos_short = pos_map.get(pos, pos[:3] if pos else "")
-
-                  # Insertar en players si no existe
-                  conn.execute("""
-                      INSERT OR IGNORE INTO players (name, nationality, position)
-                      VALUES (?, ?, ?)
-                  """, (name, team_name, pos_short))
-
-                  # Obtener player_id local
-                  local = conn.execute(
-                      "SELECT id FROM players WHERE name=? AND nationality=?",
-                      (name, team_name)
-                  ).fetchone()
-                  if not local:
-                      continue
-                  local_pid = local[0]
-
-                  # Insertar en projected_lineups
-                  conn.execute("""
-                      INSERT OR IGNORE INTO projected_lineups
-                        (team_id, player_id, role, jersey_number)
-                      VALUES (?, ?, 'bench', ?)
-                  """, (team_db_id, local_pid, number))
-                  inserted += 1
-
-              conn.commit()
-              final = conn.execute(
-                  "SELECT COUNT(*) FROM projected_lineups WHERE team_id=?",
-                  (team_db_id,)
-              ).fetchone()[0]
-              print(f"  {inserted} insertados -> total en projected_lineups: {final}")
-              time.sleep(1)
-
-          conn.close()
-          print(f"\nTotal requests api-sports usadas: {req_count}")
-          PYEOF
-
-      # ── FASE 2: Fetchear stats de partidos recientes sin datos ───────────
-      - name: Fetchear stats de jugadores en partidos WC recientes
-        run: |
-          python - <<'PYEOF'
-          import os, sys, sqlite3, time, requests
-          from datetime import date, timedelta
-          sys.path.insert(0, '.')
-
-          KEY  = os.getenv("APISPORTS_KEY", "")
-          BASE = "https://v3.football.api-sports.io"
-
-          if not KEY:
-              print("APISPORTS_KEY no configurada.")
-              exit(0)
-
-          # Determinar fechas a procesar
-          dates_input = os.getenv("INPUT_DATES", "").strip()
-          if dates_input:
-              target_dates = [d.strip() for d in dates_input.split(",")]
-          else:
-              today = date.today()
-              target_dates = [
-                  (today - timedelta(days=1)).isoformat(),
-                  today.isoformat(),
-              ]
-
-          print(f"Fechas a procesar: {target_dates}")
-
-          conn = sqlite3.connect('data/mundial2026.db')
-          conn.row_factory = sqlite3.Row
-
-          NAME_MAP = {
-              "United States": "USA", "Korea Republic": "South Korea",
-              "Cote d'Ivoire": "Ivory Coast", "Cabo Verde": "Cape Verde",
-              "Bosnia": "Bosnia and Herzegovina", "Czech Republic": "Czechia",
-              "Congo DR": "DR Congo",
-          }
-
-          req_count = 0
-          MAX_REQ = 80
-
-          def api_get(path, params):
-              nonlocal req_count
-              if req_count >= MAX_REQ:
-                  return None
-              h = {"x-apisports-key": KEY}
-              try:
-                  r = requests.get(f"{BASE}{path}", headers=h, params=params, timeout=20)
-                  req_count += 1
-                  print(f"  [{req_count}] {path} {params} -> {r.status_code}")
-                  if r.status_code == 200:
-                      return r.json()
-              except Exception as e:
-                  print(f"  error: {e}")
-              return None
-
-          def resolve(name):
-              return NAME_MAP.get(name, name)
-
-          def get_team_id(name):
-              n = resolve(name)
-              row = conn.execute(
-                  "SELECT id FROM teams WHERE LOWER(name)=LOWER(?)", (n,)
-              ).fetchone()
-              return row[0] if row else None
-
-          total_players_saved = 0
-          total_fixtures = 0
-
-          for target_date in target_dates:
-              print(f"\n=== Procesando fecha: {target_date} ===")
-
-              # Buscar partidos WC de esa fecha sin player stats
-              wc_matches = conn.execute("""
-                  SELECT w.id, w.home_team_name, w.away_team_name,
-                         w.home_team_id, w.away_team_id, w.score_home, w.score_away
-                  FROM wc_matches w
-                  WHERE w.date = ? AND w.stage IN ('Group Stage', 'group', 'FIFA World Cup 2026')
-                     OR (w.date = ? AND w.wc_group IS NOT NULL)
-              """, (target_date, target_date)).fetchall()
-
-              # Si no filtra bien, tomar todos los de esa fecha
-              if not wc_matches:
-                  wc_matches = conn.execute(
-                      "SELECT id, home_team_name, away_team_name, home_team_id, away_team_id, score_home, score_away FROM wc_matches WHERE date=? AND played=1",
-                      (target_date,)
-                  ).fetchall()
-
-              if not wc_matches:
-                  # Intentar partidos no marcados como jugados aún
-                  wc_matches = conn.execute(
-                      "SELECT id, home_team_name, away_team_name, home_team_id, away_team_id, score_home, score_away FROM wc_matches WHERE date=?",
-                      (target_date,)
-                  ).fetchall()
-
-              print(f"  {len(wc_matches)} partidos WC en {target_date}")
-
-              # Traer todos los fixtures del día desde api-sports
-              fixtures_data = api_get("/fixtures", {"date": target_date, "league": "1", "season": "2026"})
-              time.sleep(0.5)
-
-              if not fixtures_data or not fixtures_data.get("response"):
-                  print(f"  Sin fixtures de api-sports para {target_date}")
-                  continue
-
-              fixtures = fixtures_data["response"]
-              print(f"  {len(fixtures)} fixtures en api-sports para {target_date}")
-
-              for wm in wc_matches:
-                  wm_id     = wm["id"]
-                  home_name = wm["home_team_name"]
-                  away_name = wm["away_team_name"]
-                  home_id   = wm["home_team_id"]
-                  away_id   = wm["away_team_id"]
-
-                  # Ya tiene player stats?
-                  existing = conn.execute(
-                      "SELECT COUNT(*) FROM match_player_stats WHERE home_team_id=? AND match_date=?",
-                      (home_id, target_date)
-                  ).fetchone()[0]
-                  if existing > 10:
-                      print(f"  [{wm_id}] {home_name} vs {away_name}: ya tiene {existing} player stats, skip")
-                      continue
-
-                  # Buscar fixture correspondiente
-                  fix = None
-                  for f in fixtures:
-                      fh = resolve(f["teams"]["home"]["name"])
-                      fa = resolve(f["teams"]["away"]["name"])
-                      if (fh.lower() == home_name.lower() or home_name.lower() in fh.lower()) and \
-                         (fa.lower() == away_name.lower() or away_name.lower() in fa.lower()):
-                          fix = f
-                          break
-                      # intento inverso parcial
-                      if home_name.lower() in fh.lower() and away_name.lower() in fa.lower():
-                          fix = f
-                          break
-
-                  if not fix:
-                      print(f"  [{wm_id}] {home_name} vs {away_name}: no encontrado en api-sports fixtures")
-                      continue
-
-                  fix_id = fix["fixture"]["id"]
-                  sh = fix["goals"]["home"]
-                  sa = fix["goals"]["away"]
-                  status = fix["fixture"]["status"]["short"]
-
-                  print(f"\n  [{wm_id}] {home_name} {sh}-{sa} {away_name} (fixture={fix_id}, status={status})")
-
-                  # Actualizar resultado en wc_matches si está jugado
-                  if status == "FT" and sh is not None:
-                      conn.execute(
-                          "UPDATE wc_matches SET score_home=?, score_away=?, played=1 WHERE id=?",
-                          (sh, sa, wm_id)
-                      )
-                      # Espejo en team_matches
-                      for tid, opp_id, opp_name, gf, ga, venue in [
-                          (home_id, away_id, away_name, sh, sa, "home"),
-                          (away_id, home_id, home_name, sa, sh, "away"),
-                      ]:
-                          res = "W" if gf > ga else ("D" if gf == ga else "L")
-                          conn.execute("""
-                              INSERT OR IGNORE INTO team_matches
-                                (team_id, opponent_id, opponent_name, date, competition,
-                                 goals_for, goals_against, result, venue)
-                              VALUES (?,?,?,?,?,?,?,?,?)
-                          """, (tid, opp_id, opp_name, target_date,
-                                "FIFA World Cup 2026", gf, ga, res, venue))
-                      print(f"    Resultado guardado: {sh}-{sa}")
-
-                  # Stats de equipo
-                  stats_data = api_get("/fixtures/statistics", {"fixture": fix_id})
-                  time.sleep(0.5)
-
-                  if stats_data and stats_data.get("response"):
-                      for team_stats in stats_data["response"]:
-                          t_name = resolve(team_stats["team"]["name"])
-                          t_id = get_team_id(t_name)
-                          if not t_id:
-                              continue
-                          is_home = (t_id == home_id)
-                          raw = {s["type"]: s["value"] for s in team_stats["statistics"]}
-
-                          def v(key, default=None):
-                              val = raw.get(key, default)
-                              if val is None or val == "":
-                                  return default
-                              try:
-                                  return float(str(val).replace("%",""))
-                              except:
-                                  return default
-
-                          conn.execute("""
-                              INSERT OR REPLACE INTO match_team_stats
-                                (match_id, team_id, is_home, possession, shots_total,
-                                 shots_on_target, corners, fouls, yellow_cards, red_cards,
-                                 passes_total, passes_accurate, passes_pct, saves)
-                              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                          """, (
-                              wm_id, t_id, int(is_home),
-                              v("Ball Possession"), v("Total Shots"),
-                              v("Shots on Goal"), v("Corner Kicks"),
-                              v("Fouls"), v("Yellow Cards"), v("Red Cards"),
-                              v("Total passes"), v("Passes accurate"),
-                              v("Passes %"), v("Goalkeeper Saves"),
-                          ))
-                          print(f"    team_stats {t_name}: pos={v('Ball Possession')} shots={v('Total Shots')}")
-
-                  # Stats de jugadores
-                  players_data = api_get("/fixtures/players", {"fixture": fix_id})
-                  time.sleep(0.5)
-
-                  if players_data and players_data.get("response"):
-                      from datetime import datetime
-                      now = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
-                      p_inserted = 0
-                      for team_block in players_data["response"]:
-                          t_name = resolve(team_block["team"]["name"])
-                          t_id = get_team_id(t_name)
-                          if not t_id:
-                              continue
-                          for p in team_block.get("players", []):
-                              pi = p.get("player", {})
-                              st = (p.get("statistics") or [{}])[0]
-                              games = st.get("games", {})
-                              shots = st.get("shots", {})
-                              goals = st.get("goals", {})
-                              passes= st.get("passes", {})
-                              tackles=st.get("tackles",{})
-                              duels  =st.get("duels",  {})
-                              aerials=st.get("aerial",  {})
-
-                              mins = games.get("minutes") or 0
-                              if not mins:
-                                  continue
-
-                              pos_map = {"G":"GK","D":"DEF","M":"MID","F":"FWD"}
-                              pos = pos_map.get(games.get("position","")[:1], games.get("position",""))
-
-                              conn.execute("""
-                                  INSERT OR REPLACE INTO match_player_stats
-                                    (match_date, competition, home_team_id, away_team_id, team_id,
-                                     player_name, position, minutes, goals, assists, rating,
-                                     shots_total, shots_on_target,
-                                     passes_total, passes_accurate, passes_pct,
-                                     tackles_total, duels_total, duels_won,
-                                     aerial_total, aerial_won, created_at)
-                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                              """, (
-                                  target_date, "FIFA World Cup 2026",
-                                  home_id, away_id, t_id,
-                                  pi.get("name",""), pos, mins,
-                                  goals.get("total") or 0,
-                                  goals.get("assists") or 0,
-                                  games.get("rating"),
-                                  shots.get("total"), shots.get("on"),
-                                  passes.get("total"), passes.get("accuracy"),
-                                  passes.get("accuracy"),
-                                  tackles.get("total"),
-                                  duels.get("total"), duels.get("won"),
-                                  aerials.get("total"), aerials.get("won"),
-                                  now,
-                              ))
-                              p_inserted += 1
-
-                      total_players_saved += p_inserted
-                      print(f"    {p_inserted} player stats guardados")
-                      total_fixtures += 1
-
-              conn.commit()
-
-          conn.close()
-          print(f"\nResumen: {total_fixtures} partidos procesados, {total_players_saved} player stats guardados")
-          print(f"Total requests api-sports: {req_count}")
-          PYEOF
-        env:
-          INPUT_DATES: ${{ inputs.dates }}
-
-      # ── FASE 3: Recalibrar modelo ─────────────────────────────────────────
-      - name: Sync resultados y recalibrar
-        run: |
-          python - <<'PYEOF'
-          import sys, sqlite3, subprocess
-          sys.path.insert(0, '.')
-          for script in [
-              'scripts/fix_stats_links.py',
-              'scripts/team_strengths.py',
-              'scripts/fit_confederation_bias.py',
-              'scripts/sync_player_match_ratings.py',
-          ]:
-              try:
-                  r = subprocess.run(['python3', script], capture_output=True, text=True)
-                  print(f"{script}: {'OK' if r.returncode==0 else 'WARN'}")
-                  if r.stdout.strip():
-                      print(r.stdout.strip()[:200])
-              except Exception as e:
-                  print(f"{script}: skipped ({e})")
-
-          try:
-              from scripts.predict_upcoming import store_predictions
-              store_predictions(days_ahead=4)
-              print("predict_upcoming: OK")
-          except Exception as e:
-              print(f"predict_upcoming: {e}")
-          PYEOF
-
-      # ── Resumen final ──────────────────────────────────────────────────────
       - name: Resumen de cobertura
         run: |
-          python - <<'PYEOF'
+          python -c "
           import sqlite3
           conn = sqlite3.connect('data/mundial2026.db')
-          squads = conn.execute("""
+          incompletos = conn.execute('''
               SELECT t.name, COUNT(pl.player_id) as n
               FROM teams t
               LEFT JOIN projected_lineups pl ON pl.team_id = t.id
@@ -514,33 +75,28 @@ jobs:
                   UNION SELECT away_team_id FROM wc_matches WHERE date >= '2026-06-11'
               )
               GROUP BY t.id, t.name HAVING n < 23 ORDER BY n
-          """).fetchall()
-          if squads:
-              print("Equipos aun incompletos:")
-              for n, c in squads:
-                  print(f"  {n}: {c}")
+          ''').fetchall()
+          if incompletos:
+              print('Equipos aun incompletos:')
+              for n,c in incompletos: print(f'  {n}: {c}')
           else:
-              print("Todos los 48 equipos tienen 23+ convocados.")
-
-          # Partidos WC sin player stats
-          missing = conn.execute("""
+              print('Todos los 48 equipos tienen 23+ convocados.')
+          sin_stats = conn.execute('''
               SELECT w.date, w.home_team_name, w.away_team_name
               FROM wc_matches w
               WHERE w.date >= '2026-06-11' AND w.played=1
                 AND (SELECT COUNT(*) FROM match_player_stats
                      WHERE home_team_id=w.home_team_id AND match_date=w.date) < 10
               ORDER BY w.date
-          """).fetchall()
-          if missing:
-              print(f"\nPartidos WC sin player stats ({len(missing)}):")
-              for d, h, a in missing:
-                  print(f"  {d}: {h} vs {a}")
+          ''').fetchall()
+          if sin_stats:
+              print(f'Partidos sin player stats ({len(sin_stats)}):')
+              for d,h,a in sin_stats: print(f'  {d}: {h} vs {a}')
           else:
-              print("Todos los partidos jugados tienen player stats.")
+              print('Todos los partidos jugados tienen player stats.')
           conn.close()
-          PYEOF
+          "
 
-      # ── Commit y push ──────────────────────────────────────────────────────
       - name: Commit y push
         run: |
           git config user.name  "github-actions[bot]"
@@ -554,7 +110,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Sin cambios."
           else
-            git commit -m "data: squads completos + stats partidos $(date -u +%Y-%m-%d)"
+            git commit -m "data: squads + stats $(date -u +%Y-%m-%d)"
             git push origin main
             echo "Pusheado."
           fi
