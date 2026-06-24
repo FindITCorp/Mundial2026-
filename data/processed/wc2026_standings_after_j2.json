@@ -1,0 +1,24 @@
+{
+  "tournament": "FIFA World Cup 2026",
+  "source": "Sofascore API - resultados verificados",
+  "last_updated": "2026-06-24",
+  "jornadas_completadas": 2,
+  "groups": {
+    "A": {
+      "teams": [
+        {"team": "Mexico", "played": 2, "won": 2, "drawn": 0, "lost": 0, "gf": 3, "ga": 0, "gd": 3, "points": 6, "qualified": true},
+        {"team": "South Korea", "played": 2, "won": 1, "drawn": 0, "lost": 1, "gf": 2, "ga": 2, "gd": 0, "points": 3, "qualified": false},
+        {"team": "Czechia", "played": 2, "won": 0, "drawn": 1, "lost": 1, "gf": 2, "ga": 3, "gd": -1, "points": 1, "qualified": false},
+        {"team": "South Africa", "played": 2, "won": 0, "drawn": 1, "lost": 1, "gf": 1, "ga": 2, "gd": -1, "points": 1, "qualified": false}
+      ]
+    },
+    "C": {
+      "teams": [
+        {"team": "Brazil", "played": 2, "won": 1, "drawn": 1, "lost": 0, "gf": 4, "ga": 1, "gd": 3, "points": 4, "qualified": false},
+        {"team": "Morocco", "played": 2, "won": 1, "drawn": 1, "lost": 0, "gf": 2, "ga": 1, "gd": 1, "points": 4, "qualified": false},
+        {"team": "Scotland", "played": 2, "won": 1, "drawn": 0, "lost": 1, "gf": 1, "ga": 1, "gd": 0, "points": 3, "qualified": false},
+        {"team": "Haiti", "played": 2, "won": 0, "drawn": 0, "lost": 2, "gf": 0, "ga": 4, "gd": -4, "points": 0, "qualified": false}
+      ]
+    }
+  }
+}
