@@ -2,9 +2,11 @@
   "tournament": "FIFA World Cup 2026",
   "season_id": 58210,
   "source": "Sofascore API /event/{id}/statistics - live verified 2026-06-24",
-  "last_updated": "2026-06-24",
+  "last_updated": "2026-06-25",
   "jornada": 3,
   "stats": [
+    {"event_id":15186732,"jornada":3,"group":"A","home_team":"Czechia","away_team":"Mexico","possession_home":52,"possession_away":48,"shots_total_home":13,"shots_total_away":11,"shots_on_target_home":1,"shots_on_target_away":5,"xg_home":0.53,"xg_away":1.74,"yellow_home":0,"yellow_away":1,"corners_home":5,"corners_away":1,"big_chances_home":0,"big_chances_away":5,"note":"Mexico equipo B gano 0-3. Chequia 13 tiros pero solo 1 al arco y 0 grandes ocasiones. Mexico clinico: 5 tiros al arco, 5 grandes ocasiones, 3 goles. Conversion devastadora."},
+    {"event_id":15186744,"jornada":3,"group":"A","home_team":"South Africa","away_team":"South Korea","possession_home":32,"possession_away":68,"shots_total_home":13,"shots_total_away":8,"shots_on_target_home":4,"shots_on_target_away":3,"xg_home":1.16,"xg_away":0.90,"yellow_home":1,"yellow_away":1,"corners_home":4,"corners_away":6,"note":"Sudafrica gano 1-0 con solo 32% posesion — contragolpe eficiente. Corea domino balon (68%) pero xG inferior. Ronwen Williams GK 7.9. Thapelo Maseko gol y rating 7.6."},
     {"event_id":15186829,"jornada":3,"group":"B","home_team":"Bosnia & Herzegovina","away_team":"Qatar","possession_home":54,"possession_away":46,"shots_total_home":14,"shots_total_away":9,"shots_on_target_home":5,"shots_on_target_away":3,"xg_home":0.68,"xg_away":0.77,"yellow_home":1,"yellow_away":1,"note":"Bosnia gano 3-1 a pesar de xG casi igual — alta conversion"},
     {"event_id":15186821,"jornada":3,"group":"B","home_team":"Switzerland","away_team":"Canada","possession_home":55,"possession_away":45,"shots_total_home":6,"shots_total_away":13,"shots_total_home_note":"Canada genero mas disparos pero Kobel GK 8.9 fue determinante","shots_on_target_home":4,"shots_on_target_away":7,"xg_home":1.11,"xg_away":1.66,"yellow_home":1,"yellow_away":2,"note":"Canada supero a Suiza en xG 1.66 vs 1.11 pero perdio 1-2. Gregor Kobel GK rating 9.0"},
     {"event_id":15186864,"jornada":3,"group":"C","home_team":"Morocco","away_team":"Haiti","possession_home":69,"possession_away":31,"shots_total_home":22,"shots_total_away":9,"shots_on_target_home":11,"shots_on_target_away":2,"xg_home":3.26,"xg_away":0.66,"yellow_home":0,"yellow_away":3,"note":"Bilal El Khannouss MVP rating 8.9, Soufiane Rahimi sub 8.1"},
