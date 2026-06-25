@@ -1,7 +1,49 @@
 # Contexto de Sesión — Pool Mundial 2026 "Kike"
 
 > **Documento de handoff.** Lee esto primero para retomar el trabajo sin perder nada.
-> Última actualización: **2026-06-25**
+> Última actualización: **2026-06-25 (sesión tarde)**
+
+---
+
+## 🟢 ESTADO ACTUAL (lo más importante — leer primero)
+
+### Comando ÚNICO para iniciar cada jornada
+```bash
+cd C:/Users/enrique.aguilar/Mundial2026
+python scripts/matchday.py "EquipoA" "EquipoB" "EquipoC" "EquipoD"
+```
+Refresca TODOS los datos (resultados→DB, FIFA lineups+goles, FDH 142 stats, timing real, perfiles) y luego, por cada par, imprime **análisis exhaustivo + predicción ajustada por patrones**. Sin pares, solo refresca datos.
+
+### Fuentes de datos (resuelto el muro de Sofascore)
+- **FIFA API ABIERTA (principal, sin anti-bot):** `api.fifa.com/api/v3` (comp=17, season=285023). Calendario, alineaciones (`live/football/{comp}/{seas}/{stage}/{match}`, Status==1=titular), goles con minuto.
+- **FIFA FDH (stats avanzados, abierto):** `fdh-api.fifa.com/v1/stats/match/{IdIFES}/teams.json` — **142 stats/equipo** (GK saves/%, presiones, line-breaks, attempts por zona). IdIFES = `Properties.IdIFES` del calendario.
+- **Sofascore (solo para xG/regates):** muro Cloudflare → requiere URL del partido + Playwright (`fetch_sofascore_pw.py`). FIFA cubre lo demás sin pegar nada.
+
+### Scripts nuevos de esta sesión (todos commiteados)
+| Script | Qué hace |
+|---|---|
+| `scripts/matchday.py` | **Comando único**: pipeline completo + análisis + predicción ajustada |
+| `scripts/fetch_fifa.py` | Lineups + goles-minuto de FIFA (tablas `fifa_lineups`, `fifa_match_goals`) |
+| `scripts/fetch_fifa_stats.py` | 142 stats FDH (tabla `fifa_fdh_stats` + rellena match_team_stats) |
+| `scripts/sync_results_to_db.py` | Resultados JSON → wc_matches (la DB que lee el modelo) |
+| `scripts/sync_stats_to_db.py` | Stats core Sofascore JSON → match_team_stats |
+| `scripts/rebuild_wc_timing.py` | Timing real del Mundial por equipo (tabla `wc_goal_timing`) |
+| `scripts/analyze_match.py` | **Análisis exhaustivo**: choque de ventanas, portero, conversión, timing real |
+| `scripts/predict_adjusted.py` | Predicción del modelo **ajustada por patrones** (regresión, ventanas, GK) |
+| `scripts/fetch_sofascore_pw.py` + `parse_sofascore_raw.py` | Sofascore vía Playwright (solo si se necesita xG/regates; requiere URL) |
+
+### Bugs de RAÍZ encontrados y arreglados (críticos)
+1. **Resultados guardados en JSON pero NO cargados a `wc_matches`** → el modelo predecía con ~42 resultados faltantes (Turquía λ 2.25 con 0 goles). Arreglado: `sync_results_to_db.py`. Tras arreglar: eval 80→121 partidos, escala λ 0.915→1.014.
+2. **Stats igual (match_team_stats solo 13/54)** → arreglado con `sync_stats_to_db.py` + FDH. Ahora 56/56.
+
+### Lecciones de calibración (en memoria mundial2026-analisis-exhaustivo)
+- **Estándar:** analizar por PATRONES (choque de ventanas: cuándo ataca A vs cuándo se rompe B), NO por ranking. Defensa+delantera+medio+duelos+balón parado SIEMPRE, sin que lo pidan.
+- **Regresión de definición:** equipo que crea y no marca (sub-convierte) está "a deber" → peligroso. Fallo 25-jun: predije Alemania 0-2, ganó **Ecuador 2-1** marcando en min 9' y 77' (ventanas flojas de Alemania que identifiqué pero descarté por su sequía). Ya en `predict_adjusted.py`.
+
+### Predicciones J3 (25-jun) y resultados
+- ✅ **Curaçao 0-2 Costa de Marfil** (acerté exacto)
+- ❌ **Ecuador 2-1 Alemania** (predije Alemania; acerté el patrón, fallé el resultado)
+- ⏳ **Túnez 0-3 P. Bajos** y **Japón 2-1 Suecia** (18:00 — pendientes al cierre de sesión)
 
 ---
 

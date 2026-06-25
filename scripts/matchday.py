@@ -68,6 +68,7 @@ def main():
         print("══════════════════════════════════════════════════════════════════")
         for i in range(0, len(pairs) - 1, 2):
             _run("analyze_match.py", [pairs[i], pairs[i + 1]])
+            _run("predict_adjusted.py", [pairs[i], pairs[i + 1]])
     else:
         print("\n(Sin partidos para analizar — pasa pares de equipos para incluir análisis.)")
 
