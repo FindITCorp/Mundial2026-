@@ -1408,7 +1408,71 @@ def _get_strengths(conn, db_key: str) -> dict[int, dict]:
 # derrochadores/defensas sólidas y dejan emerger los empates bajos y los 1-0.
 _FINISHING_CACHE: dict[str, dict[int, tuple]] = {}
 _FINISH_K   = 6.0    # shrinkage hacia 1.0: w = n/(n+K)  (n=4 → w=0.40)
-_FINISH_CAP = 0.10   # cap del producto finishing×GK: ±10%
+_FINISH_CAP = 0.20   # cap del producto finishing×GK: ±20% (ampliado de 0.10;
+                     # evidencia WC2026: Marruecos 1.23× xG en 3 partidos,
+                     # Bosnia 4.41× xG vs Qatar — el ±10% era insuficiente)
+
+# ── Ajuste 1: GK Outlier (rating torneo ≥ 8.5) ───────────────────────────────
+# Evidencia WC2026 (grupos A-L): GK con rating ≥ 8.5 en el torneo reduce el λ
+# del equipo rival de forma proporcional a la magnitud — el cap normal de ±10%
+# no captura fenómenos como Kobel 8.9 (Sui gana pese a xG 1.11 vs 1.66 de Canadá)
+# ni Vozinha 9.7 (Cabo Verde empata con España 0-0 con xG España 2.10+).
+# Escala continua (no escalones): cada décima sobre 8.5 añade 1.5% de reducción.
+# Cap máximo: −25% (rating 10.0). Solo usa partidos WC en curso (context='nat').
+_GK_OUTLIER_THRESHOLD = 8.5
+_GK_OUTLIER_SCALE     = 0.015   # 1.5% por décima sobre el umbral
+_GK_OUTLIER_CAP       = 0.25    # máximo 25% de reducción del λ rival
+_GK_OUTLIER_K         = 2.0     # shrinkage: 1 partido bueno no vale igual que 3
+
+
+def _gk_outlier_factor(conn, defending_team_id: int) -> float:
+    """Retorna multiplicador del λ ATACANTE según rating WC del GK defensor.
+    GK rating <8.5 → 1.0 (neutro). GK rating 8.5+ → reducción continua hasta −25%.
+    Shrinkage hacia 1.0: requiere consistencia, no una sola actuación estelar."""
+    try:
+        rows = conn.execute("""
+            SELECT pr.rating, pr.match_id
+            FROM player_ratings pr
+            JOIN players p ON p.id = pr.player_id
+            WHERE pr.context = 'nat'
+              AND p.team_id = ?
+              AND (p.position IN ('G', 'GK') OR upper(p.position) LIKE 'G%')
+              AND pr.rating IS NOT NULL
+            ORDER BY pr.computed_at DESC, pr.id DESC
+            LIMIT 5
+        """, (defending_team_id,)).fetchall()
+    except Exception:
+        return 1.0
+    if not rows:
+        return 1.0
+
+    gk_ratings = [float(r["rating"]) for r in rows]
+    # Tomar el promedio de las últimas actuaciones (no solo el pico)
+    avg_rating = sum(gk_ratings) / len(gk_ratings)
+    n = len(gk_ratings)
+
+    if avg_rating < _GK_OUTLIER_THRESHOLD:
+        return 1.0
+
+    # Reducción proporcional a la distancia sobre el umbral
+    excess     = avg_rating - _GK_OUTLIER_THRESHOLD
+    raw_reduce = excess * _GK_OUTLIER_SCALE          # p.ej. 9.3 → (0.8)*0.015 = 0.012
+    raw_reduce = min(_GK_OUTLIER_CAP, raw_reduce)    # máx 25%
+
+    # Shrinkage: con pocas observaciones se mueve parcialmente hacia 0 reducción
+    w = n / (n + _GK_OUTLIER_K)
+    reduction = raw_reduce * w
+
+    return max(1.0 - _GK_OUTLIER_CAP, 1.0 - reduction)
+
+
+# ── Ajuste 2: Factor de eliminación (J3, equipo ya eliminado) ────────────────
+# Equipos matemáticamente eliminados en J3 sub-convierten vs su xG:
+# Qatar J3 (eliminado): xG 0.77 → 1 gol = 130% conv. PERO 3 partidos acumulados
+# 0.77+0.60+0.22=1.59 xG vs 2 goles (todos J2-J3 sin presión). Bosnia (con presión)
+# convirtió al 441% de 0.68 xG. La motivación importa.
+# Evidencia: −30% conversión para equipos eliminados (promedio 3 casos WC2026 grupos B/C).
+_ELIM_LAMBDA_PENALTY = 0.70   # equipo eliminado reduce su λ al 70%
 
 
 def _get_finishing(conn, db_key: str) -> dict[int, tuple]:
@@ -1588,6 +1652,9 @@ def predict_match(
     use_dispersion: bool | None = None,  # sobredispersión NB (None → env WC_DISPERSION)
     use_mismatch: bool | None = None,  # amplificación de favorito (None → env WC_MISMATCH)
     use_score_totals: bool | None = None,  # des-deflactar totales en marcador (None → env WC_SCORE_TOTALS)
+    # ── Ajuste 2: equipos eliminados (J3+) ──────────────────────────────────────
+    home_eliminated: bool = False,  # True → equipo local ya matemáticamente eliminado
+    away_eliminated: bool = False,  # True → equipo visitante ya matemáticamente eliminado
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -1672,6 +1739,8 @@ def predict_match(
         a_str_mu = _strengths_matchup(_str.get(away_id), _str.get(home_id))
 
     # Conversión (goles/xG) + portería rival (GA/xGA) — eficiencia, no volumen
+    # Cap ampliado a ±20% para capturar equipos con conversión sistemáticamente
+    # alta/baja (Marruecos 1.23×, Bosnia 4.41× — el ±10% era insuficiente).
     if use_finishing is None:
         import os
         use_finishing = os.environ.get("WC_FINISHING", "1") != "0"
@@ -1680,6 +1749,17 @@ def predict_match(
         _fin = _get_finishing(conn, db_key)
         h_fin_f = _finishing_gk_factor(_fin.get(home_id), _fin.get(away_id))
         a_fin_f = _finishing_gk_factor(_fin.get(away_id), _fin.get(home_id))
+
+    # ── Ajuste 1: GK Outlier — portero excepcional reduce λ del atacante ────────
+    # Se aplica sobre la λ del ATACANTE (no del equipo con el GK).
+    # h_gk_outlier_f: cuánto reduce el GK LOCAL al ataque VISITANTE (→ la)
+    # a_gk_outlier_f: cuánto reduce el GK VISITANTE al ataque LOCAL (→ lh)
+    h_gk_outlier_f = _gk_outlier_factor(conn, home_id)  # GK local → afecta λ visitante
+    a_gk_outlier_f = _gk_outlier_factor(conn, away_id)  # GK visitante → afecta λ local
+
+    # ── Ajuste 2: Factor de eliminación — equipo sin presión sub-convierte ───────
+    h_elim_f = _ELIM_LAMBDA_PENALTY if home_eliminated else 1.0
+    a_elim_f = _ELIM_LAMBDA_PENALTY if away_eliminated else 1.0
 
     # Jugadores diferenciadores: OFF sube λ propio; DEF rival baja λ propio
     if use_stars is None:
@@ -1945,6 +2025,8 @@ def predict_match(
         * a_wc_ga_f                                  # goles encajados por rival en este WC
         * h_line_att_f ** 0.25                       # calidad FWD+MID local (ratings WC por línea)
         * (1.0 / max(0.90, a_line_def_f)) ** 0.25   # calidad GK+DEF rival (↑ = más difícil anotar)
+        * a_gk_outlier_f                             # Ajuste 1: GK visitante excepcional (rating≥8.5) reduce λ local
+        * h_elim_f                                   # Ajuste 2: equipo local eliminado → −30% conversión
     )
     la_raw = (
         BASE_GOALS
@@ -1966,13 +2048,15 @@ def predict_match(
         * a_perf_press_f                             # high-press vs low-possession bonus
         * a_perf_aerial_f                            # aerial dominance set-piece edge
         * a_str_mu                                   # fortalezas vs debilidades (±8%)
-        * a_fin_f                                    # finishing propio × portería rival (±10%)
+        * a_fin_f                                    # finishing propio × portería rival (±20%)
         * a_star_f                                   # cracks ofensivos propios × defensa estrella rival
         * (1 - away_absence)
         * a_wc_gf_f                                  # goles marcados por rival en este WC
         * h_wc_ga_f                                  # goles encajados por local en este WC
         * a_line_att_f ** 0.25                       # calidad FWD+MID del rival
         * (1.0 / max(0.90, h_line_def_f)) ** 0.25   # calidad GK+DEF local (↑ = más difícil anotar)
+        * h_gk_outlier_f                             # Ajuste 1: GK local excepcional (rating≥8.5) reduce λ visitante
+        * a_elim_f                                   # Ajuste 2: equipo visitante eliminado → −30% conversión
     )
 
     # ── 9a. Amplificación de mismatch: de-comprime el split Elo en goleadas ───
@@ -2327,6 +2411,12 @@ def predict_match(
             "finishing_factor_away": round(a_fin_f, 4),
             "star_factor_home": round(h_star_f, 4),
             "star_factor_away": round(a_star_f, 4),
+            # Ajuste 1: GK outlier (rating ≥ 8.5 en torneo)
+            "gk_outlier_home": round(h_gk_outlier_f, 4),   # GK local → reduce λ visitante
+            "gk_outlier_away": round(a_gk_outlier_f, 4),   # GK visitante → reduce λ local
+            # Ajuste 2: factor de eliminación
+            "elim_factor_home": round(h_elim_f, 4),
+            "elim_factor_away": round(a_elim_f, 4),
             "dispersion_r":     disp_r,   # >0 ⇒ NB en grilla de marcador; 0 ⇒ Poisson
             "mismatch_amp":     round(mismatch_amp, 4),  # boost λ favorito en goleadas
             "score_totals_add": round(add_h, 4),  # λ devuelto al marcador (des-deflación)
