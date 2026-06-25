@@ -1,0 +1,116 @@
+{
+  "tournament": "FIFA World Cup 2026",
+  "jornada": 3,
+  "match_date": "2026-06-25",
+  "generated": "2026-06-25 10:50",
+  "model": "match_predictor — DB sincronizada (54/54 resultados reales) + bias recalibrado (121p, λ×1.014)",
+  "nota": "Sin suposicion de rotacion. Rotacion = decision en vivo con alineaciones via Ajuste 4.",
+  "predictions": [
+    {
+      "group": "D",
+      "home": "Turkey",
+      "away": "USA",
+      "model_score": "2-2",
+      "prob": {
+        "home": 27.2,
+        "draw": 23.0,
+        "away": 49.9
+      },
+      "lambda": [
+        2.07,
+        2.91
+      ],
+      "pick": "USA",
+      "factual_flags": {
+        "home_eliminated": true
+      }
+    },
+    {
+      "group": "D",
+      "home": "Paraguay",
+      "away": "Australia",
+      "model_score": "0-0",
+      "prob": {
+        "home": 23.6,
+        "draw": 37.6,
+        "away": 38.8
+      },
+      "lambda": [
+        0.78,
+        1.1
+      ],
+      "pick": "Australia",
+      "factual_flags": {}
+    },
+    {
+      "group": "E",
+      "home": "Ecuador",
+      "away": "Germany",
+      "model_score": "0-1",
+      "prob": {
+        "home": 16.6,
+        "draw": 26.4,
+        "away": 56.9
+      },
+      "lambda": [
+        0.73,
+        1.66
+      ],
+      "pick": "Germany",
+      "factual_flags": {}
+    },
+    {
+      "group": "E",
+      "home": "Curacao",
+      "away": "Ivory Coast",
+      "model_score": "0-3",
+      "prob": {
+        "home": 4.4,
+        "draw": 12.6,
+        "away": 82.9
+      },
+      "lambda": [
+        0.47,
+        2.96
+      ],
+      "pick": "Ivory Coast",
+      "factual_flags": {}
+    },
+    {
+      "group": "F",
+      "home": "Tunisia",
+      "away": "Netherlands",
+      "model_score": "0-3",
+      "prob": {
+        "home": 2.3,
+        "draw": 8.8,
+        "away": 88.8
+      },
+      "lambda": [
+        0.37,
+        3.57
+      ],
+      "pick": "Netherlands",
+      "factual_flags": {
+        "home_eliminated": true
+      }
+    },
+    {
+      "group": "F",
+      "home": "Japan",
+      "away": "Sweden",
+      "model_score": "3-0",
+      "prob": {
+        "home": 78.9,
+        "draw": 9.9,
+        "away": 6.0
+      },
+      "lambda": [
+        3.57,
+        0.79
+      ],
+      "pick": "Japan",
+      "factual_flags": {}
+    }
+  ]
+}

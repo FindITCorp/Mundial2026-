@@ -13,3 +13,8 @@ data/logs/
 node_modules/
 data/*.db-shm
 data/*.db-wal
+
+# backups y crudos de intake (locales)
+data/*.db.bak_*
+data/raw_paste/
+data/sofascore_raw/
