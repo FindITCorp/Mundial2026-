@@ -1475,6 +1475,35 @@ def _gk_outlier_factor(conn, defending_team_id: int) -> float:
 _ELIM_LAMBDA_PENALTY = 0.70   # equipo eliminado reduce su λ al 70%
 
 
+# ── Ajuste 4: Factor de rotación calibrado por brecha de Elo ──────────────────
+# Cuando un equipo ya clasificado rota su XI (mete equipo B), su λ baja — PERO
+# solo en función de la BRECHA de Elo con el rival, no de forma fija.
+# Lección México 0-3 Chequia (J3 grupo A): México metió equipo B sin
+# Ochoa/Giménez/Jiménez/Fidalgo y aun así ganó 0-3 (xG 1.74 vs 0.53). La brecha
+# de plantilla domina sobre la rotación: el equipo B de un grande sigue siendo
+# muy superior al equipo B de un chico. Sobre-penalizar la rotación fue el error.
+#   rotation_penalty = base × (1 − clamp(signed_gap / FULLPASS, 0, 1))
+#     signed_gap = elo_propio − elo_rival  (solo alivia si el rotado es superior)
+#     signed_gap ≥ FULLPASS → penalty 0     (domina → rota "gratis")
+#     signed_gap ≤ 0        → penalty máx    (no es superior → la rotación pesa entera)
+# Se atenúa la penalización linealmente con la superioridad de Elo.
+_ROTATION_BASE_PENALTY = float(os.environ.get("WC_ROTATION_PENALTY", "0.25"))   # reducción máxima de λ por rotación (equipos parejos)
+_ROTATION_ELO_FULLPASS = float(os.environ.get("WC_ROTATION_FULLPASS", "300.0")) # brecha de Elo a la que la rotación deja de costar
+
+
+def _rotation_factor(own_elo: float, opp_elo: float, expected: bool) -> float:
+    """Factor multiplicativo (≤1.0) para la λ propia de un equipo que se espera
+    que rote su XI. Devuelve 1.0 si no se espera rotación. La penalización se
+    atenúa con la superioridad de Elo: un equipo dominante rota sin costo, dos
+    equipos parejos sí pagan la rotación (hasta −25%)."""
+    if not expected:
+        return 1.0
+    signed_gap = own_elo - opp_elo
+    relief  = max(0.0, min(1.0, signed_gap / _ROTATION_ELO_FULLPASS))
+    penalty = _ROTATION_BASE_PENALTY * (1.0 - relief)
+    return 1.0 - penalty
+
+
 def _get_finishing(conn, db_key: str) -> dict[int, tuple]:
     """Perfil de conversión y portería por equipo desde match_team_stats.
     {team_id: (n, xg_for, goals_for, xg_against, goals_against)} con xG real
@@ -1655,6 +1684,9 @@ def predict_match(
     # ── Ajuste 2: equipos eliminados (J3+) ──────────────────────────────────────
     home_eliminated: bool = False,  # True → equipo local ya matemáticamente eliminado
     away_eliminated: bool = False,  # True → equipo visitante ya matemáticamente eliminado
+    # ── Ajuste 4: rotación esperada (equipo clasificado mete equipo B) ───────────
+    home_rotation_expected: bool = False,  # True → se espera XI rotado del local
+    away_rotation_expected: bool = False,  # True → se espera XI rotado del visitante
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -1760,6 +1792,12 @@ def predict_match(
     # ── Ajuste 2: Factor de eliminación — equipo sin presión sub-convierte ───────
     h_elim_f = _ELIM_LAMBDA_PENALTY if home_eliminated else 1.0
     a_elim_f = _ELIM_LAMBDA_PENALTY if away_eliminated else 1.0
+
+    # ── Ajuste 4: Factor de rotación — calibrado por brecha de Elo ───────────────
+    # home_elo / away_elo ya incluyen el ajuste de confederación → brecha efectiva.
+    # Reduce solo la λ PROPIA del equipo que rota; un dominante rota "gratis".
+    h_rot_f = _rotation_factor(home_elo, away_elo, home_rotation_expected)
+    a_rot_f = _rotation_factor(away_elo, home_elo, away_rotation_expected)
 
     # Jugadores diferenciadores: OFF sube λ propio; DEF rival baja λ propio
     if use_stars is None:
@@ -2027,6 +2065,7 @@ def predict_match(
         * (1.0 / max(0.90, a_line_def_f)) ** 0.25   # calidad GK+DEF rival (↑ = más difícil anotar)
         * a_gk_outlier_f                             # Ajuste 1: GK visitante excepcional (rating≥8.5) reduce λ local
         * h_elim_f                                   # Ajuste 2: equipo local eliminado → −30% conversión
+        * h_rot_f                                    # Ajuste 4: rotación local calibrada por brecha de Elo
     )
     la_raw = (
         BASE_GOALS
@@ -2057,6 +2096,7 @@ def predict_match(
         * (1.0 / max(0.90, h_line_def_f)) ** 0.25   # calidad GK+DEF local (↑ = más difícil anotar)
         * h_gk_outlier_f                             # Ajuste 1: GK local excepcional (rating≥8.5) reduce λ visitante
         * a_elim_f                                   # Ajuste 2: equipo visitante eliminado → −30% conversión
+        * a_rot_f                                    # Ajuste 4: rotación visitante calibrada por brecha de Elo
     )
 
     # ── 9a. Amplificación de mismatch: de-comprime el split Elo en goleadas ───
@@ -2417,6 +2457,9 @@ def predict_match(
             # Ajuste 2: factor de eliminación
             "elim_factor_home": round(h_elim_f, 4),
             "elim_factor_away": round(a_elim_f, 4),
+            # Ajuste 4: factor de rotación calibrado por brecha de Elo
+            "rotation_factor_home": round(h_rot_f, 4),   # <1.0 si rota y no domina por Elo
+            "rotation_factor_away": round(a_rot_f, 4),
             "dispersion_r":     disp_r,   # >0 ⇒ NB en grilla de marcador; 0 ⇒ Poisson
             "mismatch_amp":     round(mismatch_amp, 4),  # boost λ favorito en goleadas
             "score_totals_add": round(add_h, 4),  # λ devuelto al marcador (des-deflación)

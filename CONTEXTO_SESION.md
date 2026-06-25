@@ -83,18 +83,14 @@ En `models/match_predictor.py`:
 2. **Factor de eliminación** (params `home_eliminated`/`away_eliminated`): equipo eliminado → λ × 0.70 (−30%).
    - Evidencia: Qatar eliminado convirtió mal; Bosnia con presión convirtió 441% xG.
 3. **Cap de conversión ampliado** (`_FINISH_CAP` 0.10 → 0.20): captura equipos sistemáticamente clínicos (Marruecos 1.23× xG).
+4. **Factor de rotación calibrado** (`_rotation_factor`, params `home_rotation_expected`/`away_rotation_expected`) — **NUEVO 25-jun (esta sesión)**: equipo que rota su XI reduce su λ propia, pero solo según la brecha de Elo con el rival. `rotation_penalty = base × (1 − clamp(signed_gap/FULLPASS,0,1))`, `signed_gap = elo_propio − elo_rival`. Dominante (gap ≥ 300) rota gratis; parejos pagan hasta −25%. Constantes env-tunables: `WC_ROTATION_PENALTY` (def 0.25), `WC_ROTATION_FULLPASS` (def 300). Opt-in (default factor=1.0, no rompe nada). Verificado: México(gap≈98) rota → −17%; Australia(parejo) → −22%.
+   - ⚠️ Pendiente de calibrar `FULLPASS`: con 300, México (gap modelo ≈98) aún recibe −17%, y la realidad fue 0-3 (México dominó MÁS). Puede que 300 sea muy conservador → considerar bajarlo a ~200 con más evidencia.
 
-Los 3 factores se exponen en `result["_factors"]` para auditoría.
+Los 4 factores se exponen en `result["_factors"]` para auditoría (incl. `rotation_factor_home/away`).
 
 ---
 
 ## 5. Ajustes PROPUESTOS pendientes de implementar (siguiente sesión)
-
-### Ajuste 4 — Factor de rotación calibrado (NUEVO, prioritario)
-**Problema detectado hoy:** la rotación de un equipo grande NO debe penalizarse tanto como intuí. México B >> Chequia B.
-- El modelo YA tiene `_lineup_strength_factor` (solapamiento XI real vs 26 convocados) que pondera la SEÑAL de forma, pero **no ajusta la predicción del próximo partido** por rotación esperada.
-- **Propuesta:** cuando un equipo ya está clasificado y se espera rotación, reducir su λ solo en función de la BRECHA con el rival. Si el equipo rotado sigue teniendo Elo muy superior, la reducción debe ser mínima (≤10%). Si los equipos son parejos, la rotación pesa más (hasta 25%).
-- Fórmula sugerida: `rotation_penalty = base_penalty × (1 − min(1, elo_gap/300))`. Equipo dominante rota "gratis".
 
 ### Validación pendiente
 - Evaluar las 6 predicciones del 25-jun (Grupos D/E/F) en `wc2026_predictions_j3_june25.json` cuando terminen.
@@ -106,7 +102,7 @@ Los 3 factores se exponen en `result["_factors"]` para auditoría.
 
 1. [ ] Cuando terminen los partidos del 25-jun (D/E/F), bajar resultados/stats/lineups y evaluar vs `wc2026_predictions_j3_june25.json`.
 2. [ ] Completar J3 grupos D-L en los archivos de resultados/stats/lineups.
-3. [ ] Implementar **Ajuste 4 (rotación calibrada)** en `match_predictor.py`.
+3. [x] ~~Implementar **Ajuste 4 (rotación calibrada)** en `match_predictor.py`.~~ ✅ HECHO 25-jun (ver §4.4). Pendiente: cablear en flujo de predicción cuando se decida qué equipos marcar como rotación, y calibrar `FULLPASS` con datos reales.
 4. [ ] Generar `wc2026_standings_after_j3.json` con los 12 grupos finales de fase de grupos.
 5. [ ] Determinar los 8 mejores terceros (clasifican a dieciseisavos en formato 48 equipos).
 
