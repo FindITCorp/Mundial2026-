@@ -1,0 +1,203 @@
+{
+  "tournament": "FIFA World Cup 2026",
+  "jornada": 3,
+  "prediction_date": "2026-06-24",
+  "match_date": "2026-06-25",
+  "model_version": "match_predictor_v3.3 + ajustes GK_outlier + elimination_factor + finish_cap_20",
+  "analyst_notes": "Predicciones generadas pre-partido con datos J1+J2 completos. Se aplican ajustes: (1) GK outlier si rating>=8.5, (2) factor eliminacion 0.70 para equipos ya eliminados, (3) conversion cap 20%.",
+  "predictions": [
+    {
+      "event_id": 15186907,
+      "group": "E",
+      "kickoff_panama": "15:00",
+      "home": "Ecuador",
+      "away": "Germany",
+      "stakes": {
+        "Ecuador": "1pt — necesita ganar y esperar resultado CIV vs Curacao para clasificar",
+        "Germany": "6pts — ya clasificado, posible rotacion"
+      },
+      "model_inputs": {
+        "Ecuador_xG_j1j2": {"j1_vs_CIV": 1.52, "j2_vs_Curacao": 2.84, "total": 4.36, "goals": 0, "conversion_rate": 0.00},
+        "Germany_xG_j1j2": {"j1_vs_Curacao": 4.22, "j2_vs_CIV": 1.89, "total": 6.11, "goals": 9, "conversion_rate": 1.47},
+        "adjustments": ["Ecuador conversion_rate 0.00 — crisis goleadora historica", "Germany can rotate — depth quality still > Ecuador A team"]
+      },
+      "prediction": {
+        "result": "Germany win",
+        "score": "3-0",
+        "prob_home_win": 12,
+        "prob_draw": 18,
+        "prob_away_win": 70,
+        "lambda_home": 0.52,
+        "lambda_away": 2.35,
+        "key_factor": "Ecuador 0 goles en 436 xG minutos — conversion 0%. Alemania gana incluso rotando.",
+        "xG_expected": {"Ecuador": 0.55, "Germany": 2.40}
+      }
+    },
+    {
+      "event_id": 15186908,
+      "group": "E",
+      "kickoff_panama": "15:00",
+      "home": "Curacao",
+      "away": "Cote d'Ivoire",
+      "stakes": {
+        "Curacao": "1pt — necesita ganar y que Ecuador le gane a Alemania (casi imposible) para clasificar",
+        "Cote_dIvoire": "3pts — una victoria casi garantiza clasificacion"
+      },
+      "model_inputs": {
+        "Curacao_GK": {"player": "Eloy Room", "j2_rating": 10.0, "note": "GK outlier aplicado si repite nivel — reduce lambda CIV"},
+        "CIV_xG_j1j2": {"j1_vs_Ecuador": 1.52, "j2_vs_Germany": 1.22, "goals": 2, "conversion_rate": 0.82},
+        "Curacao_xG_j1j2": {"j1_vs_Germany": 0.41, "j2_vs_Ecuador": 0.50, "goals": 1, "conversion_rate": 1.11},
+        "adjustments": ["Curacao sin presion de clasificacion puede jugar libre", "Eloy Room GK outlier: si repite 9.0+ reduce lambda CIV hasta -18%"]
+      },
+      "prediction": {
+        "result": "Cote d'Ivoire win",
+        "score": "2-1",
+        "prob_home_win": 22,
+        "prob_draw": 26,
+        "prob_away_win": 52,
+        "lambda_home": 0.65,
+        "lambda_away": 1.55,
+        "key_factor": "CIV necesita los 3 puntos. Curacao peligroso en transicion y Room puede hacer de las suyas, pero CIV calidad superior.",
+        "upset_alert": "Si Eloy Room repite rating 9.0+: CIV lambda baja a 1.27 — empate factible (30%)",
+        "xG_expected": {"Curacao": 0.70, "CIV": 1.60}
+      }
+    },
+    {
+      "event_id": 15186973,
+      "group": "F",
+      "kickoff_panama": "18:00",
+      "home": "Tunisia",
+      "away": "Netherlands",
+      "stakes": {
+        "Tunisia": "0pts — ELIMINADO matematicamente",
+        "Netherlands": "4pts — clasificado de hecho, juega por ganar el grupo"
+      },
+      "model_inputs": {
+        "Tunisia_xG_j1j2": {"j1_vs_Suecia": 0.28, "j2_vs_Japan": 0.05, "total": 0.33, "goals": 1, "note": "0.05 xG vs Japan — el peor ataque del torneo"},
+        "Netherlands_xG_j1j2": {"j1_vs_Japan": 0.78, "j2_vs_Suecia": 2.61},
+        "adjustments": ["Tunisia eliminado: factor 0.70 aplicado a su lambda", "Netherlands puede rotar parcialmente pero necesita GD para superar a Japan"]
+      },
+      "prediction": {
+        "result": "Netherlands win",
+        "score": "4-0",
+        "prob_home_win": 3,
+        "prob_draw": 8,
+        "prob_away_win": 89,
+        "lambda_home": 0.28,
+        "lambda_away": 2.80,
+        "key_factor": "Tunisia eliminado + peor ataque del torneo (0.33 xG en 2 partidos). Netherlands necesita GD para superar a Japan.",
+        "elimination_factor_applied": true,
+        "xG_expected": {"Tunisia": 0.30, "Netherlands": 2.75}
+      }
+    },
+    {
+      "event_id": 15186972,
+      "group": "F",
+      "kickoff_panama": "18:00",
+      "home": "Japan",
+      "away": "Sweden",
+      "stakes": {
+        "Japan": "4pts — con victoria se garantiza 1er lugar del grupo",
+        "Sweden": "3pts — NECESITA ganar para clasificar (cualquier otro resultado los deja dependiendo de otros grupos)"
+      },
+      "model_inputs": {
+        "Japan_xG_j1j2": {"j1_vs_NED": 0.59, "j2_vs_Tunisia": 2.13, "goals": 6, "conversion_rate": 1.83},
+        "Sweden_xG_j1j2": {"j1_vs_Tunisia": 1.33, "j2_vs_NED": 1.01, "goals": 6, "conversion_rate": 1.83},
+        "Sweden_weakness": "Concede mucho: 6 goles en 2 partidos. NED gano 5-1.",
+        "adjustments": ["Ninguno de los dos esta eliminado — partido de maxima intensidad"]
+      },
+      "prediction": {
+        "result": "Japan win",
+        "score": "2-1",
+        "prob_home_win": 45,
+        "prob_draw": 28,
+        "prob_away_win": 27,
+        "lambda_home": 1.65,
+        "lambda_away": 1.30,
+        "key_factor": "Japan mas solido defensivamente (2 GA vs Sweden 6 GA). Suecia tiene gol pero deja espacios. Japan en casa de facto (cancha en NA, mas support asiatico).",
+        "note": "Si empate: Netherlands y Japan 5pts cada uno — Sweden eliminado. Sweden DEBE ganar.",
+        "xG_expected": {"Japan": 1.70, "Sweden": 1.35}
+      }
+    },
+    {
+      "event_id": 15186887,
+      "group": "D",
+      "kickoff_panama": "21:00",
+      "home": "Turkiye",
+      "away": "USA",
+      "stakes": {
+        "Turkiye": "0pts — ELIMINADO matematicamente",
+        "USA": "6pts — ya clasificado, rotacion masiva esperada (igual que Mexico hoy)"
+      },
+      "model_inputs": {
+        "Turkiye_xG_j1j2": {"j1_vs_Australia": 1.36, "j2_vs_Paraguay": 2.17, "goals": 0, "conversion_rate": 0.00, "note": "79% posesion vs Paraguay y 0 goles — peor conversion del torneo junto a Ecuador"},
+        "USA_depth": "Incluso con rotacion: Pulisic, Reyna, Adams nivel Champions League",
+        "adjustments": ["Turkiye eliminado: factor 0.70 aplicado", "USA rotacion: similar a Mexico que empataba 0-0 con Chequia en min 21"]
+      },
+      "prediction": {
+        "result": "USA win",
+        "score": "2-0",
+        "prob_home_win": 25,
+        "prob_draw": 25,
+        "prob_away_win": 50,
+        "lambda_home": 0.75,
+        "lambda_away": 1.60,
+        "key_factor": "Turkiye eliminado + 0 goles en 2 partidos con 3.53 xG acumulado. USA rota pero mantiene nivel. ALERTA: USA puede rotar tanto que el partido se iguale (ver Mexico 0-0 Chequia).",
+        "rotation_alert": "Si USA rota completamente (como Mexico hoy) — probabilidad empate sube a 35%",
+        "elimination_factor_applied": true,
+        "xG_expected": {"Turkiye": 0.75, "USA": 1.65}
+      }
+    },
+    {
+      "event_id": 15186891,
+      "group": "D",
+      "kickoff_panama": "21:00",
+      "home": "Paraguay",
+      "away": "Australia",
+      "stakes": {
+        "Paraguay": "3pts, GD -2 — NECESITA ganar para clasificar con seguridad",
+        "Australia": "3pts, GD 0 — una victoria o un empate (si USA gana grande a Turquia) podria clasificarlos"
+      },
+      "model_inputs": {
+        "Paraguay_xG_j1j2": {"j1_vs_USA": 0.54, "j2_vs_Turkiye": 0.32, "goals": 2, "conversion_rate": 1.16},
+        "Australia_xG_j1j2": {"j1_vs_Turkiye": 1.18, "j2_vs_USA": 0.35, "goals": 2, "conversion_rate": 1.30},
+        "Australia_GK": {"player": "Patrick Beach", "j1_rating": 9.1, "note": "GK outlier aplicado — reduce lambda Paraguay"},
+        "adjustments": ["Patrick Beach GK outlier 9.1 — reduce lambda Paraguay ~9%", "Paraguay GD -2 necesita ganar, no puede conformarse con empate"]
+      },
+      "prediction": {
+        "result": "Australia win",
+        "score": "2-1",
+        "prob_home_win": 38,
+        "prob_draw": 24,
+        "prob_away_win": 38,
+        "lambda_home": 1.20,
+        "lambda_away": 1.35,
+        "key_factor": "EL PARTIDO MAS PAREJO DEL DIA. Australia GD mejor (+2 sobre Paraguay). Patrick Beach GK 9.1. Paraguay necesita ganar o queda fuera si Australia empata y USA gana.",
+        "scenario_matrix": {
+          "Australia_wins": "Australia 2do lugar Grupo D",
+          "Draw": "Australia clasifica si USA gana a Turkiye (GD diferencia). Paraguay necesita milagro.",
+          "Paraguay_wins": "Paraguay 2do lugar Grupo D, Australia fuera"
+        },
+        "gk_outlier_applied": "Patrick Beach 9.1 — lambda Paraguay reducida ~9%",
+        "xG_expected": {"Paraguay": 1.25, "Australia": 1.40}
+      }
+    }
+  ],
+  "group_classification_scenarios": {
+    "D": {
+      "already_through": "USA",
+      "second_spot": "Australia (GD +0) vs Paraguay (GD -2) — Australia favorita pero es voltereta total si Paraguay gana",
+      "note": "Turkiye eliminado"
+    },
+    "E": {
+      "already_through": "Germany",
+      "second_spot": "CIV 3pts es favorita. Ecuador (0 goles en torneo) necesita ganar y esperar. Curacao sin opciones reales.",
+      "note": "CIV vs Curacao determina 2do lugar"
+    },
+    "F": {
+      "already_through": "Netherlands y Japan (ambos 4pts) con alta probabilidad",
+      "second_spot": "Si Japan gana: Japan 1ro, NED 2do. Si Suecia gana y NED no gana grande: Suecia podria colarse.",
+      "note": "Tunisia eliminado — NED debe ganar para asegurar por encima de Japan en GD si empatan en pts"
+    }
+  }
+}
