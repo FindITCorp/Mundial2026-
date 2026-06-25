@@ -230,6 +230,12 @@ def _window_clash(att_name, att_p, def_name, def_p):
     d = _share(def_p.get("hist_conceded"))
     if not a or not d:
         return None
+    # Guarda por VOLUMEN: un ataque ínfimo (xG bajo) no es amenaza aunque su
+    # share caiga en la franja floja del rival (ej. Túnez 0.17 xG/p).
+    axg = att_p.get("xg")
+    if axg is not None and axg < 0.70:
+        return (f"~ {att_name} casi no genera ({axg:.2f} xG/p) → su 'pico' por "
+                f"minuto es irrelevante; sin amenaza real pese a la franja")
     apeak = a.index(max(a))                       # ventana donde más ataca
     danger = [a[i] * d[i] for i in range(6)]       # ataque × fragilidad
     best = danger.index(max(danger))
