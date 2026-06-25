@@ -125,6 +125,9 @@ def team_profile(conn, team_id, stage="group"):
         p["conceded_late"] = tg["conceded_76_90"]
         p["fatigue_conceded"] = tg["fatigue_conceded"]
         p["late_collapse"] = tg["late_collapse"]
+        _W = ["1_15", "16_30", "31_45", "46_60", "61_75", "76_90"]
+        p["hist_scored"] = [tg[f"scored_{w}"] for w in _W]
+        p["hist_conceded"] = [tg[f"conceded_{w}"] for w in _W]
 
     # Timing REAL de este Mundial (fifa_match_goals) — prioritario si hay datos.
     # Captura la forma actual (Alemania concede temprano HOY aunque el histórico
@@ -211,26 +214,54 @@ def analyze(team_a, team_b, db_path=DB, verbose=True):
     return {"a": (an, pa, fa), "b": (bn, pb, fb)}
 
 
+_LAB = ["1-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
+
+
+def _share(arr):
+    s = sum(arr) if arr else 0
+    return [x / s for x in arr] if s else None
+
+
+def _window_clash(att_name, att_p, def_name, def_p):
+    """Analiza si las ventanas de ATAQUE del atacante coinciden con las de
+    FRAGILIDAD del defensor. Esto es el corazón del análisis: NO basta con quién
+    crea más, sino CUÁNDO ataca uno vs CUÁNDO se rompe el otro."""
+    a = _share(att_p.get("hist_scored"))
+    d = _share(def_p.get("hist_conceded"))
+    if not a or not d:
+        return None
+    apeak = a.index(max(a))                       # ventana donde más ataca
+    danger = [a[i] * d[i] for i in range(6)]       # ataque × fragilidad
+    best = danger.index(max(danger))
+    avg_d = sum(d) / 6
+    aligned = d[apeak] >= avg_d * 1.05             # ¿el defensor es débil donde ataca el atacante?
+    if aligned:
+        return (f"✓ {att_name} ataca más en min {_LAB[apeak]} y {def_name} es "
+                f"vulnerable ahí → AMENAZA REAL (pico de peligro: {_LAB[best]})")
+    return (f"✗ {att_name} ataca en min {_LAB[apeak]} pero {def_name} aguanta bien "
+            f"esa franja → ventana NEUTRALIZADA (las ventanas NO coinciden)")
+
+
 def _matchup_notes(an, pa, fa, bn, pb, fb):
     notes = []
-    # ataque A vs defensa B
     if pa.get("xg") and pb.get("xga"):
         notes.append(f"Ataque {an} ({pa['xg']:.2f} xG/p) vs defensa {bn} (concede {pb['xga']:.2f} xG/p)")
     if pb.get("xg") and pa.get("xga"):
         notes.append(f"Ataque {bn} ({pb['xg']:.2f} xG/p) vs defensa {an} (concede {pa['xga']:.2f} xG/p)")
-    # portero en racha de uno frustra al otro
+    # CHOQUE DE VENTANAS (cuándo ataca uno vs cuándo se rompe el otro) — clave
+    for att_n, att_p, def_n, def_p in [(an, pa, bn, pb), (bn, pb, an, pa)]:
+        clash = _window_clash(att_n, att_p, def_n, def_p)
+        if clash:
+            notes.append(clash)
+    # portero en racha
     for p, n, o in [(pa, an, bn), (pb, bn, an)]:
         if p.get("save_pct") and p["save_pct"] >= 75:
-            notes.append(f"{n} tiene portero en racha ({p['save_pct']}% paradas) → puede bajar el marcador de {o}")
-    # choque de ventanas tardías
-    if pa.get("scored_late", 0) and pb.get("conceded_late", 0):
-        if pa["scored_late"] >= 0.4 and pb["conceded_late"] >= 0.25:
-            notes.append(f"{an} es fuerte al final y {bn} filtra tarde → ojo gol en 76-90")
-    if pb.get("scored_late", 0) and pa.get("conceded_late", 0):
-        if pb["scored_late"] >= 0.4 and pa["conceded_late"] >= 0.25:
-            notes.append(f"{bn} es fuerte al final y {an} filtra tarde → ojo gol en 76-90")
-    if not notes:
-        notes.append("Datos insuficientes para cruces avanzados (faltan stats ricos).")
+            notes.append(f"{n} tiene portero en racha ({p['save_pct']}% paradas) → baja el marcador de {o}")
+    # corrección por timing REAL del Mundial (si contradice al histórico)
+    for n, p in [(an, pa), (bn, pb)]:
+        c = p.get("wc_conceded")
+        if c and sum(c) and (c[0] + c[1]) >= max(2, 0.5 * sum(c)):
+            notes.append(f"⚠ {n}: en ESTE Mundial concede TEMPRANO (1-30), corrige su histórico")
     return notes
 
 
