@@ -125,6 +125,21 @@ def team_profile(conn, team_id, stage="group"):
         p["conceded_late"] = tg["conceded_76_90"]
         p["fatigue_conceded"] = tg["fatigue_conceded"]
         p["late_collapse"] = tg["late_collapse"]
+
+    # Timing REAL de este Mundial (fifa_match_goals) — prioritario si hay datos.
+    # Captura la forma actual (Alemania concede temprano HOY aunque el histórico
+    # diga otra cosa). Sample chico → se usa como señal, no como verdad absoluta.
+    wc = conn.execute("SELECT * FROM wc_goal_timing WHERE team_id=?", (team_id,)).fetchone()
+    if wc and wc["matches"]:
+        s = [wc[f"s{i}"] for i in range(6)]
+        c = [wc[f"c{i}"] for i in range(6)]
+        LAB = ["1-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
+        p["wc_scored"] = s
+        p["wc_conceded"] = c
+        if sum(s):
+            p["wc_peak_scored"] = LAB[s.index(max(s))]
+        if sum(c):
+            p["wc_peak_conceded"] = LAB[c.index(max(c))]
     return p
 
 
@@ -145,6 +160,15 @@ def _flags(p):
         f.append("RIESGO DE COLAPSO TARDÍO")
     if p.get("possession") is not None and p["possession"] < 38:
         f.append("JUEGA AL CONTRAGOLPE (baja posesión)")
+    # Patrones del MUNDIAL real (fifa_match_goals) — corrigen al histórico
+    s = p.get("wc_scored"); c = p.get("wc_conceded")
+    if s and sum(s) and (s[3] + s[4] + s[5]) > (s[0] + s[1] + s[2]):
+        f.append(f"WC: marca más en 2ª mitad (pico {p.get('wc_peak_scored')})")
+    if c and sum(c):
+        if (c[0] + c[1]) >= max(2, 0.5 * sum(c)):
+            f.append(f"WC: concede TEMPRANO (1-30) — vulnerable al inicio")
+        elif c[5] >= max(2, 0.4 * sum(c)):
+            f.append(f"WC: filtra TARDE (76-90)")
     return f
 
 
