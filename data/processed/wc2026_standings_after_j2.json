@@ -1,23 +1,104 @@
 {
   "tournament": "FIFA World Cup 2026",
-  "source": "Sofascore API - resultados verificados",
+  "source": "Sofascore API - resultados verificados en vivo",
   "last_updated": "2026-06-24",
   "jornadas_completadas": 2,
+  "note": "Top 2 de cada grupo clasifican directamente. 8 mejores terceros tambien clasifican.",
   "groups": {
     "A": {
       "teams": [
-        {"team": "Mexico", "played": 2, "won": 2, "drawn": 0, "lost": 0, "gf": 3, "ga": 0, "gd": 3, "points": 6, "qualified": true},
-        {"team": "South Korea", "played": 2, "won": 1, "drawn": 0, "lost": 1, "gf": 2, "ga": 2, "gd": 0, "points": 3, "qualified": false},
-        {"team": "Czechia", "played": 2, "won": 0, "drawn": 1, "lost": 1, "gf": 2, "ga": 3, "gd": -1, "points": 1, "qualified": false},
-        {"team": "South Africa", "played": 2, "won": 0, "drawn": 1, "lost": 1, "gf": 1, "ga": 2, "gd": -1, "points": 1, "qualified": false}
+        {"team":"Mexico",      "played":2,"won":2,"drawn":0,"lost":0,"gf":3,"ga":0,"gd":3,"points":6,"status":"clasificado"},
+        {"team":"South Korea", "played":2,"won":1,"drawn":0,"lost":1,"gf":2,"ga":2,"gd":0,"points":3},
+        {"team":"Czechia",     "played":2,"won":0,"drawn":1,"lost":1,"gf":2,"ga":3,"gd":-1,"points":1},
+        {"team":"South Africa","played":2,"won":0,"drawn":1,"lost":1,"gf":1,"ga":2,"gd":-1,"points":1}
+      ]
+    },
+    "B": {
+      "teams": [
+        {"team":"Canada",             "played":2,"won":1,"drawn":1,"lost":0,"gf":7,"ga":1,"gd":6,"points":4},
+        {"team":"Switzerland",        "played":2,"won":1,"drawn":1,"lost":0,"gf":5,"ga":2,"gd":3,"points":4},
+        {"team":"Bosnia & Herzegovina","played":2,"won":0,"drawn":1,"lost":1,"gf":2,"ga":5,"gd":-3,"points":1},
+        {"team":"Qatar",              "played":2,"won":0,"drawn":1,"lost":1,"gf":1,"ga":7,"gd":-6,"points":1}
       ]
     },
     "C": {
       "teams": [
-        {"team": "Brazil", "played": 2, "won": 1, "drawn": 1, "lost": 0, "gf": 4, "ga": 1, "gd": 3, "points": 4, "qualified": false},
-        {"team": "Morocco", "played": 2, "won": 1, "drawn": 1, "lost": 0, "gf": 2, "ga": 1, "gd": 1, "points": 4, "qualified": false},
-        {"team": "Scotland", "played": 2, "won": 1, "drawn": 0, "lost": 1, "gf": 1, "ga": 1, "gd": 0, "points": 3, "qualified": false},
-        {"team": "Haiti", "played": 2, "won": 0, "drawn": 0, "lost": 2, "gf": 0, "ga": 4, "gd": -4, "points": 0, "qualified": false}
+        {"team":"Brazil",  "played":2,"won":1,"drawn":1,"lost":0,"gf":4,"ga":1,"gd":3,"points":4},
+        {"team":"Morocco", "played":2,"won":1,"drawn":1,"lost":0,"gf":2,"ga":1,"gd":1,"points":4},
+        {"team":"Scotland","played":2,"won":1,"drawn":0,"lost":1,"gf":1,"ga":1,"gd":0,"points":3},
+        {"team":"Haiti",   "played":2,"won":0,"drawn":0,"lost":2,"gf":0,"ga":4,"gd":-4,"points":0}
+      ]
+    },
+    "D": {
+      "teams": [
+        {"team":"USA",      "played":2,"won":2,"drawn":0,"lost":0,"gf":6,"ga":1,"gd":5,"points":6,"status":"clasificado"},
+        {"team":"Paraguay", "played":2,"won":1,"drawn":0,"lost":1,"gf":2,"ga":4,"gd":-2,"points":3},
+        {"team":"Australia","played":2,"won":1,"drawn":0,"lost":1,"gf":2,"ga":2,"gd":0,"points":3},
+        {"team":"Turkiye",  "played":2,"won":0,"drawn":0,"lost":2,"gf":0,"ga":3,"gd":-3,"points":0}
+      ]
+    },
+    "E": {
+      "teams": [
+        {"team":"Germany",      "played":2,"won":2,"drawn":0,"lost":0,"gf":9,"ga":2,"gd":7,"points":6,"status":"clasificado"},
+        {"team":"Cote d'Ivoire","played":2,"won":1,"drawn":0,"lost":1,"gf":2,"ga":2,"gd":0,"points":3},
+        {"team":"Ecuador",      "played":2,"won":0,"drawn":1,"lost":1,"gf":0,"ga":1,"gd":-1,"points":1},
+        {"team":"Curacao",      "played":2,"won":0,"drawn":1,"lost":1,"gf":1,"ga":7,"gd":-6,"points":1}
+      ]
+    },
+    "F": {
+      "teams": [
+        {"team":"Netherlands","played":2,"won":1,"drawn":1,"lost":0,"gf":7,"ga":3,"gd":4,"points":4},
+        {"team":"Japan",      "played":2,"won":1,"drawn":1,"lost":0,"gf":6,"ga":2,"gd":4,"points":4},
+        {"team":"Sweden",     "played":2,"won":1,"drawn":0,"lost":1,"gf":6,"ga":6,"gd":0,"points":3},
+        {"team":"Tunisia",    "played":2,"won":0,"drawn":0,"lost":2,"gf":1,"ga":9,"gd":-8,"points":0}
+      ]
+    },
+    "G": {
+      "teams": [
+        {"team":"Egypt",       "played":2,"won":1,"drawn":1,"lost":0,"gf":4,"ga":3,"gd":1,"points":4},
+        {"team":"Belgium",     "played":2,"won":0,"drawn":2,"lost":0,"gf":1,"ga":1,"gd":0,"points":2},
+        {"team":"Iran",        "played":2,"won":0,"drawn":2,"lost":0,"gf":2,"ga":2,"gd":0,"points":2},
+        {"team":"New Zealand", "played":2,"won":0,"drawn":1,"lost":1,"gf":3,"ga":4,"gd":-1,"points":1}
+      ]
+    },
+    "H": {
+      "teams": [
+        {"team":"Spain",     "played":2,"won":1,"drawn":1,"lost":0,"gf":4,"ga":0,"gd":4,"points":4},
+        {"team":"Uruguay",   "played":2,"won":0,"drawn":2,"lost":0,"gf":3,"ga":3,"gd":0,"points":2},
+        {"team":"Cabo Verde","played":2,"won":0,"drawn":2,"lost":0,"gf":2,"ga":2,"gd":0,"points":2},
+        {"team":"Saudi Arabia","played":2,"won":0,"drawn":1,"lost":1,"gf":1,"ga":5,"gd":-4,"points":1}
+      ]
+    },
+    "I": {
+      "teams": [
+        {"team":"France", "played":2,"won":2,"drawn":0,"lost":0,"gf":6,"ga":1,"gd":5,"points":6,"status":"clasificado"},
+        {"team":"Norway", "played":2,"won":1,"drawn":0,"lost":1,"gf":7,"ga":3,"gd":4,"points":3},
+        {"team":"Senegal","played":2,"won":0,"drawn":0,"lost":2,"gf":3,"ga":6,"gd":-3,"points":0},
+        {"team":"Iraq",   "played":2,"won":0,"drawn":0,"lost":2,"gf":1,"ga":7,"gd":-6,"points":0}
+      ]
+    },
+    "J": {
+      "teams": [
+        {"team":"Argentina","played":2,"won":2,"drawn":0,"lost":0,"gf":5,"ga":0,"gd":5,"points":6,"status":"clasificado"},
+        {"team":"Algeria",  "played":2,"won":1,"drawn":0,"lost":1,"gf":2,"ga":4,"gd":-2,"points":3},
+        {"team":"Austria",  "played":2,"won":1,"drawn":0,"lost":1,"gf":3,"ga":3,"gd":0,"points":3},
+        {"team":"Jordan",   "played":2,"won":0,"drawn":0,"lost":2,"gf":2,"ga":5,"gd":-3,"points":0}
+      ]
+    },
+    "K": {
+      "teams": [
+        {"team":"Portugal", "played":2,"won":1,"drawn":1,"lost":0,"gf":6,"ga":1,"gd":5,"points":4},
+        {"team":"Colombia", "played":2,"won":2,"drawn":0,"lost":0,"gf":4,"ga":1,"gd":3,"points":6,"status":"clasificado"},
+        {"team":"DR Congo", "played":2,"won":0,"drawn":1,"lost":1,"gf":1,"ga":2,"gd":-1,"points":1},
+        {"team":"Uzbekistan","played":2,"won":0,"drawn":0,"lost":2,"gf":1,"ga":8,"gd":-7,"points":0}
+      ]
+    },
+    "L": {
+      "teams": [
+        {"team":"England","played":2,"won":1,"drawn":1,"lost":0,"gf":4,"ga":2,"gd":2,"points":4},
+        {"team":"Croatia","played":2,"won":1,"drawn":0,"lost":1,"gf":3,"ga":4,"gd":-1,"points":3},
+        {"team":"Ghana",  "played":2,"won":1,"drawn":1,"lost":0,"gf":1,"ga":0,"gd":1,"points":4},
+        {"team":"Panama", "played":2,"won":0,"drawn":0,"lost":2,"gf":0,"ga":2,"gd":-2,"points":0}
       ]
     }
   }
