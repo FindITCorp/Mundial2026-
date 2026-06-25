@@ -2,9 +2,9 @@
   "tournament": "FIFA World Cup 2026",
   "jornada": 3,
   "match_date": "2026-06-25",
-  "generated": "2026-06-25 10:50",
-  "model": "match_predictor — DB sincronizada (54/54 resultados reales) + bias recalibrado (121p, λ×1.014)",
-  "nota": "Sin suposicion de rotacion. Rotacion = decision en vivo con alineaciones via Ajuste 4.",
+  "generated": "2026-06-25 11:28",
+  "model": "match_predictor — DB+stats sincronizados (resultados 54/54, stats 53/54) + bias recalibrado",
+  "nota": "Sin suposicion de rotacion. Rotacion = decision en vivo con alineaciones (Ajuste 4).",
   "predictions": [
     {
       "group": "D",
@@ -12,13 +12,13 @@
       "away": "USA",
       "model_score": "2-2",
       "prob": {
-        "home": 27.2,
-        "draw": 23.0,
-        "away": 49.9
+        "home": 24.4,
+        "draw": 22.2,
+        "away": 53.4
       },
       "lambda": [
-        2.07,
-        2.91
+        2.04,
+        3.15
       ],
       "pick": "USA",
       "factual_flags": {
@@ -31,15 +31,15 @@
       "away": "Australia",
       "model_score": "0-0",
       "prob": {
-        "home": 23.6,
-        "draw": 37.6,
-        "away": 38.8
+        "home": 26.7,
+        "draw": 37.8,
+        "away": 35.5
       },
       "lambda": [
-        0.78,
-        1.1
+        0.85,
+        1.04
       ],
-      "pick": "Australia",
+      "pick": "EMPATE",
       "factual_flags": {}
     },
     {
@@ -48,13 +48,13 @@
       "away": "Germany",
       "model_score": "0-1",
       "prob": {
-        "home": 16.6,
-        "draw": 26.4,
-        "away": 56.9
+        "home": 14.6,
+        "draw": 27.5,
+        "away": 57.9
       },
       "lambda": [
-        0.73,
-        1.66
+        0.61,
+        1.57
       ],
       "pick": "Germany",
       "factual_flags": {}
@@ -65,13 +65,13 @@
       "away": "Ivory Coast",
       "model_score": "0-3",
       "prob": {
-        "home": 4.4,
-        "draw": 12.6,
-        "away": 82.9
+        "home": 5.4,
+        "draw": 15.0,
+        "away": 79.6
       },
       "lambda": [
-        0.47,
-        2.96
+        0.46,
+        2.62
       ],
       "pick": "Ivory Coast",
       "factual_flags": {}
@@ -82,12 +82,12 @@
       "away": "Netherlands",
       "model_score": "0-3",
       "prob": {
-        "home": 2.3,
-        "draw": 8.8,
-        "away": 88.8
+        "home": 2.2,
+        "draw": 8.7,
+        "away": 89.1
       },
       "lambda": [
-        0.37,
+        0.36,
         3.57
       ],
       "pick": "Netherlands",
@@ -101,13 +101,13 @@
       "away": "Sweden",
       "model_score": "3-0",
       "prob": {
-        "home": 78.9,
-        "draw": 9.9,
-        "away": 6.0
+        "home": 79.6,
+        "draw": 9.7,
+        "away": 5.6
       },
       "lambda": [
         3.57,
-        0.79
+        0.75
       ],
       "pick": "Japan",
       "factual_flags": {}
