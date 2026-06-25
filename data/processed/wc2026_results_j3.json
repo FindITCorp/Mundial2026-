@@ -1,0 +1,41 @@
+{
+  "tournament": "FIFA World Cup 2026",
+  "season_id": 58210,
+  "source": "Sofascore API - verified live 2026-06-24",
+  "last_updated": "2026-06-24",
+  "jornada": 3,
+  "matches_finished": 4,
+  "matches_pending": 20,
+  "matches": [
+    {"event_id":15186829,"jornada":3,"group":"B","home":"Bosnia & Herzegovina","away":"Qatar","home_score":3,"away_score":1,"status":"finished"},
+    {"event_id":15186821,"jornada":3,"group":"B","home":"Switzerland","away":"Canada","home_score":2,"away_score":1,"status":"finished"},
+    {"event_id":15186864,"jornada":3,"group":"C","home":"Morocco","away":"Haiti","home_score":4,"away_score":2,"status":"finished"},
+    {"event_id":15186861,"jornada":3,"group":"C","home":"Scotland","away":"Brazil","home_score":0,"away_score":3,"status":"finished"},
+    {"event_id":15186732,"jornada":3,"group":"A","home":"Czechia","away":"Mexico","home_score":null,"away_score":null,"status":"not_started"},
+    {"event_id":15186744,"jornada":3,"group":"A","home":"South Africa","away":"South Korea","home_score":null,"away_score":null,"status":"not_started"}
+  ],
+  "group_standings_after_j3": {
+    "B": {
+      "winner": "Switzerland",
+      "runner_up": "Canada",
+      "note": "Swi 7pts, Can 4pts, Bos 4pts, Qat 1pt — Suiza y Canada clasificados",
+      "teams": [
+        {"team":"Switzerland","played":3,"won":2,"drawn":1,"lost":0,"gf":7,"ga":3,"gd":4,"points":7,"status":"clasificado"},
+        {"team":"Canada","played":3,"won":1,"drawn":1,"lost":1,"gf":8,"ga":3,"gd":5,"points":4,"status":"clasificado"},
+        {"team":"Bosnia & Herzegovina","played":3,"won":1,"drawn":1,"lost":1,"gf":5,"ga":6,"gd":-1,"points":4},
+        {"team":"Qatar","played":3,"won":0,"drawn":1,"lost":2,"gf":2,"ga":10,"gd":-8,"points":1,"status":"eliminado"}
+      ]
+    },
+    "C": {
+      "winner": "Brazil",
+      "runner_up": "Morocco",
+      "note": "Bra 7pts, Mar 7pts — Brasil gana por diferencia de goles. Escocia 3pts eliminada.",
+      "teams": [
+        {"team":"Brazil","played":3,"won":2,"drawn":1,"lost":0,"gf":7,"ga":1,"gd":6,"points":7,"status":"clasificado"},
+        {"team":"Morocco","played":3,"won":2,"drawn":1,"lost":0,"gf":6,"ga":1,"gd":5,"points":7,"status":"clasificado"},
+        {"team":"Scotland","played":3,"won":1,"drawn":0,"lost":2,"gf":1,"ga":4,"gd":-3,"points":3,"status":"eliminado"},
+        {"team":"Haiti","played":3,"won":0,"drawn":0,"lost":3,"gf":2,"ga":10,"gd":-8,"points":0,"status":"eliminado"}
+      ]
+    }
+  }
+}

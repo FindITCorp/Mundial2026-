@@ -1,0 +1,13 @@
+{
+  "tournament": "FIFA World Cup 2026",
+  "season_id": 58210,
+  "source": "Sofascore API /event/{id}/statistics - live verified 2026-06-24",
+  "last_updated": "2026-06-24",
+  "jornada": 3,
+  "stats": [
+    {"event_id":15186829,"jornada":3,"group":"B","home_team":"Bosnia & Herzegovina","away_team":"Qatar","possession_home":54,"possession_away":46,"shots_total_home":14,"shots_total_away":9,"shots_on_target_home":5,"shots_on_target_away":3,"xg_home":0.68,"xg_away":0.77,"yellow_home":1,"yellow_away":1,"note":"Bosnia gano 3-1 a pesar de xG casi igual — alta conversion"},
+    {"event_id":15186821,"jornada":3,"group":"B","home_team":"Switzerland","away_team":"Canada","possession_home":55,"possession_away":45,"shots_total_home":6,"shots_total_away":13,"shots_total_home_note":"Canada genero mas disparos pero Kobel GK 8.9 fue determinante","shots_on_target_home":4,"shots_on_target_away":7,"xg_home":1.11,"xg_away":1.66,"yellow_home":1,"yellow_away":2,"note":"Canada supero a Suiza en xG 1.66 vs 1.11 pero perdio 1-2. Gregor Kobel GK rating 9.0"},
+    {"event_id":15186864,"jornada":3,"group":"C","home_team":"Morocco","away_team":"Haiti","possession_home":69,"possession_away":31,"shots_total_home":22,"shots_total_away":9,"shots_on_target_home":11,"shots_on_target_away":2,"xg_home":3.26,"xg_away":0.66,"yellow_home":0,"yellow_away":3,"note":"Bilal El Khannouss MVP rating 8.9, Soufiane Rahimi sub 8.1"},
+    {"event_id":15186861,"jornada":3,"group":"C","home_team":"Scotland","away_team":"Brazil","possession_home":46,"possession_away":54,"shots_total_home":14,"shots_total_away":21,"shots_on_target_home":5,"shots_on_target_away":9,"xg_home":1.13,"xg_away":4.46,"yellow_home":1,"yellow_away":2,"note":"Vinicius Jr rating 9.3 — domino completamente. Angus Gunn GK Escocia 8.3 evito goleada mayor"}
+  ]
+}
