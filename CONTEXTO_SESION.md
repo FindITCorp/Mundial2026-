@@ -14,9 +14,9 @@
 > FILL-ONLY (solo NULLs, sin sobrescribir FIFA). **Cobertura xG ahora 60/60.** Bonus: fix
 > `is_home` (3 partidos lo tenían =1 en ambos equipos → corrompía conversión) + causa raíz en
 > `fetch_fifa_stats.py`. **Pendiente real: solo faltan resultados G-L, que se juegan 26-28 jun.
-> Para bajar Sofascore de G-L: descubrir URLs con `scratchpad/discover_urls.py` (intercepta
-> scheduled-events/{fecha}) → `scripts/fetch_sofascore_pw.py URL...` → parse fill-only.
-> Esperar alineaciones oficiales antes de predecir.**
+> Para bajar Sofascore de G-L: `python scripts/discover_sofascore_urls.py 2026-06-27 2026-06-28`
+> (auto-descubre URLs) → `python scripts/fetch_sofascore_pw.py {URLs}` → `python
+> scripts/parse_sofascore_raw.py {ids} --fill-only`. Esperar alineaciones oficiales antes de predecir.**
 
 ---
 
