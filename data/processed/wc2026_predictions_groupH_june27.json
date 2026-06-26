@@ -17,13 +17,14 @@
     },
     {
       "match": "Uruguay vs Spain",
-      "pick": "Spain 1-0",
+      "pick": "Spain 2-0",
       "probs": {
-        "URU": 15,
-        "draw": 25,
-        "ESP": 60
+        "URU": 12,
+        "draw": 20,
+        "ESP": 68
       },
-      "key": "Espana elite (0 GA, GK 100%) con XI fuerte (Yamal/Pedri/Rodri); Uruguay 3-6-1 cauto, asedio esteril (conv 0.74). Espana por clase pero ajustado; Uruguay peligro tardio 76-90."
+      "key": "REVISADO tras analisis profundo: vs los MISMOS rivales (CaboVerde/Saudi) Espana concedio 0, Uruguay 3 -> defensa espanola superior. Elo +265. Uruguay debe abrirse (necesita ganar) y su defensa filtra (no es el bus de CaboVerde) -> Espana ~2 goles. 1-0 era corto. Riesgo: 0-0 vs CaboVerde mostro que Espana puede atascarse vs bloque.",
+      "revision": "1-0 -> 2-0"
     }
   ]
 }
