@@ -280,6 +280,90 @@
         {"name":"Hwang Hee-chan","jersey":11,"position":"F","minutes":45,"rating":6.5,"goals":0,"assists":0,"started":true},
         {"name":"Hyeon-gyu Oh","jersey":18,"position":"F","minutes":74,"rating":6.4,"goals":0,"assists":0,"started":true}
       ]
+    },
+    {
+      "event_id": 15186972, "jornada": 3, "group": "F",
+      "home_team": "Japan", "away_team": "Sweden",
+      "team": "Japan", "formation": "3-4-2-1",
+      "result": "1-1",
+      "source": "Sofascore final",
+      "note": "Japon le bastaba empatar para clasificar — xG 1.31 superior pero no forzo la victoria. Daizen Maeda gol (7.9).",
+      "players": [
+        {"name":"Zion Suzuki","jersey":1,"position":"G","minutes":90,"rating":7.1,"goals":0,"assists":0,"started":true},
+        {"name":"Ayumu Seko","jersey":20,"position":"D","minutes":75,"rating":6.4,"goals":0,"assists":0,"started":true},
+        {"name":"Ko Itakura","jersey":4,"position":"D","minutes":39,"rating":6.9,"goals":0,"assists":0,"started":true},
+        {"name":"Hiroki Itō","jersey":21,"position":"D","minutes":90,"rating":6.9,"goals":0,"assists":0,"started":true},
+        {"name":"Yukinari Sugawara","jersey":2,"position":"M","minutes":90,"rating":6.6,"goals":0,"assists":0,"started":true},
+        {"name":"Ao Tanaka","jersey":7,"position":"M","minutes":90,"rating":7.4,"goals":0,"assists":0,"started":true},
+        {"name":"Daichi Kamada","jersey":15,"position":"M","minutes":90,"rating":7.0,"goals":0,"assists":0,"started":true},
+        {"name":"Keito Nakamura","jersey":13,"position":"M","minutes":75,"rating":7.1,"goals":0,"assists":0,"started":true},
+        {"name":"Ritsu Doan","jersey":10,"position":"F","minutes":67,"rating":6.7,"goals":0,"assists":1,"started":true},
+        {"name":"Daizen Maeda","jersey":11,"position":"F","minutes":90,"rating":7.9,"goals":1,"assists":0,"started":true},
+        {"name":"Ayase Ueda","jersey":18,"position":"F","minutes":66,"rating":6.4,"goals":0,"assists":0,"started":true}
+      ]
+    },
+    {
+      "event_id": 15186972, "jornada": 3, "group": "F",
+      "home_team": "Japan", "away_team": "Sweden",
+      "team": "Sweden", "formation": "3-4-3",
+      "result": "1-1",
+      "source": "Sofascore final",
+      "note": "Suecia NECESITABA ganar para clasificar — 11 tiros, 8 corners, presion total pero solo igualo y quedo eliminada. Anthony Elanga gol (7.7). Isak e Isak (Gyokeres) apagados.",
+      "players": [
+        {"name":"Jacob Widell Zetterström","jersey":1,"position":"G","minutes":90,"rating":7.1,"goals":0,"assists":0,"started":true},
+        {"name":"Gustaf Lagerbielke","jersey":2,"position":"D","minutes":90,"rating":6.6,"goals":0,"assists":0,"started":true},
+        {"name":"Isak Hien","jersey":4,"position":"D","minutes":37,"rating":6.8,"goals":0,"assists":0,"started":true},
+        {"name":"Gabriel Gudmundsson","jersey":5,"position":"D","minutes":88,"rating":7.3,"goals":0,"assists":0,"started":true},
+        {"name":"Alexander Bernhardsson","jersey":21,"position":"M","minutes":75,"rating":6.3,"goals":0,"assists":0,"started":true},
+        {"name":"Victor Lindelöf","jersey":3,"position":"M","minutes":87,"rating":6.7,"goals":0,"assists":0,"started":true},
+        {"name":"Yasin Ayari","jersey":18,"position":"M","minutes":90,"rating":7.1,"goals":0,"assists":0,"started":true},
+        {"name":"Elliot Stroud","jersey":24,"position":"M","minutes":75,"rating":6.6,"goals":0,"assists":0,"started":true},
+        {"name":"Anthony Elanga","jersey":11,"position":"F","minutes":90,"rating":7.7,"goals":1,"assists":0,"started":true},
+        {"name":"Viktor Gyökeres","jersey":17,"position":"F","minutes":90,"rating":6.1,"goals":0,"assists":1,"started":true},
+        {"name":"Alexander Isak","jersey":9,"position":"F","minutes":90,"rating":6.0,"goals":0,"assists":0,"started":true}
+      ]
+    },
+    {
+      "event_id": 15186973, "jornada": 3, "group": "F",
+      "home_team": "Tunisia", "away_team": "Netherlands",
+      "team": "Tunisia", "formation": "5-4-1",
+      "result": "1-3",
+      "source": "Sofascore final",
+      "note": "Tunez eliminado, bloque de 5 defensas. Marco por honor: Hazem Mastouri (7.8). Aymen Dahmen GK 7.5 evito goleada mayor.",
+      "players": [
+        {"name":"Aymen Dahmen","jersey":16,"position":"G","minutes":90,"rating":7.5,"goals":0,"assists":0,"started":true},
+        {"name":"Yan Valery","jersey":20,"position":"D","minutes":90,"rating":6.0,"goals":0,"assists":0,"started":true},
+        {"name":"Montassar Talbi","jersey":3,"position":"D","minutes":90,"rating":6.0,"goals":0,"assists":0,"started":true},
+        {"name":"Ellyes Skhiri","jersey":17,"position":"D","minutes":90,"rating":7.1,"goals":0,"assists":0,"started":true},
+        {"name":"Amine Ben Hmida","jersey":21,"position":"D","minutes":68,"rating":6.7,"goals":0,"assists":0,"started":true},
+        {"name":"Ali Abdi","jersey":2,"position":"D","minutes":90,"rating":6.2,"goals":0,"assists":0,"started":true},
+        {"name":"Anis Ben Slimane","jersey":25,"position":"M","minutes":68,"rating":6.3,"goals":0,"assists":0,"started":true},
+        {"name":"Ismael Gharbi","jersey":11,"position":"M","minutes":75,"rating":6.9,"goals":0,"assists":0,"started":true},
+        {"name":"Rani Khedira","jersey":13,"position":"M","minutes":67,"rating":6.1,"goals":0,"assists":0,"started":true},
+        {"name":"Hannibal Mejbri","jersey":10,"position":"M","minutes":90,"rating":7.0,"goals":0,"assists":1,"started":true},
+        {"name":"Hazem Mastouri","jersey":9,"position":"F","minutes":89,"rating":7.8,"goals":1,"assists":0,"started":true}
+      ]
+    },
+    {
+      "event_id": 15186973, "jornada": 3, "group": "F",
+      "home_team": "Tunisia", "away_team": "Netherlands",
+      "team": "Netherlands", "formation": "4-3-3",
+      "result": "3-1",
+      "source": "Sofascore final",
+      "note": "PBajos con TITULARES (Van Dijk, De Jong, Gakpo) porque necesitaba ganar para 1er lugar y GD sobre Japon. Jan Paul van Hecke MVP 9.2 con gol. Brobbey gol.",
+      "players": [
+        {"name":"Bart Verbruggen","jersey":1,"position":"G","minutes":90,"rating":6.5,"goals":0,"assists":0,"started":true},
+        {"name":"Denzel Dumfries","jersey":22,"position":"D","minutes":90,"rating":6.0,"goals":0,"assists":0,"started":true},
+        {"name":"Jan Paul van Hecke","jersey":6,"position":"D","minutes":90,"rating":9.2,"goals":1,"assists":0,"started":true},
+        {"name":"Virgil van Dijk","jersey":4,"position":"D","minutes":90,"rating":7.8,"goals":0,"assists":1,"started":true},
+        {"name":"Nathan Aké","jersey":5,"position":"D","minutes":90,"rating":6.5,"goals":0,"assists":0,"started":true},
+        {"name":"Ryan Gravenberch","jersey":8,"position":"M","minutes":90,"rating":6.9,"goals":0,"assists":0,"started":true},
+        {"name":"Frenkie de Jong","jersey":21,"position":"M","minutes":72,"rating":6.9,"goals":0,"assists":0,"started":true},
+        {"name":"Tijjani Reijnders","jersey":14,"position":"M","minutes":72,"rating":7.1,"goals":0,"assists":1,"started":true},
+        {"name":"Donyell Malen","jersey":18,"position":"F","minutes":72,"rating":6.7,"goals":0,"assists":0,"started":true},
+        {"name":"Brian Brobbey","jersey":19,"position":"F","minutes":77,"rating":7.2,"goals":1,"assists":0,"started":true},
+        {"name":"Cody Gakpo","jersey":11,"position":"F","minutes":84,"rating":6.3,"goals":0,"assists":0,"started":true}
+      ]
     }
   ]
 }
