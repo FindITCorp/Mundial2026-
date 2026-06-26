@@ -1504,6 +1504,38 @@ def _rotation_factor(own_elo: float, opp_elo: float, expected: bool) -> float:
     return 1.0 - penalty
 
 
+# ── Ajuste 5: Factor de incentivo / motivación — SOLO fase de grupos ──────────
+# La situación de tabla cambia cuánto un equipo empuja por goles. Pedido del
+# dueño (25-jun): "no puede ser un factor determinante, algo a considerar para
+# el final del partido". Por eso es PEQUEÑO y ACOTADO (±6%), no inclina partidos.
+# Solo aplica con stage=="group" (en la fase de eliminación todos juegan a tope).
+# Evidencia J3 grupo F:
+#   · Japón 1-1 Suecia: a Japón le bastaba el empate (xG 1.31 vs 0.61 pero no forzó).
+#   · Túnez 1-3 P.Bajos: NED jugó titulares por el 1er lugar/GD → sin descuento.
+# Casos (string en home_incentive/away_incentive):
+#   "draw_enough"    → ya clasifica con empate: administra      → ×0.94 (−6%)
+#   "needs_win"      → debe ganar para avanzar: se vuelca       → ×1.03 (+3%, urgencia acotada)
+#   "fighting_first" → pelea 1er lugar/seeding: titulares a tope → ×1.02 (anula sospecha de rotación)
+#   "neutral"/None   → sin lectura especial                     → ×1.00
+_INCENTIVE_FACTORS = {
+    "draw_enough":    0.94,
+    "needs_win":      1.03,
+    "fighting_first": 1.02,
+    "neutral":        1.00,
+}
+_INCENTIVE_CAP = 0.06   # tope duro: el incentivo nunca mueve λ más de ±6%
+
+
+def _incentive_factor(situation: str | None, stage: str) -> float:
+    """Factor multiplicativo acotado por motivación de tabla. Solo fase de grupos;
+    fuera de ella devuelve 1.0 (en eliminación no hay 'me basta el empate')."""
+    if stage != "group" or not situation:
+        return 1.0
+    f = _INCENTIVE_FACTORS.get(situation, 1.0)
+    # Garantía de acotamiento: nunca fuera de [1-cap, 1+cap]
+    return max(1.0 - _INCENTIVE_CAP, min(1.0 + _INCENTIVE_CAP, f))
+
+
 def _get_finishing(conn, db_key: str) -> dict[int, tuple]:
     """Perfil de conversión y portería por equipo desde match_team_stats.
     {team_id: (n, xg_for, goals_for, xg_against, goals_against)} con xG real
@@ -1687,6 +1719,9 @@ def predict_match(
     # ── Ajuste 4: rotación esperada (equipo clasificado mete equipo B) ───────────
     home_rotation_expected: bool = False,  # True → se espera XI rotado del local
     away_rotation_expected: bool = False,  # True → se espera XI rotado del visitante
+    # ── Ajuste 5: incentivo de tabla (SOLO fase de grupos, efecto acotado ±6%) ───
+    home_incentive: str | None = None,  # "draw_enough" | "needs_win" | "fighting_first" | "neutral"
+    away_incentive: str | None = None,
 ) -> dict:
     """
     Retorna un dict completo con predicción, probabilidades, métricas y breakdown.
@@ -1798,6 +1833,10 @@ def predict_match(
     # Reduce solo la λ PROPIA del equipo que rota; un dominante rota "gratis".
     h_rot_f = _rotation_factor(home_elo, away_elo, home_rotation_expected)
     a_rot_f = _rotation_factor(away_elo, home_elo, away_rotation_expected)
+
+    # ── Ajuste 5: Factor de incentivo — acotado ±6%, solo fase de grupos ─────────
+    h_inc_f = _incentive_factor(home_incentive, stage)
+    a_inc_f = _incentive_factor(away_incentive, stage)
 
     # Jugadores diferenciadores: OFF sube λ propio; DEF rival baja λ propio
     if use_stars is None:
@@ -2066,6 +2105,7 @@ def predict_match(
         * a_gk_outlier_f                             # Ajuste 1: GK visitante excepcional (rating≥8.5) reduce λ local
         * h_elim_f                                   # Ajuste 2: equipo local eliminado → −30% conversión
         * h_rot_f                                    # Ajuste 4: rotación local calibrada por brecha de Elo
+        * h_inc_f                                    # Ajuste 5: incentivo de tabla local (±6%, solo grupos)
     )
     la_raw = (
         BASE_GOALS
@@ -2097,6 +2137,7 @@ def predict_match(
         * h_gk_outlier_f                             # Ajuste 1: GK local excepcional (rating≥8.5) reduce λ visitante
         * a_elim_f                                   # Ajuste 2: equipo visitante eliminado → −30% conversión
         * a_rot_f                                    # Ajuste 4: rotación visitante calibrada por brecha de Elo
+        * a_inc_f                                    # Ajuste 5: incentivo de tabla visitante (±6%, solo grupos)
     )
 
     # ── 9a. Amplificación de mismatch: de-comprime el split Elo en goleadas ───
@@ -2460,6 +2501,9 @@ def predict_match(
             # Ajuste 4: factor de rotación calibrado por brecha de Elo
             "rotation_factor_home": round(h_rot_f, 4),   # <1.0 si rota y no domina por Elo
             "rotation_factor_away": round(a_rot_f, 4),
+            # Ajuste 5: factor de incentivo (±6%, solo fase de grupos)
+            "incentive_factor_home": round(h_inc_f, 4),
+            "incentive_factor_away": round(a_inc_f, 4),
             "dispersion_r":     disp_r,   # >0 ⇒ NB en grilla de marcador; 0 ⇒ Poisson
             "mismatch_amp":     round(mismatch_amp, 4),  # boost λ favorito en goleadas
             "score_totals_add": round(add_h, 4),  # λ devuelto al marcador (des-deflación)
