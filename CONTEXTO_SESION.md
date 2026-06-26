@@ -184,6 +184,8 @@ en vez de tocar la media. Capturaría tanto los Turquía 3-2 como los Korea 0-1.
 4. [ ] Generar `wc2026_standings_after_j3.json` con los 12 grupos finales (clasificados de cada grupo).
 5. [ ] Determinar los **8 mejores terceros** (formato 48 equipos: 12 primeros + 12 segundos + 8 mejores terceros = 32 a dieciseisavos).
 6. [ ] Cablear `sync_results_to_db.py` + `sync_stats_to_db.py` en `daily_pipeline.sh`/`matchday.py` para que el sync a DB no se olvide (bug de raíz recurrente).
+7. [ ] **Mapear `fifa_lineups.player_name` ↔ `players.id`** (tabla de alias o fuzzy verificado). Hoy solo 62/1244 nombres casan exacto y 0/100 estrellas → BLOQUEA el análisis de calidad del XI desplegado (sumar rating nacional de los 11 titulares y testear si predice más allá del Elo). Es el ángulo de alineaciones de mayor potencial, hoy imposible. Ver memoria [[mundial2026-analisis-exhaustivo]] "RESULTADOS NULOS de alineaciones".
+8. [ ] **Revisar Ajuste 4 (rotación):** análisis 26-jun sobre 64 transiciones jornada→jornada dio corr(cambios XI, rendimiento sobre Elo)=+0.109 (NULO, ni significativo ni en la dirección esperada). El castigo por rotación NO está respaldado por los datos del torneo. Considerar desactivarlo o dejarlo en factor=1.0 hasta tener evidencia real (no calibrar `ROTATION_FULLPASS` sobre un efecto que no aparece).
 
 ---
 
