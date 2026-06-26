@@ -9,11 +9,12 @@
       "match": "Cape Verde vs Saudi Arabia",
       "pick": "Cape Verde 1-0",
       "probs": {
-        "CV": 50,
-        "draw": 32,
+        "CV": 44,
+        "draw": 38,
         "SA": 18
       },
-      "key": "REVISADO con proceso+amistosos+rivales comunes: bajo marcador JUSTIFICADO por proceso (ambos xG bajisimo 0.2-0.88, pocos tiros/ocasiones - no es 20-tiros-1-gol). Pero CV netamente mas solido (aguanto a Espana 0-0, no pierde) vs Arabia en barrena (0-4 Egipto, racha de derrotas). CV favorito mas claro, marcador bajo. 1-0; 2-0 si Arabia se abre."
+      "key": "REVISADO con proceso+amistosos+rivales comunes: bajo marcador JUSTIFICADO por proceso (ambos xG bajisimo 0.2-0.88, pocos tiros/ocasiones - no es 20-tiros-1-gol). Pero CV netamente mas solido (aguanto a Espana 0-0, no pierde) vs Arabia en barrena (0-4 Egipto, racha de derrotas). CV favorito mas claro, marcador bajo. 1-0; 2-0 si Arabia se abre.",
+      "scan_insight": "Escaner integral: ataque CV el PEOR del torneo por proceso (remates area pct 4, xG pct 10); sus 2 goles fueron sobre-conversion 1.85x que REGRESA -> marcar no es fiable. 0-0 sube como marcador modal; empate gana peso. CV leve favorito por defensa/forma + Saudi hundido."
     },
     {
       "match": "Uruguay vs Spain",
@@ -24,7 +25,8 @@
         "ESP": 68
       },
       "key": "REVISADO tras analisis profundo: vs los MISMOS rivales (CaboVerde/Saudi) Espana concedio 0, Uruguay 3 -> defensa espanola superior. Elo +265. Uruguay debe abrirse (necesita ganar) y su defensa filtra (no es el bus de CaboVerde) -> Espana ~2 goles. 1-0 era corto. Riesgo: 0-0 vs CaboVerde mostro que Espana puede atascarse vs bloque.",
-      "revision": "1-0 -> 2-0"
+      "revision": "1-0 -> 2-0",
+      "scan_insight": "Escaner integral REFUERZA 2-0: Espana elite en ataque Y defensa POR PROCESO (24.5 remates, concede 4.5 -la mejor-, GK 100%). Sub-convierte (0.91) su xG elite -> goles a deber, regresan al alza vs defensa uruguaya permeable."
     }
   ]
 }
