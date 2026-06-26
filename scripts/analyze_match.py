@@ -160,6 +160,27 @@ def team_profile(conn, team_id, stage="group"):
             p["wc_peak_scored"] = LAB[s.index(max(s))]
         if sum(c):
             p["wc_peak_conceded"] = LAB[c.index(max(c))]
+
+    # Forma reciente INCLUYENDO amistosos (team_matches) — muestra más amplia que el
+    # Mundial solo. Pedido del dueño 26-jun: "siempre incluir amistosos". Resultados
+    # (no hay tiros/xG de amistosos en la DB), pero da ritmo real de marcar/encajar.
+    rec = conn.execute("""
+        SELECT opponent_name, goals_for, goals_against, result, competition, date
+        FROM team_matches WHERE team_id=? AND date >= date('now','-12 months')
+        ORDER BY date DESC LIMIT 8
+    """, (team_id,)).fetchall()
+    if rec:
+        w = sum(1 for r in rec if r["result"] == "W")
+        d = sum(1 for r in rec if r["result"] == "D")
+        l = sum(1 for r in rec if r["result"] == "L")
+        gf_r = sum((r["goals_for"] or 0) for r in rec)
+        ga_r = sum((r["goals_against"] or 0) for r in rec)
+        n = len(rec)
+        p["recent_form"] = {
+            "n": n, "w": w, "d": d, "l": l,
+            "gf_avg": round(gf_r / n, 2), "ga_avg": round(ga_r / n, 2),
+            "last5": [f"{r['goals_for']}-{r['goals_against']}{r['result']}" for r in rec[:5]],
+        }
     return p
 
 
@@ -216,7 +237,16 @@ def _fmt(p):
         f"córners {g('corners_for')}/p (concede {g('corners_against')}/p)\n"
         f"  TIMING   marca tarde(76-90) {g('scored_late')} · concede tarde {g('conceded_late')} · "
         f"fatiga_concede {g('fatigue_conceded')}"
+        + (_fmt_form(p.get("recent_form")))
     )
+
+
+def _fmt_form(rf):
+    if not rf:
+        return ""
+    return (f"\n  FORMA    últimos {rf['n']} (incl. amistosos): {rf['w']}V-{rf['d']}E-{rf['l']}D · "
+            f"marca {rf['gf_avg']}/p · encaja {rf['ga_avg']}/p · "
+            f"[{' '.join(rf['last5'])}]")
 
 
 def analyze(team_a, team_b, db_path=DB, verbose=True):
