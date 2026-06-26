@@ -1,7 +1,16 @@
 # Contexto de Sesión — Pool Mundial 2026 "Kike"
 
 > **Documento de handoff.** Lee esto primero para retomar el trabajo sin perder nada.
-> Última actualización: **2026-06-25 (sesión tarde)**
+> Última actualización: **2026-06-26 (auditoría de integridad de datos)**
+
+> **Auditoría 26-jun (commit `d35882c`):** Grupo E añadido a results JSON; `wc_goal_timing`
+> reconstruido (A-F ahora a 3 partidos; D y F se habían quedado en 2); corregido GD de
+> Sudáfrica en Grupo A (GA 2→3); nombres canónicos en wc_matches+match_predictions
+> (Czechia/Curacao). Modelo NO tocado: backtest 535 partidos da 63.7% acc, λ×1.002
+> (bien calibrado); factor veterano neutro pero se mantiene por señal de torneo.
+> Gap conocido: 3/60 partidos sin xG (FIFA no lo da) — el modelo lo tolera. **Pendiente
+> real: solo faltan resultados G-L, que se juegan 26-28 jun. Esperar alineaciones
+> oficiales antes de predecir.**
 
 ---
 
@@ -95,8 +104,8 @@ El endpoint `/event/{id}/lineups` **a veces devuelve marcador incorrecto** (ej. 
 | `data/processed/wc2026_match_stats_j1_j2.json` | xG/posesión/tiros/tarjetas 48 partidos | ✅ Completo |
 | `data/processed/wc2026_standings_after_j2.json` | Tabla 12 grupos tras J2 | ✅ Completo |
 | `data/lineups/wc2026_lineups_j1_j2.json` | Alineaciones+ratings J1+J2 | ✅ Completo |
-| `data/processed/wc2026_results_j3.json` | J3: **6 partidos terminados** (Grupos A,B,C completos) | 🔄 Parcial — faltan D,E,F,G,H,I,J,K,L |
-| `data/processed/wc2026_match_stats_j3.json` | Stats J3 (6 partidos) | 🔄 Parcial |
+| `data/processed/wc2026_results_j3.json` | J3: **12 partidos terminados** (Grupos A-F completos) | 🔄 Parcial — faltan G,H,I,J,K,L |
+| `data/processed/wc2026_match_stats_j3.json` | Stats J3 (10 entradas; Grupo E vive en DB, no en JSON) | 🔄 Parcial |
 | `data/lineups/wc2026_lineups_j3.json` | Alineaciones J3 (Grupos A,B,C) | 🔄 Parcial |
 | `data/processed/wc2026_predictions_j3_june25.json` | Predicciones Grupos D/E/F del 25-jun | ✅ Pendiente de evaluar vs resultado real |
 
@@ -164,7 +173,7 @@ en vez de tocar la media. Capturaría tanto los Turquía 3-2 como los Korea 0-1.
 ## 6. Tareas pendientes (TODO)
 
 1. [x] ~~Evaluar predicciones 25-jun (D/E/F)~~ ✅ HECHO — scorecard en §"Predicciones J3" arriba.
-2. [ ] Completar J3 grupos **E (parcial), G, H, I, J, K, L** en results/stats/lineups (faltan ~14 partidos de J3). Grupos A,B,C,D,F ✅ completos.
+2. [ ] Completar J3 grupos **G, H, I, J, K, L** (12 partidos, se juegan 26-28 jun) en results/stats/lineups. Grupos A,B,C,D,E,F ✅ completos. (Grupo E cerrado 26-jun: Alemania 1ro GD+6, Costa de Marfil 2do GD+2, Ecuador 3ro 4pts, Curaçao elim.)
 3. [x] ~~Implementar **Ajuste 4 (rotación calibrada)**~~ ✅ + **Ajuste 5 (incentivo)** ✅ + **recalibración Ajuste 2** ✅ (25-jun tarde). Pendiente: calibrar `ROTATION_FULLPASS`.
 4. [ ] Generar `wc2026_standings_after_j3.json` con los 12 grupos finales (clasificados de cada grupo).
 5. [ ] Determinar los **8 mejores terceros** (formato 48 equipos: 12 primeros + 12 segundos + 8 mejores terceros = 32 a dieciseisavos).
