@@ -4,9 +4,11 @@
   "source": "Sofascore API - verified live 2026-06-25",
   "last_updated": "2026-06-25",
   "jornada": 3,
-  "matches_finished": 10,
-  "matches_pending": 14,
+  "matches_finished": 12,
+  "matches_pending": 12,
   "matches": [
+    {"event_id":15186908,"jornada":3,"group":"E","home":"Curacao","away":"Cote d'Ivoire","home_score":0,"away_score":2,"status":"finished","date":"2026-06-25"},
+    {"event_id":15186907,"jornada":3,"group":"E","home":"Ecuador","away":"Germany","home_score":2,"away_score":1,"status":"finished","date":"2026-06-25"},
     {"event_id":15186829,"jornada":3,"group":"B","home":"Bosnia & Herzegovina","away":"Qatar","home_score":3,"away_score":1,"status":"finished"},
     {"event_id":15186821,"jornada":3,"group":"B","home":"Switzerland","away":"Canada","home_score":2,"away_score":1,"status":"finished"},
     {"event_id":15186864,"jornada":3,"group":"C","home":"Morocco","away":"Haiti","home_score":4,"away_score":2,"status":"finished"},
@@ -25,7 +27,7 @@
       "note": "Mex 9pts (3 victorias), SAf 4pts clasifica 2do, SKor 3pts eliminado, Cze 1pt eliminado. Mexico gano los 3 con equipo rotado en J3.",
       "teams": [
         {"team":"Mexico","played":3,"won":3,"drawn":0,"lost":0,"gf":6,"ga":0,"gd":6,"points":9,"status":"clasificado"},
-        {"team":"South Africa","played":3,"won":1,"drawn":1,"lost":1,"gf":2,"ga":2,"gd":0,"points":4,"status":"clasificado"},
+        {"team":"South Africa","played":3,"won":1,"drawn":1,"lost":1,"gf":2,"ga":3,"gd":-1,"points":4,"status":"clasificado"},
         {"team":"South Korea","played":3,"won":1,"drawn":0,"lost":2,"gf":2,"ga":3,"gd":-1,"points":3,"status":"eliminado"},
         {"team":"Czechia","played":3,"won":0,"drawn":1,"lost":2,"gf":2,"ga":6,"gd":-4,"points":1,"status":"eliminado"}
       ]
@@ -61,6 +63,17 @@
         {"team":"Australia","played":3,"won":1,"drawn":1,"lost":1,"gf":2,"ga":2,"gd":0,"points":4,"status":"clasificado"},
         {"team":"Paraguay","played":3,"won":1,"drawn":1,"lost":1,"gf":2,"ga":4,"gd":-2,"points":4,"status":"eliminado"},
         {"team":"Turkiye","played":3,"won":1,"drawn":0,"lost":2,"gf":3,"ga":5,"gd":-2,"points":3,"status":"eliminado"}
+      ]
+    },
+    "E": {
+      "winner": "Germany",
+      "runner_up": "Cote d'Ivoire",
+      "note": "Alemania 6pts gana el grupo por GD(+6) sobre CIV(+2). Ecuador UPSET 2-1 a Alemania (minuto 9' y 77') pero queda 3ro con 4pts. Curacao eliminado 1pt.",
+      "teams": [
+        {"team":"Germany","played":3,"won":2,"drawn":0,"lost":1,"gf":10,"ga":4,"gd":6,"points":6,"status":"clasificado"},
+        {"team":"Cote d'Ivoire","played":3,"won":2,"drawn":0,"lost":1,"gf":4,"ga":2,"gd":2,"points":6,"status":"clasificado"},
+        {"team":"Ecuador","played":3,"won":1,"drawn":1,"lost":1,"gf":2,"ga":2,"gd":0,"points":4,"status":"eliminado"},
+        {"team":"Curacao","played":3,"won":0,"drawn":1,"lost":2,"gf":1,"ga":9,"gd":-8,"points":1,"status":"eliminado"}
       ]
     },
     "F": {
