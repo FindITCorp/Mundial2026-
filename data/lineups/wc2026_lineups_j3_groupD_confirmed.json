@@ -1,0 +1,100 @@
+{
+  "tournament": "FIFA World Cup 2026",
+  "jornada": 3,
+  "group": "D",
+  "source": "Sofascore /event/{id}/lineups — confirmed:true (alineaciones confirmadas pre-partido)",
+  "captured": "2026-06-25 pre-kickoff",
+  "note": "Marcadores PENDIENTES — partidos programados 21:00 Panama. XI confirmados ~1h antes.",
+  "matches": [
+    {
+      "event_id": 15186887,
+      "home": "Turkiye", "away": "USA",
+      "venue": "SoFi Stadium, Inglewood (USA anfitrion)",
+      "status": "not_started",
+      "stakes": {
+        "Turkiye": "0pts — ELIMINADO. Juega libre, sin presion.",
+        "USA": "6pts — clasificado, lidera grupo. XI ROTADO (sin Pulisic). Le basta no perder por goleada para ser 1ro."
+      },
+      "lineups": {
+        "Turkiye": {
+          "formation": "4-2-3-1",
+          "xi": [
+            {"name":"Uğurcan Çakır","jersey":1,"position":"G"},
+            {"name":"Zeki Çelik","jersey":2,"position":"D"},
+            {"name":"Ozan Kabak","jersey":15,"position":"D"},
+            {"name":"Abdülkerim Bardakçı","jersey":14,"position":"D"},
+            {"name":"Eren Elmalı","jersey":13,"position":"D"},
+            {"name":"Salih Özcan","jersey":5,"position":"M"},
+            {"name":"Orkun Kökçü","jersey":6,"position":"M"},
+            {"name":"Oğuz Aydın","jersey":24,"position":"M"},
+            {"name":"Arda Güler","jersey":8,"position":"M"},
+            {"name":"Kenan Yıldız","jersey":11,"position":"M"},
+            {"name":"Barış Alper Yılmaz","jersey":21,"position":"F"}
+          ]
+        },
+        "USA": {
+          "formation": "4-2-3-1",
+          "rotated": true,
+          "xi": [
+            {"name":"Matt Turner","jersey":1,"position":"G"},
+            {"name":"Joe Scally","jersey":23,"position":"D"},
+            {"name":"Auston Trusty","jersey":6,"position":"D"},
+            {"name":"Miles Robinson","jersey":12,"position":"D"},
+            {"name":"Mark McKenzie","jersey":22,"position":"D"},
+            {"name":"Sebastian Berhalter","jersey":14,"position":"M"},
+            {"name":"Weston McKennie","jersey":8,"position":"M"},
+            {"name":"Tim Weah","jersey":21,"position":"M"},
+            {"name":"Giovanni Reyna","jersey":7,"position":"M"},
+            {"name":"Brenden Aaronson","jersey":11,"position":"M"},
+            {"name":"Ricardo Pepi","jersey":9,"position":"F"}
+          ]
+        }
+      }
+    },
+    {
+      "event_id": 15186891,
+      "home": "Paraguay", "away": "Australia",
+      "venue": "Levi's Stadium, Santa Clara",
+      "status": "not_started",
+      "stakes": {
+        "Paraguay": "3pts, GD -2 — NECESITA GANAR (no le sirve empate por GD inferior). 5-4-1 cauto.",
+        "Australia": "3pts, GD 0 — le basta EMPATE para clasificar 2do (mejor GD que Paraguay)."
+      },
+      "lineups": {
+        "Paraguay": {
+          "formation": "5-4-1",
+          "xi": [
+            {"name":"Orlando Gill","jersey":12,"position":"G"},
+            {"name":"Juan Cáceres","jersey":4,"position":"D"},
+            {"name":"Gustavo Velázquez","jersey":23,"position":"D"},
+            {"name":"Gustavo Gómez","jersey":2,"position":"D","captain":true},
+            {"name":"Omar Alderete","jersey":15,"position":"D"},
+            {"name":"Alexandro Maidana","jersey":3,"position":"D"},
+            {"name":"Diego Gómez","jersey":25,"position":"M"},
+            {"name":"Andrés Cubas","jersey":20,"position":"M"},
+            {"name":"Matías Galarza","jersey":88,"position":"M"},
+            {"name":"Julio Enciso","jersey":19,"position":"M"},
+            {"name":"Gabriel Ávalos","jersey":9,"position":"F"}
+          ]
+        },
+        "Australia": {
+          "formation": "3-4-2-1",
+          "gk_note": "Patrick Beach — rating 9.1 en J1 vs Turquia (GK outlier potencial)",
+          "xi": [
+            {"name":"Patrick Beach","jersey":1,"position":"G"},
+            {"name":"Alessandro Circati","jersey":39,"position":"D"},
+            {"name":"Harry Souttar","jersey":15,"position":"D","captain":true},
+            {"name":"Lucas Herrington","jersey":22,"position":"D"},
+            {"name":"Aziz Behich","jersey":16,"position":"M"},
+            {"name":"Aiden O'Neill","jersey":21,"position":"M"},
+            {"name":"Jackson Irvine","jersey":7,"position":"M"},
+            {"name":"Jordan Bos","jersey":18,"position":"M"},
+            {"name":"Connor Metcalfe","jersey":24,"position":"M"},
+            {"name":"Cristian Volpato","jersey":10,"position":"M"},
+            {"name":"Nestory Irankunda","jersey":66,"position":"F"}
+          ]
+        }
+      }
+    }
+  ]
+}
