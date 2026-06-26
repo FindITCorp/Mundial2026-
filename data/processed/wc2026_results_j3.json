@@ -4,8 +4,8 @@
   "source": "Sofascore API - verified live 2026-06-25",
   "last_updated": "2026-06-25",
   "jornada": 3,
-  "matches_finished": 8,
-  "matches_pending": 16,
+  "matches_finished": 10,
+  "matches_pending": 14,
   "matches": [
     {"event_id":15186829,"jornada":3,"group":"B","home":"Bosnia & Herzegovina","away":"Qatar","home_score":3,"away_score":1,"status":"finished"},
     {"event_id":15186821,"jornada":3,"group":"B","home":"Switzerland","away":"Canada","home_score":2,"away_score":1,"status":"finished"},
@@ -14,7 +14,9 @@
     {"event_id":15186732,"jornada":3,"group":"A","home":"Czechia","away":"Mexico","home_score":0,"away_score":3,"status":"finished","venue":"Estadio Azteca, Mexico City"},
     {"event_id":15186744,"jornada":3,"group":"A","home":"South Africa","away":"South Korea","home_score":1,"away_score":0,"status":"finished","venue":"Estadio BBVA, Monterrey","attendance":51243},
     {"event_id":15186972,"jornada":3,"group":"F","home":"Japan","away":"Sweden","home_score":1,"away_score":1,"status":"finished"},
-    {"event_id":15186973,"jornada":3,"group":"F","home":"Tunisia","away":"Netherlands","home_score":1,"away_score":3,"status":"finished","venue":"Arrowhead Stadium, Kansas City","attendance":70137}
+    {"event_id":15186973,"jornada":3,"group":"F","home":"Tunisia","away":"Netherlands","home_score":1,"away_score":3,"status":"finished","venue":"Arrowhead Stadium, Kansas City","attendance":70137},
+    {"event_id":15186887,"jornada":3,"group":"D","home":"Turkiye","away":"USA","home_score":3,"away_score":2,"status":"finished","venue":"SoFi Stadium, Los Angeles","fifa_match":"400021459","scorers":"Arda Guler 10', Baris Alper Yilmaz 31', Kaan Ayhan 90+8' / Trusty 3', Berhalter 49'"},
+    {"event_id":15186891,"jornada":3,"group":"D","home":"Paraguay","away":"Australia","home_score":0,"away_score":0,"status":"finished","venue":"Levi's Stadium, Santa Clara","fifa_match":"400021461","attendance":68827}
   ],
   "group_standings_after_j3": {
     "A": {
@@ -48,6 +50,17 @@
         {"team":"Morocco","played":3,"won":2,"drawn":1,"lost":0,"gf":6,"ga":1,"gd":5,"points":7,"status":"clasificado"},
         {"team":"Scotland","played":3,"won":1,"drawn":0,"lost":2,"gf":1,"ga":4,"gd":-3,"points":3,"status":"eliminado"},
         {"team":"Haiti","played":3,"won":0,"drawn":0,"lost":3,"gf":2,"ga":10,"gd":-8,"points":0,"status":"eliminado"}
+      ]
+    },
+    "D": {
+      "winner": "USA",
+      "runner_up": "Australia",
+      "note": "USA 6pts gana el grupo PESE A perder 2-3 con Turquia (ya tenia 1ro asegurado, roto y sin motivacion). Australia 4pts clasifica 2do por GD (0) sobre Paraguay (-2). Turquia (eliminada) gano 3-2 jugando LIBRE con su mejor XI (Arda Guler 8.6) pero su victoria no alcanzo: 4to. Paraguay 3ro eliminado pese a empatar.",
+      "teams": [
+        {"team":"USA","played":3,"won":2,"drawn":0,"lost":1,"gf":8,"ga":4,"gd":4,"points":6,"status":"clasificado"},
+        {"team":"Australia","played":3,"won":1,"drawn":1,"lost":1,"gf":2,"ga":2,"gd":0,"points":4,"status":"clasificado"},
+        {"team":"Paraguay","played":3,"won":1,"drawn":1,"lost":1,"gf":2,"ga":4,"gd":-2,"points":4,"status":"eliminado"},
+        {"team":"Turkiye","played":3,"won":1,"drawn":0,"lost":2,"gf":3,"ga":5,"gd":-2,"points":3,"status":"eliminado"}
       ]
     },
     "F": {

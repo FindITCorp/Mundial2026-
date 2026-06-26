@@ -364,6 +364,90 @@
         {"name":"Brian Brobbey","jersey":19,"position":"F","minutes":77,"rating":7.2,"goals":1,"assists":0,"started":true},
         {"name":"Cody Gakpo","jersey":11,"position":"F","minutes":84,"rating":6.3,"goals":0,"assists":0,"started":true}
       ]
+    },
+    {
+      "event_id": 15186887, "jornada": 3, "group": "D",
+      "home_team": "Turkiye", "away_team": "USA",
+      "team": "Turkiye", "formation": "3-4-2-1",
+      "result": "3-2",
+      "source": "Sofascore final",
+      "note": "Turquia ELIMINADA pero jugo su MEJOR XI libre de presion y gano. Arda Guler MVP 8.6 (gol). xG 3.01.",
+      "players": [
+        {"name":"Uğurcan Çakır","jersey":1,"position":"G","minutes":90,"rating":7.1,"goals":0,"assists":0,"started":true},
+        {"name":"Zeki Çelik","jersey":2,"position":"D","minutes":84,"rating":7.6,"goals":0,"assists":0,"started":true},
+        {"name":"Ozan Kabak","jersey":15,"position":"D","minutes":90,"rating":7.1,"goals":0,"assists":0,"started":true},
+        {"name":"Abdülkerim Bardakçı","jersey":14,"position":"D","minutes":90,"rating":6.7,"goals":0,"assists":0,"started":true},
+        {"name":"Oğuz Aydın","jersey":24,"position":"M","minutes":89,"rating":7.0,"goals":0,"assists":0,"started":true},
+        {"name":"Salih Özcan","jersey":5,"position":"M","minutes":90,"rating":7.2,"goals":0,"assists":0,"started":true},
+        {"name":"Orkun Kökçü","jersey":6,"position":"M","minutes":88,"rating":5.9,"goals":0,"assists":1,"started":true},
+        {"name":"Eren Elmalı","jersey":13,"position":"M","minutes":90,"rating":7.6,"goals":0,"assists":0,"started":true},
+        {"name":"Arda Güler","jersey":8,"position":"F","minutes":90,"rating":8.6,"goals":1,"assists":0,"started":true},
+        {"name":"Kenan Yıldız","jersey":11,"position":"F","minutes":84,"rating":6.9,"goals":0,"assists":0,"started":true},
+        {"name":"Barış Alper Yılmaz","jersey":21,"position":"F","minutes":89,"rating":7.4,"goals":1,"assists":1,"started":true}
+      ]
+    },
+    {
+      "event_id": 15186887, "jornada": 3, "group": "D",
+      "home_team": "Turkiye", "away_team": "USA",
+      "team": "USA", "formation": "4-3-3",
+      "result": "2-3",
+      "source": "Sofascore final",
+      "note": "USA ROTADA + ya 1ro asegurado + sin motivacion → defensa floja (Turner 5.9). Berhalter 8.2 (gol+asist), Trusty 7.3 (gol) pero no alcanzo.",
+      "players": [
+        {"name":"Matt Turner","jersey":1,"position":"G","minutes":90,"rating":5.9,"goals":0,"assists":0,"started":true},
+        {"name":"Joe Scally","jersey":23,"position":"D","minutes":77,"rating":6.3,"goals":0,"assists":0,"started":true},
+        {"name":"Miles Robinson","jersey":12,"position":"D","minutes":90,"rating":6.6,"goals":0,"assists":0,"started":true},
+        {"name":"Mark McKenzie","jersey":22,"position":"D","minutes":90,"rating":6.1,"goals":0,"assists":0,"started":true},
+        {"name":"Auston Trusty","jersey":6,"position":"D","minutes":90,"rating":7.3,"goals":1,"assists":0,"started":true},
+        {"name":"Weston McKennie","jersey":8,"position":"M","minutes":86,"rating":7.1,"goals":0,"assists":0,"started":true},
+        {"name":"Sebastián Berhalter","jersey":14,"position":"M","minutes":90,"rating":8.2,"goals":1,"assists":1,"started":true},
+        {"name":"Giovanni Reyna","jersey":7,"position":"M","minutes":76,"rating":6.3,"goals":0,"assists":0,"started":true},
+        {"name":"Brenden Aaronson","jersey":11,"position":"F","minutes":77,"rating":6.3,"goals":0,"assists":0,"started":true},
+        {"name":"Ricardo Pepi","jersey":9,"position":"F","minutes":90,"rating":6.1,"goals":0,"assists":0,"started":true},
+        {"name":"Tim Weah","jersey":21,"position":"F","minutes":58,"rating":5.9,"goals":0,"assists":0,"started":true}
+      ]
+    },
+    {
+      "event_id": 15186891, "jornada": 3, "group": "D",
+      "home_team": "Paraguay", "away_team": "Australia",
+      "team": "Paraguay", "formation": "5-3-2",
+      "result": "0-0",
+      "source": "Sofascore final",
+      "note": "Paraguay NECESITABA ganar pero salio cauto 5-3-2 y no genero (0.24 xG). Eliminado 3ro por GD. Orlando Gill GK 7.8.",
+      "players": [
+        {"name":"Orlando Gill","jersey":12,"position":"G","minutes":90,"rating":7.8,"goals":0,"assists":0,"started":true},
+        {"name":"Juan Cáceres","jersey":4,"position":"D","minutes":90,"rating":6.7,"goals":0,"assists":0,"started":true},
+        {"name":"Gustavo Velázquez","jersey":23,"position":"D","minutes":90,"rating":7.2,"goals":0,"assists":0,"started":true},
+        {"name":"Gustavo Gómez","jersey":2,"position":"D","minutes":90,"rating":7.1,"goals":0,"assists":0,"started":true},
+        {"name":"Omar Alderete","jersey":15,"position":"D","minutes":84,"rating":6.8,"goals":0,"assists":0,"started":true},
+        {"name":"Alexandro Maidana","jersey":3,"position":"D","minutes":45,"rating":6.6,"goals":0,"assists":0,"started":true},
+        {"name":"Diego Gómez","jersey":25,"position":"M","minutes":89,"rating":6.3,"goals":0,"assists":0,"started":true},
+        {"name":"Andrés Cubas","jersey":20,"position":"M","minutes":90,"rating":7.3,"goals":0,"assists":0,"started":true},
+        {"name":"Matías Galarza","jersey":88,"position":"M","minutes":89,"rating":7.4,"goals":0,"assists":0,"started":true},
+        {"name":"Gabriel Ávalos","jersey":9,"position":"F","minutes":67,"rating":6.5,"goals":0,"assists":0,"started":true},
+        {"name":"Julio Enciso","jersey":19,"position":"F","minutes":90,"rating":5.8,"goals":0,"assists":0,"started":true}
+      ]
+    },
+    {
+      "event_id": 15186891, "jornada": 3, "group": "D",
+      "home_team": "Paraguay", "away_team": "Australia",
+      "team": "Australia", "formation": "3-4-2-1",
+      "result": "0-0",
+      "source": "Sofascore final",
+      "note": "Australia le bastaba EMPATE → administro y clasifico 2da por GD. Patrick Beach GK 7.4. Defensa solida (Circati 7.5).",
+      "players": [
+        {"name":"Patrick Beach","jersey":1,"position":"G","minutes":90,"rating":7.4,"goals":0,"assists":0,"started":true},
+        {"name":"Alessandro Circati","jersey":39,"position":"D","minutes":90,"rating":7.5,"goals":0,"assists":0,"started":true},
+        {"name":"Harry Souttar","jersey":15,"position":"D","minutes":90,"rating":7.2,"goals":0,"assists":0,"started":true},
+        {"name":"Lucas Herrington","jersey":22,"position":"D","minutes":90,"rating":7.0,"goals":0,"assists":0,"started":true},
+        {"name":"Jordan Bos","jersey":18,"position":"M","minutes":90,"rating":7.3,"goals":0,"assists":0,"started":true},
+        {"name":"Aiden O'Neill","jersey":21,"position":"M","minutes":90,"rating":6.9,"goals":0,"assists":0,"started":true},
+        {"name":"Jackson Irvine","jersey":7,"position":"M","minutes":84,"rating":6.8,"goals":0,"assists":0,"started":true},
+        {"name":"Aziz Behich","jersey":16,"position":"M","minutes":90,"rating":6.7,"goals":0,"assists":0,"started":true},
+        {"name":"Cristian Volpato","jersey":10,"position":"F","minutes":58,"rating":5.9,"goals":0,"assists":0,"started":true},
+        {"name":"Connor Metcalfe","jersey":24,"position":"F","minutes":90,"rating":6.7,"goals":0,"assists":0,"started":true},
+        {"name":"Nestory Irankunda","jersey":66,"position":"F","minutes":84,"rating":6.4,"goals":0,"assists":0,"started":true}
+      ]
     }
   ]
 }

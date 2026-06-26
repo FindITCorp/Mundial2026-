@@ -1466,13 +1466,23 @@ def _gk_outlier_factor(conn, defending_team_id: int) -> float:
     return max(1.0 - _GK_OUTLIER_CAP, 1.0 - reduction)
 
 
-# ── Ajuste 2: Factor de eliminación (J3, equipo ya eliminado) ────────────────
-# Equipos matemáticamente eliminados en J3 sub-convierten vs su xG:
-# Qatar J3 (eliminado): xG 0.77 → 1 gol = 130% conv. PERO 3 partidos acumulados
-# 0.77+0.60+0.22=1.59 xG vs 2 goles (todos J2-J3 sin presión). Bosnia (con presión)
-# convirtió al 441% de 0.68 xG. La motivación importa.
-# Evidencia: −30% conversión para equipos eliminados (promedio 3 casos WC2026 grupos B/C).
-_ELIM_LAMBDA_PENALTY = 0.70   # equipo eliminado reduce su λ al 70%
+# ── Ajuste 2: Factor de eliminación (J3, equipo ya eliminado) — RECALIBRADO ───
+# RE-CALIBRACIÓN 25-jun (J3 completa, 7 equipos eliminados): el −30% original
+# estaba SOBREAJUSTADO a Qatar. La evidencia de los 7 eliminados desmiente la
+# penalización fuerte:
+#   Equipo     goles  xG    conv          Equipo     goles  xG    conv
+#   Qatar       1    0.77  1.30x          Tunisia     1    0.43  2.33x
+#   Haiti       2    0.66  3.03x          Turquía     3    3.01  1.00x  ← GANÓ 3-2 a USA
+#   Scotland    0    1.13  0.00x          Korea       0    0.90  0.00x
+#   Czechia     0    0.53  0.00x
+#   ─────────────────────────────────────────────────────────────────
+#   PROMEDIO:  1.00 gol / 1.06 xG  → conversión 0.94x (¡casi neutral!)
+# Conclusión: estar eliminado NO baja la media de goles 30%; SÍ sube la VARIANZA
+# (Turquía con su mejor XI y sin presión sobre-rinde; otros con equipo flojo
+# sub-rinden). Turquía 3.01 xG eliminada destruyó el ×0.70. Penalización suave de
+# media (−10%): el lever real es ROTACIÓN (Ajuste 4) e INCENTIVO (Ajuste 5), no
+# la eliminación per se. Un eliminado que pone su XI-A juega libre, no peor.
+_ELIM_LAMBDA_PENALTY = 0.90   # equipo eliminado: −10% media (antes 0.70, sobreajustado a Qatar)
 
 
 # ── Ajuste 4: Factor de rotación calibrado por brecha de Elo ──────────────────
