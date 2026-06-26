@@ -104,6 +104,23 @@ def team_profile(conn, team_id, stage="group"):
     dt = _avg([r["duels_total"] for r in rows]); dw = _avg([r["duels_won"] for r in rows])
     p["duel_win_pct"] = round(100 * dw / dt, 1) if dt and dw else None
 
+    # Córners a favor / concedidos. Validado 26-jun: los córners NO correlacionan con
+    # goles (r=0.23) pero sí con xG (r=0.55) → miden ASEDIO/dominio territorial, no
+    # eficacia. Muchos córners + baja conversión = chocar con un bloque bajo (crea y no
+    # convierte). corners_against alto + pocos goles concedidos = bloque que ABSORBE.
+    p["corners_for"] = _avg([r["corners"] for r in rows])
+    opp_corners = []
+    for r in rows:
+        ishome = r["home_team_id"] == team_id
+        opp_id = r["away_team_id"] if ishome else r["home_team_id"]
+        oc = conn.execute("""SELECT mts.corners FROM match_team_stats mts JOIN wc_matches w ON w.id=mts.match_id
+            WHERE mts.team_id=? AND ((w.home_team_id=? AND w.away_team_id=?) OR (w.home_team_id=? AND w.away_team_id=?))
+            ORDER BY w.date LIMIT 1""",
+            (opp_id, r["home_team_id"], r["away_team_id"], r["away_team_id"], r["home_team_id"])).fetchone()
+        if oc and oc[0] is not None:
+            opp_corners.append(oc[0])
+    p["corners_against"] = _avg(opp_corners)
+
     # Métricas DERIVADAS (lo que hace un analista)
     tot_xg = sum((r["xg"] or 0) for r in rows)
     p["conversion"] = round(gf / tot_xg, 2) if tot_xg else None         # gol/xG: >1 clínico, <1 falla
@@ -163,6 +180,17 @@ def _flags(p):
         f.append("RIESGO DE COLAPSO TARDÍO")
     if p.get("possession") is not None and p["possession"] < 38:
         f.append("JUEGA AL CONTRAGOLPE (baja posesión)")
+    # Córners / asedio — patrón validado 26-jun (n=11 favoritos): el que asedia (7+
+    # córners/p) con conversión <1.0 crea contra un bloque bajo pero NO convierte; es
+    # señal de VARIANZA (goleada o 0-0), no de nivel — se quedó en blanco 27% vs 4%.
+    cf = p.get("corners_for"); conv = p.get("conversion")
+    if cf is not None and cf >= 7 and conv is not None and conv < 1.0:
+        f.append(f"ASEDIO ESTÉRIL ({cf:.0f} córners/p, conversión {conv}: crea vs bloque bajo "
+                 f"pero no convierte → varianza alta, no fiar goleada)")
+    ca = p.get("corners_against"); mt = p.get("matches") or 0
+    if ca is not None and ca >= 7 and mt and p.get("ga") is not None and (p["ga"] / mt) <= 1.0:
+        f.append(f"BLOQUE QUE ABSORBE (concede {ca:.0f} córners/p pero solo "
+                 f"{p['ga']/mt:.1f} goles/p — defensa que aguanta el asedio)")
     # Patrones del MUNDIAL real (fifa_match_goals) — corrigen al histórico
     s = p.get("wc_scored"); c = p.get("wc_conceded")
     if s and sum(s) and (s[3] + s[4] + s[5]) > (s[0] + s[1] + s[2]):
@@ -184,7 +212,8 @@ def _fmt(p):
         f"  DEFENSA  xG concedido {g('xga')}/p · entradas {g('tackles')} · intercep {g('interceptions')} · "
         f"despejes {g('clearances')} · duelos ganados {g('duel_win_pct')}%\n"
         f"  PORTERO  paradas {g('saves')}/p · % paradas {g('save_pct')}%\n"
-        f"  ESTILO   posesión {g('possession')}% · pase {g('pass_pct')}%\n"
+        f"  ESTILO   posesión {g('possession')}% · pase {g('pass_pct')}% · "
+        f"córners {g('corners_for')}/p (concede {g('corners_against')}/p)\n"
         f"  TIMING   marca tarde(76-90) {g('scored_late')} · concede tarde {g('conceded_late')} · "
         f"fatiga_concede {g('fatigue_conceded')}"
     )
