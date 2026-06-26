@@ -1,0 +1,49 @@
+{
+  "tournament": "FIFA World Cup 2026",
+  "jornada": 3,
+  "group": "I",
+  "date": "2026-06-26",
+  "source": "Modelo + ajuste experto sobre ALINEACIONES CONFIRMADAS (FIFA live)",
+  "model_version": "expert_lineup_26jun",
+  "predictions": [
+    {
+      "match": "Norway vs France",
+      "fifa_match": "400021489",
+      "predicted_scoreline": "0-2",
+      "winner": "France",
+      "probs": {"home_norway": 12, "draw": 18, "away_france": 70},
+      "confirmed_lineups": {
+        "Norway": "3-6-1, XI B: Selvik(GK); Ostigard, Bjorkan, Falchener; Berg, Aursnes, Thorstvedt, Aasgaard, Schjelderup, Bobb; Strand Larsen. BANCA: Haaland, Odegaard, Sorloth, Nusa, Berge, Ryerson, Ajer.",
+        "France": "4-2-4 ofensivo: Maignan; Upamecano, Kounde, Theo Hernandez, Lacroix; Kone, Tchouameni; Dembele, Mbappe, Olise, Doue."
+      },
+      "factores": [
+        "DECISIVO: Noruega descansa TODO su ataque titular (Haaland/Odegaard/Sorloth/Nusa al banco) y plantea 3-6-1 para contener -> ya se siente clasificada (2o o mejor-3o). El historico del modelo (xG 2.36, conv 1.48) esta inflado por Haaland; lambda real de Noruega ~0.6-0.8, no 1.75.",
+        "Francia saca XI fuerte (Mbappe+Dembele+Olise+Doue) pese a estar 1a -> motivada a marcar.",
+        "Asedio/cornes (patron validado): Francia domina territorio vs bloque bajo pero la conversion regresa -> limita la goleada.",
+        "Dead rubber para Francia -> +varianza (puede relajarse). Comodin: si Noruega mete a Haaland/Sorloth tarde, amenaza en 76-90 (suplentes marcan 74% de sus goles ahi).",
+        "Porteria: Maignan solido; Noruega con Selvik (suplente)."
+      ],
+      "model_baseline": "1-3, Francia 70% (lambda 1.75-3.48) — ajustado a la baja la lambda de Noruega por XI sin Haaland.",
+      "rango": "Francia 1-0 a 3-0; Noruega 0-1 solo si suelta cracks tarde."
+    },
+    {
+      "match": "Senegal vs Iraq",
+      "fifa_match": "400021493",
+      "predicted_scoreline": "2-0",
+      "winner": "Senegal",
+      "probs": {"home_senegal": 68, "draw": 20, "away_iraq": 12},
+      "confirmed_lineups": {
+        "Senegal": "4-3-3: Diaw(GK); Seck, Jakobs, Diatta, Niakhate; Gueye, L.Camara, H.Diarra; Mane, Sarr, Mbaye.",
+        "Iraq": "4-3-3: Basil(GK); Sulaka, Hashim, Doski, Putros; Bayesh, Z.Iqbal, Alammari; Alhamadi, Qasem, Jasim."
+      },
+      "factores": [
+        "Senegal con Mane+Sarr+Gueye+Camara (competitivo) y NEEDS_WIN (caza 2o/mejor-3o) -> se vuelca.",
+        "Iraq el mas debil del grupo, sin nada real en juego. Ataque toxico: 0.72 xG/p, 6.7% precision de tiro, 0.5 tiros al arco/partido, conv 0.7.",
+        "Senegal concede mucho (6 GA en 2) PERO Iraq no puede explotarlo. GK de Iraq: 30% paradas (pesimo) -> Senegal marca 2+.",
+        "Ambos marcan tarde (76-90); Senegal letal ahi (0.5/p)."
+      ],
+      "model_baseline": "1-0, Senegal 61% (lambda 1.89-0.91) — subido medio gol a Senegal por fragilidad de Iraq.",
+      "rango": "Senegal 2-0 a 3-1; Iraq 0-1 a lo sumo."
+    }
+  ]
+}
