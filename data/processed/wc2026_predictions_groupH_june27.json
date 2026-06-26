@@ -1,0 +1,29 @@
+{
+  "tournament": "WC2026",
+  "jornada": 3,
+  "group": "H",
+  "generated": "2026-06-26",
+  "basis": "XI confirmado FIFA + analyze_match + predict_adjusted + ajuste experto",
+  "predictions": [
+    {
+      "match": "Cape Verde vs Saudi Arabia",
+      "pick": "Cape Verde 1-0",
+      "probs": {
+        "CV": 45,
+        "draw": 38,
+        "SA": 17
+      },
+      "key": "Ambos ataques pobres y necesitan ganar. CV mas clinico (conv 1.85) + Vozinha en racha; Saudi concede temprano (1-30). Bajo-anotacion, CV leve favorito."
+    },
+    {
+      "match": "Uruguay vs Spain",
+      "pick": "Spain 1-0",
+      "probs": {
+        "URU": 15,
+        "draw": 25,
+        "ESP": 60
+      },
+      "key": "Espana elite (0 GA, GK 100%) con XI fuerte (Yamal/Pedri/Rodri); Uruguay 3-6-1 cauto, asedio esteril (conv 0.74). Espana por clase pero ajustado; Uruguay peligro tardio 76-90."
+    }
+  ]
+}
