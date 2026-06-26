@@ -40,10 +40,30 @@ Refresca TODOS los datos (resultados→DB, FIFA lineups+goles, FDH 142 stats, ti
 - **Estándar:** analizar por PATRONES (choque de ventanas: cuándo ataca A vs cuándo se rompe B), NO por ranking. Defensa+delantera+medio+duelos+balón parado SIEMPRE, sin que lo pidan.
 - **Regresión de definición:** equipo que crea y no marca (sub-convierte) está "a deber" → peligroso. Fallo 25-jun: predije Alemania 0-2, ganó **Ecuador 2-1** marcando en min 9' y 77' (ventanas flojas de Alemania que identifiqué pero descarté por su sequía). Ya en `predict_adjusted.py`.
 
-### Predicciones J3 (25-jun) y resultados
-- ✅ **Curaçao 0-2 Costa de Marfil** (acerté exacto)
-- ❌ **Ecuador 2-1 Alemania** (predije Alemania; acerté el patrón, fallé el resultado)
-- ⏳ **Túnez 0-3 P. Bajos** y **Japón 2-1 Suecia** (18:00 — pendientes al cierre de sesión)
+### Predicciones J3 (25-jun) — SCORECARD COMPLETO (fase de grupos terminada)
+| Partido | Predicción | Real | Veredicto |
+|---|---|---|---|
+| Curaçao vs C. Marfil | CIV 2-1 | **0-2 CIV** | ✅ dirección |
+| Ecuador vs Alemania | Alemania | **2-1 Ecuador** | ❌ (acerté patrón, fallé) |
+| Túnez vs P. Bajos | NED 4-0 | **1-3 NED** | ✅ dirección |
+| Japón vs Suecia | Japón 2-1 | **1-1** | ❌→✅ con Ajuste 5 (incentivo) |
+| Chequia vs México | México | **0-3 México** | ✅ (mi override manual ❌) |
+| Sudáfrica vs Corea | — | **1-0 SAf** | — |
+| **Turquía vs USA** | USA 2-1 | **3-2 Turquía** | ❌ BOMBAZO (ver Ajuste 2 v2) |
+| **Paraguay vs Australia** | 1-1 Australia avanza | **0-0 Australia avanza** | ✅ dirección + incentivo exacto |
+
+**J3 fue alta varianza** (Sui>Can, Bos>Qat, Ecuador>Alemania, Turquía>USA — 4 upsets). El modelo acierta los patrones sistemáticos; los "dead rubbers" de J3 son ruidosos por diseño.
+
+### ⭐ APRENDIZAJE CLAVE 25-jun (tarde): el factor ELIMINACIÓN estaba mal
+**Turquía (ELIMINADA) ganó 3-2 a USA con xG 3.01** jugando su MEJOR XI (Arda Güler 8.6), libre de presión. Esto destruyó el factor de eliminación ×0.70.
+- **Evidencia de los 7 eliminados en J3:** promediaron **1.06 xG/partido y convirtieron 0.94×** (casi neutral), NO −30%.
+- **Recalibrado: `_ELIM_LAMBDA_PENALTY` 0.70 → 0.90** (commit `68d7fc1`). El ×0.70 estaba sobreajustado a Qatar.
+- A/B en Turquía-USA: viejo ×0.70 → P(USA)=47.9% (mal); nuevo ×0.90 → 37.5/39.3 (moneda al aire, correcto).
+- **Lección:** estar eliminado sube la VARIANZA, no baja la media. Un eliminado con XI-A juega libre, no peor. Los levers reales son ROTACIÓN (Ajuste 4) e INCENTIVO (Ajuste 5).
+
+### Estado del modelo (eval `scripts/evaluate_model.py`)
+- **63.8% accuracy / 127 partidos**, marcador exacto 15.0%, Brier 0.2997, log-loss 0.8204, escala λ ×1.002 (calibrada).
+- ⚠️ El script necesita `PYTHONIOENCODING=utf-8` en Windows (si no, UnicodeEncodeError en cp1252).
 
 ---
 
@@ -122,31 +142,33 @@ En `models/match_predictor.py`:
 
 1. **GK Outlier Factor** (`_gk_outlier_factor`): GK con rating WC ≥ 8.5 reduce λ rival, escala continua 1.5%/décima, cap −25%, shrinkage k=2.
    - Evidencia: Kobel 8.9, Vozinha 9.7, Beiranvand 9.8, Eloy Room 10.0.
-2. **Factor de eliminación** (params `home_eliminated`/`away_eliminated`): equipo eliminado → λ × 0.70 (−30%).
-   - Evidencia: Qatar eliminado convirtió mal; Bosnia con presión convirtió 441% xG.
+2. **Factor de eliminación** (params `home_eliminated`/`away_eliminated`): equipo eliminado → λ × **0.90** (−10%). **RECALIBRADO 25-jun tarde** (commit `68d7fc1`): era 0.70 (−30%) pero estaba sobreajustado a Qatar. Los 7 eliminados de J3 promediaron 1.06 xG y convirtieron 0.94× → casi neutral. Turquía (eliminada) ganó 3-2 a USA con xG 3.01. Estar eliminado sube la VARIANZA, no baja la media.
 3. **Cap de conversión ampliado** (`_FINISH_CAP` 0.10 → 0.20): captura equipos sistemáticamente clínicos (Marruecos 1.23× xG).
-4. **Factor de rotación calibrado** (`_rotation_factor`, params `home_rotation_expected`/`away_rotation_expected`) — **NUEVO 25-jun (esta sesión)**: equipo que rota su XI reduce su λ propia, pero solo según la brecha de Elo con el rival. `rotation_penalty = base × (1 − clamp(signed_gap/FULLPASS,0,1))`, `signed_gap = elo_propio − elo_rival`. Dominante (gap ≥ 300) rota gratis; parejos pagan hasta −25%. Constantes env-tunables: `WC_ROTATION_PENALTY` (def 0.25), `WC_ROTATION_FULLPASS` (def 300). Opt-in (default factor=1.0, no rompe nada). Verificado: México(gap≈98) rota → −17%; Australia(parejo) → −22%.
-   - ⚠️ Pendiente de calibrar `FULLPASS`: con 300, México (gap modelo ≈98) aún recibe −17%, y la realidad fue 0-3 (México dominó MÁS). Puede que 300 sea muy conservador → considerar bajarlo a ~200 con más evidencia.
+4. **Factor de rotación calibrado** (`_rotation_factor`, params `home_rotation_expected`/`away_rotation_expected`) — **NUEVO 25-jun**: equipo que rota su XI reduce su λ propia, pero solo según la brecha de Elo con el rival. `rotation_penalty = base × (1 − clamp(signed_gap/FULLPASS,0,1))`, `signed_gap = elo_propio − elo_rival`. Dominante (gap ≥ 300) rota gratis; parejos pagan hasta −25%. Constantes env-tunables: `WC_ROTATION_PENALTY` (def 0.25), `WC_ROTATION_FULLPASS` (def 300). Opt-in (default factor=1.0). ⚠️ Pendiente calibrar `FULLPASS` (con 300, México gap≈98 recibe −17% pero ganó 0-3 → 300 puede ser muy conservador, bajar a ~200).
+5. **Factor de incentivo de tabla** (`_incentive_factor`, params `home_incentive`/`away_incentive`) — **NUEVO 25-jun tarde** (commit `97b07dd`): ACOTADO a ±6% y SOLO fase de grupos (en knockout devuelve 1.0). Pedido del dueño: "no determinante, algo para el final del partido". Casos: `draw_enough` ×0.94 (le basta empate, administra), `needs_win` ×1.03 (se vuelca), `fighting_first` ×1.02 (titulares por 1er lugar), `neutral` ×1.0.
+   - **Validado:** Japón 1-1 Suecia (Japón `draw_enough` no forzó pese a xG superior → mi fallo 2-1 se corrige a empate); Paraguay 0-0 Australia (Australia `draw_enough` administró, Paraguay `needs_win` con 5-3-2 no rompió → predije exacto la dirección).
 
-Los 4 factores se exponen en `result["_factors"]` para auditoría (incl. `rotation_factor_home/away`).
+Los 5 factores se exponen en `result["_factors"]` para auditoría (incl. `rotation_factor_*`, `incentive_factor_*`, `elim_factor_*`).
 
 ---
 
 ## 5. Ajustes PROPUESTOS pendientes de implementar (siguiente sesión)
 
-### Validación pendiente
-- Evaluar las 6 predicciones del 25-jun (Grupos D/E/F) en `wc2026_predictions_j3_june25.json` cuando terminen.
-- Atención especial: Turquía vs USA (predije que USA podría empatar si rota mucho — mismo riesgo que el error de México; ver si USA-rotado aplasta a Turquía igual que México a Chequia).
+### Idea pendiente — VARIANZA en dead rubbers
+Estar eliminado/clasificado sube la varianza del marcador (no la media). Considerar:
+en partidos sin nada en juego para uno o ambos, AUMENTAR la dispersión NB (bajar `disp_r`)
+en vez de tocar la media. Capturaría tanto los Turquía 3-2 como los Korea 0-1.
 
 ---
 
 ## 6. Tareas pendientes (TODO)
 
-1. [ ] Cuando terminen los partidos del 25-jun (D/E/F), bajar resultados/stats/lineups y evaluar vs `wc2026_predictions_j3_june25.json`.
-2. [ ] Completar J3 grupos D-L en los archivos de resultados/stats/lineups.
-3. [x] ~~Implementar **Ajuste 4 (rotación calibrada)** en `match_predictor.py`.~~ ✅ HECHO 25-jun (ver §4.4). Pendiente: cablear en flujo de predicción cuando se decida qué equipos marcar como rotación, y calibrar `FULLPASS` con datos reales.
-4. [ ] Generar `wc2026_standings_after_j3.json` con los 12 grupos finales de fase de grupos.
-5. [ ] Determinar los 8 mejores terceros (clasifican a dieciseisavos en formato 48 equipos).
+1. [x] ~~Evaluar predicciones 25-jun (D/E/F)~~ ✅ HECHO — scorecard en §"Predicciones J3" arriba.
+2. [ ] Completar J3 grupos **E (parcial), G, H, I, J, K, L** en results/stats/lineups (faltan ~14 partidos de J3). Grupos A,B,C,D,F ✅ completos.
+3. [x] ~~Implementar **Ajuste 4 (rotación calibrada)**~~ ✅ + **Ajuste 5 (incentivo)** ✅ + **recalibración Ajuste 2** ✅ (25-jun tarde). Pendiente: calibrar `ROTATION_FULLPASS`.
+4. [ ] Generar `wc2026_standings_after_j3.json` con los 12 grupos finales (clasificados de cada grupo).
+5. [ ] Determinar los **8 mejores terceros** (formato 48 equipos: 12 primeros + 12 segundos + 8 mejores terceros = 32 a dieciseisavos).
+6. [ ] Cablear `sync_results_to_db.py` + `sync_stats_to_db.py` en `daily_pipeline.sh`/`matchday.py` para que el sync a DB no se olvide (bug de raíz recurrente).
 
 ---
 
