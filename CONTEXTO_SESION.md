@@ -8,9 +8,15 @@
 > Sudáfrica en Grupo A (GA 2→3); nombres canónicos en wc_matches+match_predictions
 > (Czechia/Curacao). Modelo NO tocado: backtest 535 partidos da 63.7% acc, λ×1.002
 > (bien calibrado); factor veterano neutro pero se mantiene por señal de torneo.
-> Gap conocido: 3/60 partidos sin xG (FIFA no lo da) — el modelo lo tolera. **Pendiente
-> real: solo faltan resultados G-L, que se juegan 26-28 jun. Esperar alineaciones
-> oficiales antes de predecir.**
+> **xG COMPLETADO 26-jun (commit `f54ffd0`):** los 3 partidos FIFA-only sin xG (Ecuador-Alemania,
+> Curaçao-CIV, España-Saudí) se bajaron de Sofascore vía Playwright (intercepta XHR del SPA;
+> el muro Cloudflare bloquea acceso directo y el Chrome MCP bloquea el dominio). Carga
+> FILL-ONLY (solo NULLs, sin sobrescribir FIFA). **Cobertura xG ahora 60/60.** Bonus: fix
+> `is_home` (3 partidos lo tenían =1 en ambos equipos → corrompía conversión) + causa raíz en
+> `fetch_fifa_stats.py`. **Pendiente real: solo faltan resultados G-L, que se juegan 26-28 jun.
+> Para bajar Sofascore de G-L: descubrir URLs con `scratchpad/discover_urls.py` (intercepta
+> scheduled-events/{fecha}) → `scripts/fetch_sofascore_pw.py URL...` → parse fill-only.
+> Esperar alineaciones oficiales antes de predecir.**
 
 ---
 
@@ -105,7 +111,7 @@ El endpoint `/event/{id}/lineups` **a veces devuelve marcador incorrecto** (ej. 
 | `data/processed/wc2026_standings_after_j2.json` | Tabla 12 grupos tras J2 | ✅ Completo |
 | `data/lineups/wc2026_lineups_j1_j2.json` | Alineaciones+ratings J1+J2 | ✅ Completo |
 | `data/processed/wc2026_results_j3.json` | J3: **12 partidos terminados** (Grupos A-F completos) | 🔄 Parcial — faltan G,H,I,J,K,L |
-| `data/processed/wc2026_match_stats_j3.json` | Stats J3 (10 entradas; Grupo E vive en DB, no en JSON) | 🔄 Parcial |
+| `data/processed/wc2026_match_stats_j3.json` | Stats J3 (12 entradas, Grupos A-F con xG) | ✅ A-F completo |
 | `data/lineups/wc2026_lineups_j3.json` | Alineaciones J3 (Grupos A,B,C) | 🔄 Parcial |
 | `data/processed/wc2026_predictions_j3_june25.json` | Predicciones Grupos D/E/F del 25-jun | ✅ Pendiente de evaluar vs resultado real |
 
