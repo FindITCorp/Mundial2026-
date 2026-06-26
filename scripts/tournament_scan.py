@@ -234,6 +234,9 @@ def _flags(p, field):
     # dependencia de balón parado
     if (p.get("pct_balon_parado") or 0) >= 35:
         out.append(f"DEPENDE DEL BALÓN PARADO ({p.get('pct_balon_parado')}% de sus remates) → si no hay faltas/córners, se apaga")
+    # amenaza aérea / por centros — vía clave para batir defensas élite (set pieces/área)
+    if (pc("remates_cabeza") or 0) >= 80 and (pc("centros") or 0) >= 75:
+        out.append("AMENAZA AÉREA Y POR CENTROS (cabezazos y centros élite) → puede batir defensas sólidas a balón parado/área, donde el dominio de proceso del rival importa menos")
     # presiona pero no recupera rápido
     if (pc("presiones") or 0) >= 70 and (inv("t_recuperacion") or 100) <= 35:
         out.append("PRESIONA MUCHO pero tarda en recuperar → presión poco efectiva, vulnerable a la salida")
