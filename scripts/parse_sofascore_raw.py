@@ -15,6 +15,9 @@ Empareja el partido por team_id (Sofascore) → wc_matches. Idempotente (UPSERT)
 Uso:
     python scripts/parse_sofascore_raw.py            # parsea todos los dirs en sofascore_raw
     python scripts/parse_sofascore_raw.py 15186732   # solo ese event
+    python scripts/parse_sofascore_raw.py 15186907 --fill-only   # SOLO rellena columnas
+        # NULL (no sobrescribe lo que ya vino de FIFA) — para completar xG/regates en
+        # partidos cargados solo desde FIFA. Ver discover_sofascore_urls.py + fetch_sofascore_pw.py.
 """
 import json
 import re
@@ -27,7 +30,10 @@ DB = BASE_DIR / "data" / "mundial2026.db"
 RAW = BASE_DIR / "data" / "sofascore_raw"
 
 # nombre Sofascore -> teams.name DB (por si hace falta resolver por nombre)
-NAME = {"Czech Republic": "Czechia", "Curaçao": "Curacao", "Türkiye": "Turkey"}
+NAME = {"Czech Republic": "Czechia", "Curaçao": "Curacao", "Türkiye": "Turkey",
+        "Côte d'Ivoire": "Ivory Coast", "Cote d'Ivoire": "Ivory Coast",
+        "Cabo Verde": "Cape Verde", "Congo DR": "DR Congo", "IR Iran": "Iran",
+        "Korea Republic": "South Korea", "United States": "USA"}
 
 # stat de Sofascore -> columna match_team_stats. Tipo: num | pct | pair (x/y)
 STATMAP = {
@@ -113,16 +119,25 @@ def parse_statistics(stats_json):
     return out
 
 
-def _upsert_team(conn, match_id, team_id, is_home, vals):
+def _upsert_team(conn, match_id, team_id, is_home, vals, fill_only=False):
+    """fill_only=True: solo escribe columnas que están en NULL (no sobrescribe lo que
+    ya vino de FIFA/otra fuente). Útil para completar xG/regates en partidos FIFA-only."""
     if not vals:
         return
     row = conn.execute(
-        "SELECT id FROM match_team_stats WHERE match_id=? AND team_id=?",
+        "SELECT * FROM match_team_stats WHERE match_id=? AND team_id=?",
         (match_id, team_id)).fetchone()
     if row:
-        sets = ", ".join(f"{c}=?" for c in vals)
+        cols = [d[1] for d in conn.execute("PRAGMA table_info(match_team_stats)")]
+        rowd = dict(zip(cols, row))
+        rid = rowd["id"]
+        writable = {c: v for c, v in vals.items()
+                    if not fill_only or rowd.get(c) is None}
+        if not writable:
+            return
+        sets = ", ".join(f"{c}=?" for c in writable)
         conn.execute(f"UPDATE match_team_stats SET {sets} WHERE id=?",
-                     (*vals.values(), row[0]))
+                     (*writable.values(), rid))
     else:
         cols = ["match_id", "team_id", "is_home", *vals.keys()]
         conn.execute(
@@ -137,7 +152,7 @@ def _db_team_id(conn, sofa_team):
     return r[0] if r else None
 
 
-def parse_event(conn, ev_dir: Path):
+def parse_event(conn, ev_dir: Path, fill_only=False):
     ev_file = ev_dir / "event.json"
     st_file = ev_dir / "statistics.json"
     if not ev_file.exists() or not st_file.exists():
@@ -155,22 +170,24 @@ def parse_event(conn, ev_dir: Path):
     mid = row[0]
     stats = json.loads(st_file.read_text(encoding="utf-8"))
     parsed = parse_statistics(stats)
-    _upsert_team(conn, mid, hid, True, parsed["home"])
-    _upsert_team(conn, mid, aid, False, parsed["away"])
+    _upsert_team(conn, mid, hid, True, parsed["home"], fill_only=fill_only)
+    _upsert_team(conn, mid, aid, False, parsed["away"], fill_only=fill_only)
     nrich = len(parsed["home"])
-    return f"{ev_dir.name}: {ev['homeTeam']['name']} vs {ev['awayTeam']['name']} → {nrich} stats/equipo cargados"
+    tag = " [fill-only]" if fill_only else ""
+    return f"{ev_dir.name}{tag}: {ev['homeTeam']['name']} vs {ev['awayTeam']['name']} → {nrich} stats/equipo"
 
 
-def run(event_ids=None, db_path=DB):
+def run(event_ids=None, db_path=DB, fill_only=False):
     conn = sqlite3.connect(str(db_path))
     dirs = ([RAW / str(e) for e in event_ids] if event_ids
             else [d for d in RAW.iterdir() if d.is_dir()]) if RAW.exists() else []
     for d in dirs:
-        print("  " + parse_event(conn, d))
+        print("  " + parse_event(conn, d, fill_only=fill_only))
     conn.commit()
     conn.close()
 
 
 if __name__ == "__main__":
-    ids = sys.argv[1:] or None
-    run(event_ids=ids)
+    fill = "--fill-only" in sys.argv
+    ids = [a for a in sys.argv[1:] if not a.startswith("--")] or None
+    run(event_ids=ids, fill_only=fill)
