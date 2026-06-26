@@ -110,7 +110,8 @@ def sync(db_path=DB, verbose=True):
                     if r:
                         conn.execute(f"UPDATE match_team_stats SET {col}=COALESCE({col},?) WHERE id=?", (v, r[0]))
                     else:
-                        conn.execute(f"INSERT INTO match_team_stats (match_id,team_id,{col}) VALUES (?,?,?)", (mid, tid, v))
+                        is_home = 1 if tid == hid else 0
+                        conn.execute(f"INSERT INTO match_team_stats (match_id,team_id,is_home,{col}) VALUES (?,?,?,?)", (mid, tid, is_home, v))
                     filled += 1
     conn.commit()
     conn.close()
