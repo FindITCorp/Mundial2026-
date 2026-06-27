@@ -2,10 +2,10 @@
   "tournament": "FIFA World Cup 2026",
   "season_id": 58210,
   "source": "Sofascore API - verified live 2026-06-25",
-  "last_updated": "2026-06-25",
+  "last_updated": "2026-06-27",
   "jornada": 3,
-  "matches_finished": 12,
-  "matches_pending": 12,
+  "matches_finished": 18,
+  "matches_pending": 6,
   "matches": [
     {"event_id":15186908,"jornada":3,"group":"E","home":"Curacao","away":"Cote d'Ivoire","home_score":0,"away_score":2,"status":"finished","date":"2026-06-25"},
     {"event_id":15186907,"jornada":3,"group":"E","home":"Ecuador","away":"Germany","home_score":2,"away_score":1,"status":"finished","date":"2026-06-25"},
@@ -18,7 +18,13 @@
     {"event_id":15186972,"jornada":3,"group":"F","home":"Japan","away":"Sweden","home_score":1,"away_score":1,"status":"finished"},
     {"event_id":15186973,"jornada":3,"group":"F","home":"Tunisia","away":"Netherlands","home_score":1,"away_score":3,"status":"finished","venue":"Arrowhead Stadium, Kansas City","attendance":70137},
     {"event_id":15186887,"jornada":3,"group":"D","home":"Turkiye","away":"USA","home_score":3,"away_score":2,"status":"finished","venue":"SoFi Stadium, Los Angeles","fifa_match":"400021459","scorers":"Arda Guler 10', Baris Alper Yilmaz 31', Kaan Ayhan 90+8' / Trusty 3', Berhalter 49'"},
-    {"event_id":15186891,"jornada":3,"group":"D","home":"Paraguay","away":"Australia","home_score":0,"away_score":0,"status":"finished","venue":"Levi's Stadium, Santa Clara","fifa_match":"400021461","attendance":68827}
+    {"event_id":15186891,"jornada":3,"group":"D","home":"Paraguay","away":"Australia","home_score":0,"away_score":0,"status":"finished","venue":"Levi's Stadium, Santa Clara","fifa_match":"400021461","attendance":68827},
+    {"jornada":3,"group":"G","home":"New Zealand","away":"Belgium","home_score":1,"away_score":5,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-26"},
+    {"jornada":3,"group":"G","home":"Egypt","away":"Iran","home_score":1,"away_score":1,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-26"},
+    {"jornada":3,"group":"H","home":"Uruguay","away":"Spain","home_score":0,"away_score":1,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-26"},
+    {"jornada":3,"group":"H","home":"Cabo Verde","away":"Saudi Arabia","home_score":0,"away_score":0,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-26"},
+    {"jornada":3,"group":"I","home":"Senegal","away":"Iraq","home_score":5,"away_score":0,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-26"},
+    {"jornada":3,"group":"I","home":"Norway","away":"France","home_score":1,"away_score":4,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-26"}
   ],
   "group_standings_after_j3": {
     "A": {

@@ -1,11 +1,26 @@
 # Contexto de Sesión — Pool Mundial 2026 "Kike"
 
 > **Documento de handoff.** Lee esto primero para retomar el trabajo sin perder nada.
-> Última actualización: **2026-06-26 (sesión: datos por jugador 60/60 + pronósticos J3 G/H/I + análisis integral)**
+> Última actualización: **2026-06-27 (sesión: resultados G/H/I cargados + evaluados 4/6 + J/K/L pendientes esta noche)**
 
 ---
 
-## 🆕 EMPEZAR AQUÍ (resumen para chat nuevo — 26-jun)
+## 🆕 EMPEZAR AQUÍ (resumen para chat nuevo — 27-jun)
+
+**RESULTADOS G/H/I CARGADOS Y EVALUADOS (27-jun).** Los 6 partidos de 26-jun entraron a `wc_matches` (66/72 grupos), pipeline FIFA/FDH/timing/perfiles corrido, integridad OK (GF=GA por grupo, xG 294 filas). **Scorecard G/H/I = 4/6 ganador:** ✅ NZ 1-5 Bélgica · ✅ Uruguay 0-1 España · ✅ Senegal 5-0 Iraq · ✅ Noruega 1-4 Francia · ❌ Egipto 1-1 Irán (empate que marqué por Beiranvand) · ❌ Cabo Verde 0-0 Saudí (el "0-0 gemelo" anotado). Ambos fallos fueron empates ya señalados como escenario alterno. **Modelo: 63.9% acc / 133 partidos, λ×1.003 (bien calibrado), Brier 0.2949.**
+
+**PENDIENTE HOY (27-jun) — última jornada de grupos, todos status 1 (XI sale ~1h antes):**
+- **21:00 Grupo L:** Panamá vs Inglaterra (match 400021508) · Croacia vs Ghana (400021509)
+- **23:30 Grupo K:** Congo DR vs Uzbekistán (400021500) · Colombia vs Portugal (400021505)
+- **28-jun 02:00 Grupo J:** Argelia vs Austria (400021497) · Jordania vs Argentina (400021495)
+- **28-jun 19:00 🏆 EMPIEZAN DIECISEISAVOS:** Sudáfrica vs Canadá (400021518, stage 289287)
+- Hay pronósticos PRELIMINARES sellados para J/K/L (evaluated=0) SIN flujo experto — refinarlos con tournament_scan+analyze+ajuste por XI cuando salgan alineaciones.
+
+**PRÓXIMO HITO:** generar standings finales de grupos + 8 mejores terceros + bracket de dieciseisavos (empieza 28-jun 19:00).
+
+---
+
+## 🗄️ EMPEZAR AQUÍ (resumen anterior — 26-jun)
 
 **Datos: COMPLETOS.** match_team_stats 60/60 (equipo) Y match_player_stats 60/60 (jugador: rating, goles, asistencias, minutos, titular/suplente). player_ratings actualizado (+1396). Todo commiteado.
 
