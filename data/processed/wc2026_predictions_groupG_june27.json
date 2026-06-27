@@ -1,0 +1,29 @@
+{
+  "tournament": "WC2026",
+  "jornada": 3,
+  "group": "G",
+  "generated": "2026-06-26",
+  "basis": "XI confirmado + tournament_scan (ambos lados) + analyze_match + ajuste experto",
+  "predictions": [
+    {
+      "match": "New Zealand vs Belgium",
+      "pick": "Belgium 3-0",
+      "probs": {
+        "NZ": 4,
+        "draw": 8,
+        "BEL": 88
+      },
+      "key": "Belgica crea ELITE pero sub-convierte 0.32x (goles a deber, xG en alza); NZ filtra atras; Belgica obligada a ganar con XI fuerte -> regresion explota. Modelo 0-4 96%."
+    },
+    {
+      "match": "Egypt vs Iran",
+      "pick": "Egypt 1-0",
+      "probs": {
+        "EGY": 42,
+        "draw": 33,
+        "IRN": 25
+      },
+      "key": "Evolutivo: Egipto sube (xG 1.1->1.9, Salah, clinico) / Iran baja (1.5->0.6, ataque toothless 5-4-1). Defensa irani fragil por proceso (7.5 a puerta/p) pero Beiranvand 86.7% la maquilla -> marcador bajo. 0-0 si el GK repite (empate 33%). Modelo se inclinaba a Iran; override por dato evolutivo."
+    }
+  ]
+}
