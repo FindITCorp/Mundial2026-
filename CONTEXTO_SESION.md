@@ -1,7 +1,34 @@
 # Contexto de Sesión — Pool Mundial 2026 "Kike"
 
 > **Documento de handoff.** Lee esto primero para retomar el trabajo sin perder nada.
-> Última actualización: **2026-06-26 (auditoría de integridad de datos)**
+> Última actualización: **2026-06-26 (sesión: datos por jugador 60/60 + pronósticos J3 G/H/I + análisis integral)**
+
+---
+
+## 🆕 EMPEZAR AQUÍ (resumen para chat nuevo — 26-jun)
+
+**Datos: COMPLETOS.** match_team_stats 60/60 (equipo) Y match_player_stats 60/60 (jugador: rating, goles, asistencias, minutos, titular/suplente). player_ratings actualizado (+1396). Todo commiteado.
+
+**HERRAMIENTAS NUEVAS (usar siempre):**
+- `scripts/tournament_scan.py [equipo] | --qualified` — **análisis INTEGRAL, EVOLUTIVO y auto-actualizable**. Mina los 142 stats FDH (remates por zona, rupturas de líneas, presiones, balón parado, portería) → percentil vs el campo + tendencia J1→J2→J3 + auto-flags (sobre/sub-conversión, dependencia de balón parado, amenaza aérea, defensa/ataque élite por proceso, posesión estéril). **Correr para AMBOS contrincantes antes de cada predicción.**
+- `scripts/parse_sofascore_players.py [ids] [--force]` — crudo Sofascore /lineups → match_player_stats (fill-only, idempotente).
+- `scripts/discover_sofascore_urls.py {fechas}` — auto-descubre URLs Sofascore interceptando scheduled-events.
+- `scripts/analyze_match.py "A" "B"` — ventanas de ataque/concesión, defensa, timing, córners + FORMA reciente (incl. amistosos).
+
+**ESTÁNDAR DE ANÁLISIS (pedido del dueño, OBLIGATORIO — ver memoria [[mundial2026-analisis-exhaustivo]]):** (1) Datos del Mundial PRIMARIOS, amistosos solo rectifican/confirman. (2) PROCESO, no solo goles (20 tiros-1 gol ≠ 1 tiro-1 gol). (3) EVOLUTIVO (tendencia por jornada). (4) Escanear AMBOS contrincantes (el cruce de perfiles es donde está la predicción). (5) Comparador de RIVALES COMUNES. (6) Rigor no complaciente (revisar al alza/baja según datos). (7) ⚠️ Sofascore bloquea IP tras varias sesiones Playwright — bajar 1 sesión/jornada, cambiar de red si bloquea.
+
+**FLUJO POR PARTIDO (cuando salen alineaciones, ~1h antes):** bajar XI confirmado de FIFA live (`live/football/17/285023/{stage}/{match}`, Status==1=titular) → cargar en fifa_lineups → `tournament_scan` ambos → `analyze_match` → `predict_adjusted` con incentivos → ajuste experto (lo que el modelo no capta: XI debilitado, etc.) → sellar en match_predictions.
+
+**PRONÓSTICOS J3 YA SELLADOS (evaluated=0, evaluar cuando terminen):**
+- **G:** Bélgica 3-0 NZ (88%) · Egipto 1-0 Irán (42%, empate 33% por Beiranvand)
+- **H:** España 2-0 Uruguay (68%) · Cabo Verde 1-0 Saudí (46%, 0-0 gemelo)
+- **I:** Francia 2-0 Noruega (70%, Noruega rotó TODO: sin Haaland/Ødegaard, ya clasificada) · Senegal 2-0 Iraq (intrascendente, ambos eliminados)
+
+**PENDIENTE:** J/K/L se juegan 27-jun → cuando salgan XI, aplicar el flujo. Evaluar resultados de G/H/I (hoy) y G-L con `evaluate_model.py`. Generar standings_after_j3 + 8 mejores terceros cuando termine la fase.
+
+**Hallazgos clave del scan (descontar/ojo en knockouts):** Alemania xG en caída 4.2→1.9→0.7 pese a ser 1ª; Japón/México sobre-convierten (regresan); P.Bajos depende de balón parado (45%); SudÁfrica/Australia presionan sin recuperar; Bélgica sub-convierte brutal (goles a deber); España élite por proceso ambos lados.
+
+---
 
 > **Auditoría 26-jun (commit `d35882c`):** Grupo E añadido a results JSON; `wc_goal_timing`
 > reconstruido (A-F ahora a 3 partidos; D y F se habían quedado en 2); corregido GD de
@@ -179,7 +206,9 @@ en vez de tocar la media. Capturaría tanto los Turquía 3-2 como los Korea 0-1.
 ## 6. Tareas pendientes (TODO)
 
 1. [x] ~~Evaluar predicciones 25-jun (D/E/F)~~ ✅ HECHO — scorecard en §"Predicciones J3" arriba.
-2. [ ] Completar J3 grupos **G, H, I, J, K, L** (12 partidos, se juegan 26-28 jun) en results/stats/lineups. Grupos A,B,C,D,E,F ✅ completos. (Grupo E cerrado 26-jun: Alemania 1ro GD+6, Costa de Marfil 2do GD+2, Ecuador 3ro 4pts, Curaçao elim.)
+2. [ ] **Capturar RESULTADOS J3** conforme se jueguen (G/H/I hoy 26-jun; J/K/L 27-jun) → sync a DB (`sync_results_to_db.py`, `sync_stats_to_db.py`) → bajar Sofascore (proceso por jugador) con discover→fetch→parse_sofascore_players. Datos J1-J2 de TODOS los grupos ya completos (60/60 equipo y jugador).
+   - [ ] **Pronosticar J/K/L** cuando salgan alineaciones (flujo completo, ver "EMPEZAR AQUÍ"). G/H/I ya pronosticados y sellados.
+   - [ ] **Evaluar** pronósticos G/H/I/J/K/L vs resultado real (`evaluate_model.py`).
 3. [x] ~~Implementar **Ajuste 4 (rotación calibrada)**~~ ✅ + **Ajuste 5 (incentivo)** ✅ + **recalibración Ajuste 2** ✅ (25-jun tarde). Pendiente: calibrar `ROTATION_FULLPASS`.
 4. [ ] Generar `wc2026_standings_after_j3.json` con los 12 grupos finales (clasificados de cada grupo).
 5. [ ] Determinar los **8 mejores terceros** (formato 48 equipos: 12 primeros + 12 segundos + 8 mejores terceros = 32 a dieciseisavos).
