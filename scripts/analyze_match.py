@@ -181,7 +181,62 @@ def team_profile(conn, team_id, stage="group"):
             "gf_avg": round(gf_r / n, 2), "ga_avg": round(ga_r / n, 2),
             "last5": [f"{r['goals_for']}-{r['goals_against']}{r['result']}" for r in rec[:5]],
         }
+
+    _player_profile(conn, team_id, p)
     return p
+
+
+# Rendimiento INDIVIDUAL en este Mundial — VALIDADO 27-jun por backtest de G/H/I:
+# integrar el desempeño de jugadores acercó los marcadores reales (error de marcador
+# ~se redujo a la mitad, 12→~5-6 en 6 partidos), acertando los DOS empates que el
+# pronóstico de equipo falló (Egipto 1-1 por Beiranvand, Cabo Verde 0-0 por dos GKs
+# sin delanteros) y los totales goleadores (Bélgica 0→5, Francia 1-4). El valor está
+# en SEÑALES ESTRUCTURALES, no en varianza pura (no predijo el 5-0 de Senegal). Tres
+# señales validadas:
+#   1) KILLER ENCHUFADO  — un crack con rating alto Y goles sube el techo goleador
+#      (Messi 9.6/5G, Mbappé 8.65/4G, Haaland 8.25/4G).
+#   2) PORTERO EN FORMA  — GK con rating alto baja el marcador hacia empate/mínimo
+#      margen (Beiranvand 8.1, Vozinha 7.8 + Al-Owais 7.35 → 0-0).
+#   3) CALIDAD A DEBER   — ratings individuales altos pero el equipo NO marca = "a
+#      deber", regresa al alza y explota (Bélgica ratings ~7.5 con 0 goles → 5).
+def _player_profile(conn, team_id, p):
+    WC = ("competition IN ('World Cup','FIFA World Cup 2026','WC2026') "
+          "AND match_date >= '2026-06-01'")
+    rows = conn.execute(f"""
+        SELECT player_name, position, COUNT(*) mp, SUM(minutes) mins,
+               ROUND(AVG(rating), 2) ar, SUM(goals) g, SUM(assists) a
+        FROM match_player_stats
+        WHERE team_id=? AND {WC} AND rating IS NOT NULL
+        GROUP BY player_name HAVING SUM(minutes) >= 60
+        ORDER BY ar DESC
+    """, (team_id,)).fetchall()
+    if not rows:
+        return
+    # Top performers de campo (excluye porteros para el techo goleador)
+    GK_POS = {"G", "GK"}
+    outfield = [r for r in rows if (r["position"] or "") not in GK_POS]
+    p["players_top"] = [(r["player_name"], r["ar"], r["g"] or 0, r["a"] or 0)
+                        for r in outfield[:4]]
+    # 1) KILLER ENCHUFADO: rating alto + goles reales
+    for r in outfield:
+        if r["ar"] is not None and r["ar"] >= 7.6 and (r["g"] or 0) >= 2:
+            p["star_scorer"] = (r["player_name"], r["ar"], r["g"])
+            break
+    # 2) PORTERO EN FORMA (por rating, complementa el save_pct de equipo)
+    gks = [r for r in rows if (r["position"] or "") in GK_POS]
+    if gks:
+        g0 = max(gks, key=lambda r: r["ar"] or 0)
+        if g0["ar"] is not None and g0["ar"] >= 7.5:
+            p["gk_form"] = (g0["player_name"], g0["ar"])
+    # 3) CALIDAD A DEBER: top-6 con rating alto pero el equipo casi no marca
+    top6 = [r["ar"] for r in outfield[:6] if r["ar"] is not None]
+    mt = p.get("matches") or 0
+    if top6 and mt:
+        squad_q = round(sum(top6) / len(top6), 2)
+        p["squad_quality"] = squad_q
+        gpm = (p.get("gf") or 0) / mt
+        if squad_q >= 7.3 and gpm < 1.2:
+            p["quality_owed"] = (squad_q, round(gpm, 2))
 
 
 def _flags(p):
@@ -212,6 +267,17 @@ def _flags(p):
     if ca is not None and ca >= 7 and mt and p.get("ga") is not None and (p["ga"] / mt) <= 1.0:
         f.append(f"BLOQUE QUE ABSORBE (concede {ca:.0f} córners/p pero solo "
                  f"{p['ga']/mt:.1f} goles/p — defensa que aguanta el asedio)")
+    # Señales de JUGADOR validadas 27-jun (backtest G/H/I) — ver _player_profile
+    if p.get("star_scorer"):
+        nm_, rt_, g_ = p["star_scorer"]
+        f.append(f"KILLER ENCHUFADO ({nm_} {rt_}, {g_}G → sube el techo goleador)")
+    if p.get("gk_form"):
+        nm_, rt_ = p["gk_form"]
+        f.append(f"PORTERO EN FORMA ({nm_} rating {rt_} → baja el marcador rival)")
+    if p.get("quality_owed"):
+        q_, gpm_ = p["quality_owed"]
+        f.append(f"CALIDAD A DEBER (top6 rating {q_} pero {gpm_} goles/p → 'a deber', "
+                 f"regresa al alza: riesgo de explosión goleadora)")
     # Patrones del MUNDIAL real (fifa_match_goals) — corrigen al histórico
     s = p.get("wc_scored"); c = p.get("wc_conceded")
     if s and sum(s) and (s[3] + s[4] + s[5]) > (s[0] + s[1] + s[2]):
@@ -237,8 +303,18 @@ def _fmt(p):
         f"córners {g('corners_for')}/p (concede {g('corners_against')}/p)\n"
         f"  TIMING   marca tarde(76-90) {g('scored_late')} · concede tarde {g('conceded_late')} · "
         f"fatiga_concede {g('fatigue_conceded')}"
+        + (_fmt_players(p))
         + (_fmt_form(p.get("recent_form")))
     )
+
+
+def _fmt_players(p):
+    top = p.get("players_top")
+    if not top:
+        return ""
+    js = " · ".join(f"{n} {r}{f' {g}G' if g else ''}{f' {a}A' if a else ''}"
+                    for n, r, g, a in top)
+    return f"\n  JUGADORES {js}"
 
 
 def _fmt_form(rf):
@@ -322,6 +398,17 @@ def _matchup_notes(an, pa, fa, bn, pb, fb):
     for p, n, o in [(pa, an, bn), (pb, bn, an)]:
         if p.get("save_pct") and p["save_pct"] >= 75:
             notes.append(f"{n} tiene portero en racha ({p['save_pct']}% paradas) → baja el marcador de {o}")
+    # Señales de JUGADOR (validadas 27-jun): killer enchufado, GK en forma, calidad a deber
+    for p, n, o in [(pa, an, bn), (pb, bn, an)]:
+        if p.get("star_scorer"):
+            nm_, rt_, g_ = p["star_scorer"]
+            notes.append(f"{n} tiene KILLER enchufado ({nm_} {rt_}, {g_}G) → su techo goleador sube; ojo si descansa/rota")
+        if p.get("gk_form"):
+            nm_, rt_ = p["gk_form"]
+            notes.append(f"GK {nm_} de {n} en forma (rating {rt_}) → tiende a bajar el marcador de {o}")
+        if p.get("quality_owed"):
+            q_, gpm_ = p["quality_owed"]
+            notes.append(f"⚠ {n} con CALIDAD A DEBER (top6 {q_}, {gpm_} goles/p) → regresión al alza, riesgo de explosión goleadora")
     # corrección por timing REAL del Mundial (si contradice al histórico)
     for n, p in [(an, pa), (bn, pb)]:
         c = p.get("wc_conceded")
