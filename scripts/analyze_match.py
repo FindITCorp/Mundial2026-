@@ -183,6 +183,9 @@ def team_profile(conn, team_id, stage="group"):
         }
 
     _player_profile(conn, team_id, p)
+    er = conn.execute("SELECT elo FROM team_elo WHERE team_id=?", (team_id,)).fetchone()
+    if er:
+        p["elo"] = er[0]
     return p
 
 
@@ -414,6 +417,20 @@ def _matchup_notes(an, pa, fa, bn, pb, fb):
         c = p.get("wc_conceded")
         if c and sum(c) and (c[0] + c[1]) >= max(2, 0.5 * sum(c)):
             notes.append(f"⚠ {n}: en ESTE Mundial concede TEMPRANO (1-30), corrige su histórico")
+    # ALERTA EMPATE — validado 27-jun (backtest 72 grupos): el EMPATE es el error
+    # sistemático #1 (24.5% de empates no predichos). La señal PREDICTIVA es la
+    # PAREJURA por Elo, NO el portero en forma (ese backtest salió NULO: la forma
+    # previa del GK no predice; el "empate-candado" es varianza intra-partido). En
+    # duelos parejos (|Elo|<50) el 41% terminó en empate (vs 22% en los disparejos)
+    # → no sobre-favorecer a un lado. Es DISPLAY; el sesgo pro-empate en el modelo
+    # queda pendiente de A/B en el backtest de 535 partidos.
+    ea, eb = pa.get("elo"), pb.get("elo")
+    if ea is not None and eb is not None:
+        gap = abs(ea - eb)
+        if gap < 50:
+            notes.append(f"⚖ PARTIDO PAREJO (Elo {ea:.0f} vs {eb:.0f}, brecha {gap:.0f}) → "
+                         f"ALERTA EMPATE: el 41% de los duelos parejos del torneo terminó "
+                         f"en empate; no sobre-favorecer a un lado")
     return notes
 
 
