@@ -336,6 +336,15 @@ def analyze(team_a, team_b, db_path=DB, verbose=True):
         return
     pa = team_profile(conn, aid); pb = team_profile(conn, bid)
     fa = _flags(pa); fb = _flags(pb)
+    # FASE FINAL — desempate (resistencia/portero/pateadores) si ambos califican
+    ko = None
+    try:
+        from knockout_tiebreaker import ratings as _ko_ratings
+        _kr = _ko_ratings(conn)
+        if an in _kr and bn in _kr:
+            ko = (_kr[an], _kr[bn])
+    except Exception:
+        ko = None
     conn.close()
     if verbose:
         print("=" * 78)
@@ -349,7 +358,15 @@ def analyze(team_a, team_b, db_path=DB, verbose=True):
         print("PUNTOS CLAVE DEL CRUCE:")
         for line in _matchup_notes(an, pa, fa, bn, pb, fb):
             print("  • " + line)
-    return {"a": (an, pa, fa), "b": (bn, pb, fb)}
+        if ko:
+            ka, kb = ko
+            sh = ka["tie"] / (ka["tie"] + kb["tie"]) if (ka["tie"] + kb["tie"]) else 0.5
+            fav, fav_sh = (an, sh) if sh >= 0.5 else (bn, 1 - sh)
+            print("\nFASE FINAL — si va a penales/prórroga (resistencia·portero·pateadores):")
+            print(f"  {an}: desempate {ka['tie']*100:.0f}% (resist {ka['resist']*100:.0f}/GK {ka['gk']*100:.0f}/pat {ka['pat']*100:.0f})")
+            print(f"  {bn}: desempate {kb['tie']*100:.0f}% (resist {kb['resist']*100:.0f}/GK {kb['gk']*100:.0f}/pat {kb['pat']*100:.0f})")
+            print(f"  → favorito en el desempate: {fav} ({fav_sh*100:.0f}%)")
+    return {"a": (an, pa, fa), "b": (bn, pb, fb), "ko": ko}
 
 
 _LAB = ["1-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
