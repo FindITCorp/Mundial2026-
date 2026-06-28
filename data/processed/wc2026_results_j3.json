@@ -24,7 +24,13 @@
     {"jornada":3,"group":"H","home":"Uruguay","away":"Spain","home_score":0,"away_score":1,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-26"},
     {"jornada":3,"group":"H","home":"Cabo Verde","away":"Saudi Arabia","home_score":0,"away_score":0,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-26"},
     {"jornada":3,"group":"I","home":"Senegal","away":"Iraq","home_score":5,"away_score":0,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-26"},
-    {"jornada":3,"group":"I","home":"Norway","away":"France","home_score":1,"away_score":4,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-26"}
+    {"jornada":3,"group":"I","home":"Norway","away":"France","home_score":1,"away_score":4,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-26"},
+    {"jornada":3,"group":"L","home":"Panama","away":"England","home_score":0,"away_score":2,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-27"},
+    {"jornada":3,"group":"L","home":"Croatia","away":"Ghana","home_score":2,"away_score":1,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-27"},
+    {"jornada":3,"group":"K","home":"DR Congo","away":"Uzbekistan","home_score":3,"away_score":1,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-27"},
+    {"jornada":3,"group":"K","home":"Colombia","away":"Portugal","home_score":0,"away_score":0,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-27"},
+    {"jornada":3,"group":"J","home":"Algeria","away":"Austria","home_score":3,"away_score":3,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-28"},
+    {"jornada":3,"group":"J","home":"Jordan","away":"Argentina","home_score":1,"away_score":3,"status":"finished","source":"FIFA api.fifa.com","date":"2026-06-28"}
   ],
   "group_standings_after_j3": {
     "A": {
