@@ -307,6 +307,15 @@ def _poisson(lam: float, k: int) -> float:
 # y ganador probable son lecturas independientes. Flag A/B: WC_DISPERSION (1=on).
 _DISP_R = float(os.environ.get("WC_DISPERSION_R", "10.0"))   # ≤0 ⇒ Poisson puro
 
+# Escala GLOBAL opt-in de λ (default 1.0 = SIN cambio de comportamiento). Se aplica
+# encima del lambda_scale de auto-calibración. EVIDENCIA 27-jun (validación temporal,
+# no in-sample): la escala elegida en J1-J2 (×0.80) probada en J3 NO visto mejoró
+# acc 67→71% Y Brier 0.4142→0.4073, y subió draw-recall 40→60%. Corrige la
+# sobre-predicción de goles medida (λ bias +0.19, over2.5 +12pp) que alimenta la
+# infra-predicción de empates. Se deja OPT-IN (no se activa solo) hasta walk-forward
+# con más datos; activar con WC_LAMBDA_SCALE=0.90 (moderado) para A/B en producción.
+_LAMBDA_SCALE = float(os.environ.get("WC_LAMBDA_SCALE", "1.0"))
+
 # Corrección de goles TOTALES en la grilla de MARCADOR (no en el 1X2) ─────────
 # El model_bias aplica un término SUSTRACTIVO (≈0.13 neutral) que recorta más a
 # los marcadores bajos (−27% a un λ=0.7 vs −14% a un λ=2.5) → el modelo subestima
@@ -2213,6 +2222,13 @@ def predict_match(
             la = max(0.20, la * _scale - _ab)
     except Exception:
         pass
+
+    # Escala global opt-in (WC_LAMBDA_SCALE, default 1.0). Afecta 1X2 Y marcador
+    # (lh/la fluyen a sl_h/sl_a). Ver constante arriba: evidencia out-of-sample
+    # (J3 no visto) de que ×0.80-0.90 mejora acc, Brier y draw-recall.
+    if _LAMBDA_SCALE != 1.0:
+        lh = max(0.20, lh * _LAMBDA_SCALE)
+        la = max(0.20, la * _LAMBDA_SCALE)
 
     # ── 10. Distribución de goles ──────────────────────────────────────────
     # DOS lecturas independientes de la misma λ (filosofía del proyecto):
