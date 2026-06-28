@@ -1,0 +1,29 @@
+{
+  "tournament": "WC2026",
+  "jornada": 3,
+  "group": "J",
+  "generated": "2026-06-27",
+  "basis": "XI confirmado + tournament_scan (ambos lados) + analyze_match + ajuste experto",
+  "predictions": [
+    {
+      "match": "Jordan vs Argentina",
+      "pick": "Argentina 3-0",
+      "probs": {
+        "JOR": 4,
+        "draw": 8,
+        "ARG": 88
+      },
+      "key": "Argentina rotada (sin Messi) pero ofensiva 3-3-4 (Lautaro+Alvarez), xG subiendo, defensa ELITE (1.0 a puerta/p pct100). Jordania eliminada e inofensiva."
+    },
+    {
+      "match": "Algeria vs Austria",
+      "pick": "Algeria 1-0",
+      "probs": {
+        "ALG": 38,
+        "draw": 38,
+        "AUS": 24
+      },
+      "key": "DECIDE 2do. A Austria le basta empate (GD edge). Evolutivo favorece Argelia (xG 0.3->1.9, def mejora) vs Austria en caida (xG 1.7->0.5, def empeora 0.5->2.4, sobre-convierte). Argelia mejor talento+posesion+must-win, pero Austria 4-5-1 a defender el punto y Argelia no es clinica (0.91). Casi moneda al aire ALG-gana/empate; empate clasifica a AUSTRIA. Bajo marcador."
+    }
+  ]
+}
