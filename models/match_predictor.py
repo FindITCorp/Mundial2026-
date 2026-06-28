@@ -312,9 +312,9 @@ _DISP_R = float(os.environ.get("WC_DISPERSION_R", "10.0"))   # ≤0 ⇒ Poisson 
 # no in-sample): la escala elegida en J1-J2 (×0.80) probada en J3 NO visto mejoró
 # acc 67→71% Y Brier 0.4142→0.4073, y subió draw-recall 40→60%. Corrige la
 # sobre-predicción de goles medida (λ bias +0.19, over2.5 +12pp) que alimenta la
-# infra-predicción de empates. Se deja OPT-IN (no se activa solo) hasta walk-forward
-# con más datos; activar con WC_LAMBDA_SCALE=0.90 (moderado) para A/B en producción.
-_LAMBDA_SCALE = float(os.environ.get("WC_LAMBDA_SCALE", "1.0"))
+# infra-predicción de empates. ✅ ACTIVADO 27-jun (pedido del dueño) a 0.90 tras la
+# validación temporal; revertir con WC_LAMBDA_SCALE=1.0 si hace falta A/B.
+_LAMBDA_SCALE = float(os.environ.get("WC_LAMBDA_SCALE", "0.90"))
 
 # Boost de empate opt-in para partidos PAREJOS (default 1.0 = SIN cambio). EVIDENCIA
 # 27-jun (simulación de los 72 grupos + validación temporal J1-J2→J3): el modelo
@@ -322,8 +322,9 @@ _LAMBDA_SCALE = float(os.environ.get("WC_LAMBDA_SCALE", "1.0"))
 # 41% en partidos parejos (gap Elo<50, donde el 47% terminan en empate). Un boost
 # MODERADO ×1.4 sobre pd en esa banda sube el acierto 68.1→69.4% (robusto en TRAIN y
 # TEST; ×2.0+ sobreajusta — train cae). Se aplica ENCIMA del draw_boost/similarity_boost
-# internos (que ya cubren parte), por eso la ganancia es modesta pero real. OPT-IN.
-_DRAW_BOOST_TIGHT = float(os.environ.get("WC_DRAW_BOOST_TIGHT", "1.0"))
+# internos (que ya cubren parte), por eso la ganancia es modesta pero real.
+# ✅ ACTIVADO 27-jun (pedido del dueño) a 1.4; revertir con WC_DRAW_BOOST_TIGHT=1.0.
+_DRAW_BOOST_TIGHT = float(os.environ.get("WC_DRAW_BOOST_TIGHT", "1.4"))
 _DRAW_BOOST_GAP   = float(os.environ.get("WC_DRAW_GAP", "50"))
 
 # Corrección de goles TOTALES en la grilla de MARCADOR (no en el 1X2) ─────────
