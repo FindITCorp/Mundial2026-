@@ -316,6 +316,16 @@ _DISP_R = float(os.environ.get("WC_DISPERSION_R", "10.0"))   # ≤0 ⇒ Poisson 
 # con más datos; activar con WC_LAMBDA_SCALE=0.90 (moderado) para A/B en producción.
 _LAMBDA_SCALE = float(os.environ.get("WC_LAMBDA_SCALE", "1.0"))
 
+# Boost de empate opt-in para partidos PAREJOS (default 1.0 = SIN cambio). EVIDENCIA
+# 27-jun (simulación de los 72 grupos + validación temporal J1-J2→J3): el modelo
+# acierta 82%/94% en victorias local/visitante pero solo 20% en empates, y se hunde a
+# 41% en partidos parejos (gap Elo<50, donde el 47% terminan en empate). Un boost
+# MODERADO ×1.4 sobre pd en esa banda sube el acierto 68.1→69.4% (robusto en TRAIN y
+# TEST; ×2.0+ sobreajusta — train cae). Se aplica ENCIMA del draw_boost/similarity_boost
+# internos (que ya cubren parte), por eso la ganancia es modesta pero real. OPT-IN.
+_DRAW_BOOST_TIGHT = float(os.environ.get("WC_DRAW_BOOST_TIGHT", "1.0"))
+_DRAW_BOOST_GAP   = float(os.environ.get("WC_DRAW_GAP", "50"))
+
 # Corrección de goles TOTALES en la grilla de MARCADOR (no en el 1X2) ─────────
 # El model_bias aplica un término SUSTRACTIVO (≈0.13 neutral) que recorta más a
 # los marcadores bajos (−27% a un λ=0.7 vs −14% a un λ=2.5) → el modelo subestima
@@ -2339,6 +2349,16 @@ def predict_match(
     ph = sum(v for (i,j),v in probs.items() if i > j)
     pd = sum(v for (i,j),v in probs.items() if i == j)
     pa = sum(v for (i,j),v in probs.items() if i < j)
+
+    # Boost de empate OPT-IN en partidos parejos (WC_DRAW_BOOST_TIGHT, default 1.0).
+    # Ver constante arriba: en gap Elo<50 el modelo solo acierta 41% (47% son empates);
+    # ×1.4 sobre pd sube el acierto global 68.1→69.4% (validado train+test). Alimenta el
+    # criterio de ganador DRAW (pd>ph,pa & |ph-pa|<0.10), que aplica justo en parejos.
+    if _DRAW_BOOST_TIGHT != 1.0 and abs(elo_diff) < _DRAW_BOOST_GAP:
+        pd *= _DRAW_BOOST_TIGHT
+        _t = ph + pd + pa
+        if _t > 0:
+            ph, pd, pa = ph / _t, pd / _t, pa / _t
 
     top_scores = sorted(probs.items(), key=lambda x: x[1], reverse=True)[:8]
     prob_total_raw = 1.0  # probs ya normalizado
