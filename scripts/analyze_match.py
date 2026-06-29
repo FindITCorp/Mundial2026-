@@ -186,7 +186,44 @@ def team_profile(conn, team_id, stage="group"):
     er = conn.execute("SELECT elo FROM team_elo WHERE team_id=?", (team_id,)).fetchone()
     if er:
         p["elo"] = er[0]
+    _early_timing(conn, team_id, p)
     return p
+
+
+# Timing REAL por partido (fifa_match_goals) — detecta si un equipo CONCEDE temprano
+# en TODOS sus partidos (riesgo ALTO, no genérico). Pedido del dueño 28-jun: Alemania
+# concedió ≤30' en 3/3 (9', 21', 30') y Ecuador la eliminó marcando al 9' — el patrón
+# no se debe diluir. También capta si el equipo MARCA temprano (capacidad de castigar).
+def _early_timing(conn, team_id, p):
+    rows = conn.execute("""
+        SELECT w.id, w.home_team_id, w.away_team_id FROM wc_matches w
+        WHERE (w.home_team_id=? OR w.away_team_id=?) AND w.stage='group' AND w.played=1
+    """, (team_id, team_id)).fetchall()
+    n = early_conc = early_scor = 0
+    conc_mins, scor_mins = [], []
+    for mid, hid, aid in rows:
+        opp = aid if hid == team_id else hid
+        cg = conn.execute("SELECT minute FROM fifa_match_goals WHERE match_id=? AND team_id=?",
+                          (mid, opp)).fetchall()
+        sg = conn.execute("SELECT minute FROM fifa_match_goals WHERE match_id=? AND team_id=?",
+                          (mid, team_id)).fetchall()
+        if not cg and not sg:
+            continue  # sin datos de goles-minuto para este partido
+        n += 1
+        cmins = [m[0] for m in cg if m[0] is not None]
+        smins = [m[0] for m in sg if m[0] is not None]
+        if any(m <= 30 for m in cmins):
+            early_conc += 1
+        if any(m <= 30 for m in smins):
+            early_scor += 1
+        conc_mins += [m for m in cmins if m <= 30]
+        scor_mins += [m for m in smins if m <= 30]
+    if n:
+        p["et_n"] = n
+        p["et_early_conc"] = early_conc           # nº de partidos con gol encajado ≤30'
+        p["et_early_scor"] = early_scor           # nº de partidos con gol marcado ≤30'
+        p["et_conc_mins"] = sorted(conc_mins)
+        p["et_scor_mins"] = sorted(scor_mins)
 
 
 # Rendimiento INDIVIDUAL en este Mundial — VALIDADO 27-jun por backtest de G/H/I:
@@ -270,6 +307,15 @@ def _flags(p):
     if ca is not None and ca >= 7 and mt and p.get("ga") is not None and (p["ga"] / mt) <= 1.0:
         f.append(f"BLOQUE QUE ABSORBE (concede {ca:.0f} córners/p pero solo "
                  f"{p['ga']/mt:.1f} goles/p — defensa que aguanta el asedio)")
+    # CONCEDE TEMPRANO SIEMPRE (riesgo ALTO, no genérico) — Alemania 3/3 ≤30'
+    n = p.get("et_n")
+    if n and p.get("et_early_conc") is not None:
+        ec = p["et_early_conc"]
+        if ec == n and n >= 2:
+            mins = "/".join(f"{m}'" for m in p.get("et_conc_mins", []))
+            f.append(f"⚠ CONCEDE TEMPRANO SIEMPRE ({ec}/{n} partidos ≤30': {mins}) — RIESGO ALTO al inicio")
+        elif ec >= 2 and ec >= n - 1:
+            f.append(f"concede temprano a menudo ({ec}/{n} partidos ≤30')")
     # Señales de JUGADOR validadas 27-jun (backtest G/H/I) — ver _player_profile
     if p.get("star_scorer"):
         nm_, rt_, g_ = p["star_scorer"]
@@ -479,6 +525,16 @@ def _matchup_notes(an, pa, fa, bn, pb, fb):
         c = p.get("wc_conceded")
         if c and sum(c) and (c[0] + c[1]) >= max(2, 0.5 * sum(c)):
             notes.append(f"⚠ {n}: en ESTE Mundial concede TEMPRANO (1-30), corrige su histórico")
+    # PELIGRO INICIAL — uno concede temprano SIEMPRE y el otro marca temprano
+    for atk, dfn in [(an, bn), (bn, an)]:
+        pd_ = pa if dfn == an else pb
+        pa_ = pa if atk == an else pb
+        n = pd_.get("et_n")
+        if (n and pd_.get("et_early_conc") == n and n >= 2
+                and pa_.get("et_early_scor", 0) >= 1):
+            sm = "/".join(f"{m}'" for m in pa_.get("et_scor_mins", []))
+            notes.append(f"🚨 PELIGRO INICIAL: {dfn} concede ≤30' en TODOS sus partidos y "
+                         f"{atk} marca temprano ({sm}) → alto riesgo de gol tempranero de {atk}")
     # ALERTA EMPATE — validado 27-jun (backtest 72 grupos): el EMPATE es el error
     # sistemático #1 (24.5% de empates no predichos). La señal PREDICTIVA es la
     # PAREJURA por Elo, NO el portero en forma (ese backtest salió NULO: la forma
