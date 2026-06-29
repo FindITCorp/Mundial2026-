@@ -1,11 +1,37 @@
 # Contexto de Sesión — Pool Mundial 2026 "Kike"
 
 > **Documento de handoff.** Lee esto primero para retomar el trabajo sin perder nada.
-> Última actualización: **2026-06-28 (fase de grupos COMPLETA + dieciseisavos en curso + modelo optimizado + capas tácticas nuevas)**
+> Última actualización: **2026-06-29 (R32 en curso: 3 jugados/sellados + nueva fuente play-by-play FIFA + patrones de clasificados)**
+> ⚙️ **NORMA DEL DUEÑO (29-jun): SIEMPRE actualizar este handoff y commitear+pushear TODO tras cada avance.** No acumular.
 
 ---
 
-## 🆕 EMPEZAR AQUÍ (resumen para chat nuevo — 28-jun)
+## 🆕 EMPEZAR AQUÍ (resumen para chat nuevo — 29-jun)
+
+**ESTADO: dieciseisavos (R32) en curso.** Ids internos R32 en `wc_matches`/`match_predictions` son SECUENCIALES (NO el `fifa_match` del bracket): **400021518** SAf-Canadá, **400021519** Brasil-Japón, **400021520** Alemania-Paraguay (creado a mano esta sesión).
+
+**Resultados y sellos R32 (los 3 verificados intactos):**
+- ✅ **SAf 0-1 Canadá** — sello Canadá 1-0 = ganador + exacto.
+- ✅ **Brasil 2-1 Japón** (J 29', B 56', **B 90'+5'**) — sello 1-1/penales: ganador ✅ (Brasil avanza), marcador/vía ❌. Remontó 0-1 con gol en el descuento. `evaluated=1`.
+- 🟡 **Alemania-Paraguay SELLADO 2-1, avanza ~71%** (`expert_R32_GERMANY2-1_XIreal_earlyconcede`, evaluated=0). XI real cargado en `fifa_lineups` (match 400021520). Paraguay NO puso bus → salió **4-4-2 con Enciso+Ávalos**; riesgo vivo: **Alemania concede ≤30' en 3/3**. Evaluar cuando termine (20:30Z).
+
+**🆕 FUENTE NUEVA — PLAY-BY-PLAY de FIFA (sin anti-bot), pedida por el dueño:**
+- `scripts/fetch_fifa_timeline.py` → tabla **`fifa_match_events`** (74 partidos / **6610 eventos**: remate/parada/córner/falta/gol/tarjeta con minuto, autor y coordenadas). **Cableado en `matchday.py`** (sale cada jornada).
+- `scripts/timeline_stats.py` → proceso por equipo. **SOT a favor = paradas del rival + goles = proxy de `goals_prevented` SIN xG** (Sofascore sigue bloqueado). Integrado en `analyze_match` (bloque PLAY-BY-PLAY + ⚡OCASIONES/🎯a-deber/🧤portero-muro).
+- `scripts/timeline_patterns.py` → escaneo de los 32 clasificados.
+
+**🔑 HALLAZGOS de patrones (leans, n=3-4/equipo):**
+- **Remates a puerta (timeline) r=+0.66 con goles** = mejor proxy de output, abierto. Córners r=+0.37 (asedio, no gol).
+- **A DEBER↑ (regresan al alza, sleepers):** Colombia (19.7 rem/6.7 SOT/1.33 gol), Bélgica (24.3 rem/1.67 gol), Ecuador (0.67 gol).
+- **SOBRE-CONVIERTEN↓ (enfrían):** P.Bajos (3.0 gol/4.7 SOT **+ portero asediado = frágil, trampa**), Alemania, Suiza.
+- **MURALLA por proceso:** Francia (mejor doble cara), España (élite atrás pero estéril, 1.33 gol), Argentina, Canadá.
+- **Vulnerables temprano:** Brasil (le costó hoy), Noruega, Egipto.
+
+**📌 PENDIENTES:** evaluar Alemania-Paraguay al terminar · **Sofascore SIGUE sin disparar** (orden del dueño; faltan stats ricos de Argelia-Austria, SAf-Canadá, Brasil-Japón; URLs en `data/sofascore_urls.json`) · seguir R32 (resto del bracket en `wc2026_standings_after_j3.json`).
+
+---
+
+## 🗄️ EMPEZAR AQUÍ (resumen anterior — 28-jun)
 
 **ESTADO: fase de grupos COMPLETA (72/72), dieciseisavos EN CURSO.**
 - ✅ **R32 #1 jugado: Sudáfrica 0-1 Canadá** (gol 94'). **Mi pronóstico Canadá 1-0 = GANADOR + MARCADOR EXACTO** + tiebreaker (Canadá 76% avanzar) acertó.
