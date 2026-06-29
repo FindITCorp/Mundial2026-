@@ -374,6 +374,40 @@ def _fmt_form(rf):
             f"[{' '.join(rf['last5'])}]")
 
 
+def _fmt_timeline(t):
+    """Línea play-by-play FIFA para un equipo."""
+    return ("  PLAY-BY-PLAY  remates {sf:.1f}/p (a puerta {sotf:.1f}, prec {acc:.0f}%) · "
+            "recibe {sa:.1f}/p (a puerta {sota:.1f}) · paradas GK {sv:.1f}/p · "
+            "pico ataque {pa} · colador {pc}").format(
+        sf=t["shots_for"], sotf=t["sot_for"], acc=t["shot_acc"] * 100,
+        sa=t["shots_against"], sota=t["sot_against"], sv=t["saves_made"],
+        pa=t["peak_attack"], pc=t["peak_concede"])
+
+
+def _chance_clash(an, ta, bn, tb):
+    """Choque de ventanas de OCASIONES (remates por franja, más denso que goles)."""
+    notes = []
+    from timeline_stats import BUCKET_LBL
+    # ¿la franja donde A más remata coincide con donde B más le rematan (concede)?
+    for att_n, att, def_n, dfn in ((an, ta, bn, tb), (bn, tb, an, ta)):
+        af = att["shot_for_b"]; dg = dfn["shot_ag_b"]
+        if not any(af) or not any(dg):
+            continue
+        pa = af.index(max(af)); pd = dg.index(max(dg))
+        if pa == pd:
+            notes.append(f"⚡ OCASIONES: {att_n} más remata en {BUCKET_LBL[pa]} y es justo donde "
+                         f"{def_n} más concede tiros → ventana de ocasión REAL")
+    # asedio estéril / muralla: muchos remates a puerta, pocos goles
+    for n, t in ((an, ta), (bn, tb)):
+        if t["sot_for"] >= 4.5 and t["goals_for"] <= 1.2:
+            notes.append(f"🎯 {n} genera mucho a puerta ({t['sot_for']:.1f}/p) y marca poco "
+                         f"({t['goals_for']:.2f}/p) → 'a deber', regresa al alza o lo frena el portero")
+        if t["saves_made"] >= 3.5:
+            notes.append(f"🧤 {n}: portero muy exigido ({t['saves_made']:.1f} paradas/p) → "
+                         f"resiste asedio, pero volumen alto sube riesgo de gol")
+    return notes
+
+
 def analyze(team_a, team_b, db_path=DB, verbose=True):
     conn = sqlite3.connect(str(db_path)); conn.row_factory = sqlite3.Row
     aid, an = _tid(conn, team_a); bid, bn = _tid(conn, team_b)
@@ -382,6 +416,15 @@ def analyze(team_a, team_b, db_path=DB, verbose=True):
         return
     pa = team_profile(conn, aid); pb = team_profile(conn, bid)
     fa = _flags(pa); fb = _flags(pb)
+    # PLAY-BY-PLAY (FIFA timeline) — minuto de cada remate/parada (no solo goles).
+    # Da remates a puerta vía 'Goal Prevention' (proxy de goals_prevented sin xG) y
+    # un choque de ventanas de OCASIONES (denso) además del de goles.
+    tla = tlb = None
+    try:
+        from timeline_stats import team_timeline as _tl
+        tla, tlb = _tl(conn, an), _tl(conn, bn)
+    except Exception:
+        tla = tlb = None
     # CALIDAD DEL XI DESPLEGADO (rating de torneo de los titulares) — validado
     # 28-jun: predice el ganador en 89% de los decisivos con XI claro. Señal que el
     # modelo (Elo/plantilla) infravalora; usa el XI del J1 como proxy del once estelar.
@@ -428,12 +471,17 @@ def analyze(team_a, team_b, db_path=DB, verbose=True):
         print("=" * 78)
         print(f"\n[{an}]"); print(_fmt(pa))
         if fa: print("  ⚑ " + " | ".join(fa))
+        if tla: print(_fmt_timeline(tla))
         print(f"\n[{bn}]"); print(_fmt(pb))
         if fb: print("  ⚑ " + " | ".join(fb))
+        if tlb: print(_fmt_timeline(tlb))
         print("\n" + "-" * 78)
         print("PUNTOS CLAVE DEL CRUCE:")
         for line in _matchup_notes(an, pa, fa, bn, pb, fb):
             print("  • " + line)
+        if tla and tlb:
+            for note in _chance_clash(an, tla, bn, tlb):
+                print("  • " + note)
         if xiq:
             xa, xb = xiq
             gap = xa["avg"] - xb["avg"]

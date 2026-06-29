@@ -28,6 +28,7 @@ PIPELINE = [
     "sync_results_to_db.py",
     "fetch_fifa.py",
     "fetch_fifa_stats.py",
+    "fetch_fifa_timeline.py",   # play-by-play FIFA (remates/paradas con minuto) -> fifa_match_events
     "sync_stats_to_db.py",
     "rebuild_wc_timing.py",
     "refresh_team_avgs.py",
