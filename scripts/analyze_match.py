@@ -347,6 +347,25 @@ def analyze(team_a, team_b, db_path=DB, verbose=True):
             xiq = (_xa, _xb)
     except Exception:
         xiq = None
+    # CHOQUE DE FORMACIONES — lectura estratégica (formación real de Sofascore).
+    # Muestra la formación predominante de cada equipo y el récord histórico de ese
+    # cruce. Validado 28-jun: 4-3-3/4-4-2 dominan; el bus 5-4-1 fracasa (0V-3E-7D).
+    fm = None
+    try:
+        from formation_matchup import matchup as _fmatch, formation_strength as _fstr
+        _fr = _fstr(conn)
+        def _topf(team):
+            rows = conn.execute("SELECT home_formation FROM match_formations WHERE home=? "
+                                "UNION ALL SELECT away_formation FROM match_formations WHERE away=?",
+                                (team, team)).fetchall()
+            from collections import Counter
+            c2 = Counter(x[0] for x in rows if x[0])
+            return c2.most_common(1)[0][0] if c2 else None
+        fa_, fb_ = _topf(an), _topf(bn)
+        if fa_ and fb_:
+            fm = (fa_, fb_, _fmatch(conn, fa_, fb_), _fr.get(fa_), _fr.get(fb_))
+    except Exception:
+        fm = None
     # FASE FINAL — desempate (resistencia/portero/pateadores) si ambos califican
     ko = None
     try:
@@ -375,6 +394,15 @@ def analyze(team_a, team_b, db_path=DB, verbose=True):
             edge = an if gap > 0.10 else (bn if gap < -0.10 else "parejo")
             print(f"  • XI DESPLEGADO (calidad, proxy J1): {an} {xa['avg']:.2f} vs {bn} {xb['avg']:.2f} "
                   f"→ ventaja {edge} ({gap:+.2f}); señal fuerte (89% acierto en decisivos)")
+        if fm:
+            fa_, fb_, mm, ra_, rb_ = fm
+            def _pp(r):
+                n = sum(r[:3]); return f"{(3*r[0]+r[1])/n:.2f} pts/p" if n else "s/d"
+            print(f"  • CHOQUE DE FORMACIONES (predominante, refinar con XI real): "
+                  f"{an} {fa_} ({_pp(ra_) if ra_ else 's/d'}) vs {bn} {fb_} ({_pp(rb_) if rb_ else 's/d'})")
+            if mm and mm["n"] >= 2:
+                print(f"      histórico {fa_} vs {fb_} (n={mm['n']}): {mm['w']}V-{mm['d']}E-{mm['l']}D "
+                      f"para {an}, goles {mm['gf']}-{mm['ga']}")
         if ko:
             ka, kb = ko
             sh = ka["tie"] / (ka["tie"] + kb["tie"]) if (ka["tie"] + kb["tie"]) else 0.5
