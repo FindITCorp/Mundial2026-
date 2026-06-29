@@ -1,11 +1,39 @@
 # Contexto de Sesión — Pool Mundial 2026 "Kike"
 
 > **Documento de handoff.** Lee esto primero para retomar el trabajo sin perder nada.
-> Última actualización: **2026-06-27 (sesión: resultados G/H/I cargados + evaluados 4/6 + J/K/L pendientes esta noche)**
+> Última actualización: **2026-06-28 (fase de grupos COMPLETA + dieciseisavos en curso + modelo optimizado + capas tácticas nuevas)**
 
 ---
 
-## 🆕 EMPEZAR AQUÍ (resumen para chat nuevo — 27-jun)
+## 🆕 EMPEZAR AQUÍ (resumen para chat nuevo — 28-jun)
+
+**ESTADO: fase de grupos COMPLETA (72/72), dieciseisavos EN CURSO.**
+- ✅ **R32 #1 jugado: Sudáfrica 0-1 Canadá** (gol 94'). **Mi pronóstico Canadá 1-0 = GANADOR + MARCADOR EXACTO** + tiebreaker (Canadá 76% avanzar) acertó.
+- 🔜 **MAÑANA 29-jun:** **Brasil vs Japón 17:00** (sellado **1-1**, Brasil avanza en penales al borde) · **Alemania vs Paraguay 20:30** (PRELIMINAR, esperar XI).
+- Resto del bracket R32 en `data/processed/wc2026_standings_after_j3.json` (8 mejores terceros = FIFA oficial).
+
+**🛠️ HERRAMIENTAS/CAPAS NUEVAS (todas salen AUTOMÁTICAS en `analyze_match.py` — usar siempre):**
+1. **Calidad del XI desplegado** (`xi_quality.py`) — rating de torneo de los 11 titulares, emparejamiento difuso FIFA↔Sofascore (casa 11/11). **VALIDADO: 89% acierto del ganador en decisivos con XI claro.** Pasar match_id con XI confirmado para versión real.
+2. **Choque de formaciones** (`formation_matchup.py`, tabla `match_formations` 60 part.) — récord por formación + cruce directo. 4-3-3/4-4-2 dominan (2.0 pts/p); el bus **5-4-1 fracasa (0V-3E-7D)**; 4-3-3 vs 3-4-2-1 = 3-0-1 (9-4).
+3. **Desempate de fase final** (`knockout_tiebreaker.py`) — resistencia(0.45)+portero(0.35)+pateadores(0.20) → prob de AVANZAR en penales/prórroga.
+4. **Bandera CONCEDE TEMPRANO SIEMPRE** (riesgo ALTO, no genérico) + nota **🚨 PELIGRO INICIAL** cuando el rival marca temprano. Detecta con minutos reales (`fifa_match_goals`).
+5. **ALERTA EMPATE** (Elo parejo <50 → 41% empató) · **calidad a deber** · **killer enchufado** · **portero en forma**.
+
+**🔧 MODELO OPTIMIZADO (auditoría integral 28-jun — está en el estado del arte):**
+- **2 knobs ACTIVADOS por defecto** en `models/match_predictor.py`: `WC_LAMBDA_SCALE=0.90` (corrige sobre-predicción de goles) + `WC_DRAW_BOOST_TIGHT=1.4` (empates en parejos). Acierto grupos 68.1%→**70.8%**. Revertir con `=1.0`.
+- Techo de acierto 1X2 es ~56-58% (literatura); nuestro 70.8% (79% J3) está por encima por los mismatches del Mundial. **El ~30% de fallos son empates/varianza irreducible — subir más SOBREAJUSTA (demostrado out-of-sample).**
+- ⚠️ **El factor `finishing` está mal orientado** (premia sobre-conversión, castiga sub-conversión) → infla equipos en racha. `WC_FINISHING=0` da +1pp. Tenerlo en cuenta al leer λ.
+
+**📌 PENDIENTES:**
+- **Disparar Sofascore (DISPARAR SOLO CUANDO EL DUEÑO LO DIGA):** faltan stats ricos de **Argelia-Austria** (sin xG), **SAf-Canadá** y **Brasil-Japón**. IP BLOQUEADA por rate-limit; reintentar **mañana tras Brasil-Japón**. URLs ya descubiertas en `data/sofascore_urls.json`. Comando: `python scripts/fetch_sofascore_pw.py {URLs}` (1 sesión).
+- **Alemania-Paraguay:** sellar/ajustar al salir XI. PRELIMINAR: **Alemania 2-1, avanza ~70%, upset Paraguay ~19%** — OJO: **Alemania concede ≤30' en 3/3 (9'/21'/30')** y Paraguay marca temprano a la contra (2' vs Turquía) + bus + portero 80% = receta del upset (Ecuador ya la eliminó así).
+- **Brasil-Japón (sellado 1-1):** lectura honesta = volado, proceso→Brasil / forma→Japón se cancelan; Brasil avanza ~52% (penales: Alisson + pateadores). Peligro de Brasil = el CIERRE (no marca 61-90 + Japón marca tarde 88'/83'/69'). H2H: **Japón 3-2 Brasil amistoso oct-2025** (registrado en team_matches; Brasil iba con zaga SUPLENTE).
+
+**⚠️ GIT/PIPELINE:** un GitHub Action automático commitea la DB **Y `match_predictions`** a origin → puede pisar mis sellos en los merges. **Tras cada merge: verificar sellos y re-sellar.** Push siempre; protocolo: backup → merge → `git checkout --ours data/mundial2026.db` → push. Ver memoria [[mundial2026-pool]].
+
+---
+
+## 🗄️ EMPEZAR AQUÍ (resumen anterior — 27-jun)
 
 **RESULTADOS G/H/I CARGADOS Y EVALUADOS (27-jun).** Los 6 partidos de 26-jun entraron a `wc_matches` (66/72 grupos), pipeline FIFA/FDH/timing/perfiles corrido, integridad OK (GF=GA por grupo, xG 294 filas). **Scorecard G/H/I = 4/6 ganador:** ✅ NZ 1-5 Bélgica · ✅ Uruguay 0-1 España · ✅ Senegal 5-0 Iraq · ✅ Noruega 1-4 Francia · ❌ Egipto 1-1 Irán (empate que marqué por Beiranvand) · ❌ Cabo Verde 0-0 Saudí (el "0-0 gemelo" anotado). Ambos fallos fueron empates ya señalados como escenario alterno. **Modelo: 63.9% acc / 133 partidos, λ×1.003 (bien calibrado), Brier 0.2949.**
 
