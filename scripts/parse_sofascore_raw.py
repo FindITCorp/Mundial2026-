@@ -162,8 +162,12 @@ def parse_event(conn, ev_dir: Path, fill_only=False):
     aid = _db_team_id(conn, ev["awayTeam"])
     if not hid or not aid:
         return f"{ev_dir.name}: no resuelvo equipos ({ev['homeTeam']['name']}/{ev['awayTeam']['name']})"
+    # Mapea por par de equipos a una etapa del Mundial (grupos o knockout),
+    # NO a amistosos/clasificatorios. Prefiere el knockout (id alto) si hay ambos.
     row = conn.execute(
-        "SELECT id FROM wc_matches WHERE home_team_id=? AND away_team_id=? AND stage='group'",
+        "SELECT id FROM wc_matches WHERE home_team_id=? AND away_team_id=? "
+        "AND stage IN ('group','R32','R16','QF','SF','Final','Third') "
+        "ORDER BY (stage='group') ASC, id DESC LIMIT 1",
         (hid, aid)).fetchone()
     if not row:
         return f"{ev_dir.name}: sin partido en wc_matches"
