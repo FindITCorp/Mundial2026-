@@ -1,8 +1,25 @@
 # Contexto de Sesión — Pool Mundial 2026 "Kike"
 
 > **Documento de handoff.** Lee esto primero para retomar el trabajo sin perder nada.
-> Última actualización: **2026-06-29 (R32 en curso: 3 jugados/sellados + nueva fuente play-by-play FIFA + patrones de clasificados)**
-> ⚙️ **NORMA DEL DUEÑO (29-jun): SIEMPRE actualizar este handoff y commitear+pushear TODO tras cada avance.** No acumular.
+> Última actualización: **2026-06-30 (R32: 5 jugados + Sofascore 100% + 3 preliminares selladas con datos reales)**
+> ⚙️ **NORMA DEL DUEÑO (29-jun): SIEMPRE actualizar este handoff y commitear+pushear TODO tras cada avance.** No acumular. [[mundial2026-handoff-commit]]
+
+---
+
+## 🆕 EMPEZAR AQUÍ (30-jun)
+
+**R32 jugados (5):** SAf 0-1 Canadá ✅exacto · Brasil 2-1 Japón ✅ganador · **Alemania 1-1 Paraguay → PARAGUAY avanza pen** (mi sello 2-1 Ale falló; upset que marqué ~19-29% se cumplió) · **P.Bajos 1-1 Marruecos → MARRUECOS avanza pen** (predije "penales→Marruecos por Bono", ✅). Ids internos R32: 518-524 (520=Ger-Par, 521=Ned-Mor result-only, 522/523/524=preliminares).
+
+**DATOS COMPLETOS:** Sofascore disparado (IP desbloqueada, 1 sesión Playwright) para los 5 incompletos → **cobertura xG 100%**. fix `parse_sofascore_raw` (ahora mapea knockout, no solo group). FIFA complementó (timeline 6869 ev/76 part + FDH). Faltan stats ricos: ninguno de los jugados.
+
+**3 PRELIMINARES SELLADAS (evaluated=0, `prelim_..._pendingXI`, re-sellar con XI real):**
+- **400021522 Costa de Marfil 1-1 Noruega → CIV avanza ~57%** (campeón AFCON 2024, pedigrí penales: 5-4 a Senegal con Kessié -hoy titular- y Mali en pr 122'; Noruega 1ª eliminatoria desde 1998, pero Haaland 16g clasif). Cerrado, pinta a pen.
+- **400021523 Francia 2-0 Suecia ~80%** (Francia campeona 18/finalista 22, Mbappé; Suecia se clasificó SIN ganar en grupo, vía repechaje NL, solo Isak+Gyökeres; encajó 5-1 vs Holanda).
+- **400021524 México 1-1 Ecuador → Ecuador avanza ~52-53% pen** (mejor defensa CONMEBOL: 5 GA/18, Pacho-Hincapié-Caicedo; vs factor local México campeón Gold Cup/NL'25). 50/50 real. OJO: el "portero en racha Eloy Room" es de **Curaçao**, NO de Ecuador (lapsus corregido; arquero Ecuador = Galíndez).
+
+**MÉTODO NUEVO validado (pedido del dueño):** evaluación profunda = proceso del torneo (timeline/xG) + XI de gala J1 (en knockout salen con ese) + **datos REALES de clasificación/competencia vía WebSearch** (pedigrí, ranking, experiencia de knockout/penales). Reveló a CIV como especialista de tanda y a Ecuador como sleeper defensivo.
+
+**PENDIENTE:** re-sellar las 3 con XI confirmado al salir; seguir R32 (resto del bracket).
 
 ---
 
