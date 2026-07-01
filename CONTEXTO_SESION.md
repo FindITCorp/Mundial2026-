@@ -6,6 +6,14 @@
 
 ---
 
+## 🏗️ SUITE PREDICTIVA AUTÓNOMA (30-jun — control total del dueño)
+4 herramientas nuevas + **principio operativo clave**:
+- `opponent_adjust.py` — ajusta proceso por fuerza del rival (Elo). México-Ecuador: brecha se cierra a casi empate.
+- `predict_ensemble.py` — consenso + **tope de tanda** [0.42,0.58] + **banderas tácticas** de analyze_match (recortan confianza y avance). Uso: `"A" "B"` / `--backtest`.
+- `calibration_ledger.py` — **¿mis overrides suman? En GRUPOS RESTAN (deferir al modelo), en KNOCKOUT SUMAN (esfuerzo experto ahí).**
+- `live_winprob.py` — prob de avance EN VIVO (marcador+minuto). `--match ID` auto-live.
+- **REGLA NUEVA: no toquetear predicciones de grupo (el modelo gana); volcar el análisis experto en eliminatorias.**
+
 ## 🆕 EMPEZAR AQUÍ (30-jun)
 
 **R32 jugados (5):** SAf 0-1 Canadá ✅exacto · Brasil 2-1 Japón ✅ganador · **Alemania 1-1 Paraguay → PARAGUAY avanza pen** (mi sello 2-1 Ale falló; upset que marqué ~19-29% se cumplió) · **P.Bajos 1-1 Marruecos → MARRUECOS avanza pen** (predije "penales→Marruecos por Bono", ✅). Ids internos R32: 518-524 (520=Ger-Par, 521=Ned-Mor result-only, 522/523/524=preliminares).
