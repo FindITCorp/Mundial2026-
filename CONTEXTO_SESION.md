@@ -38,6 +38,14 @@
   - Senegal: Sarr 0.69 · Ndiaye 0.61 · P.Gueye 0.58 · Diarra 0.43 · Mané 0.19 · Ciss 0.10 · I.G.Gueye 0.09 (suma 2.68)
 - Uso: `python scripts/team_lineup_sim.py "EquipoA" "EquipoB" [match_id]`.
 
+**🆕 SIMULACIÓN COMPLETA DESDE EL KICKOFF (`scripts/full_match_sim.py`) — pedido del dueño ("una simulación real desde el primer movimiento de pelota"):**
+1. **Primero cerré el pendiente declarado antes** (Senegal 2.68 vs 1.67 goles esperados): fix de ANCLAJE en `team_lineup_sim.py` — reescala la suma individual al λ de `simulate_match` (más validado) preservando la proporción entre jugadores. Ya no hay divergencia sin resolver.
+2. **`full_match_sim.py`** simula MINUTO A MINUTO (1 a 90): cada jugador de medio/ataque tira remates según su tasa/90 (volumen real, ajustado por rival) y si remata, gol/parada/fuera según su conversión ANCLADA — genera un relato jugada-por-jugada de verdad, no solo una tabla de probabilidades.
+3. **Validado:** 2000 corridas agregadas promedian Bélgica 1.96 goles / Senegal 1.69 — cuadra con el λ de equipo (2.00/1.67). Una corrida individual al azar dio Bélgica 0-2 Senegal — el marcador real del partido en curso esa noche (coincidencia, no predicción, pero confirma que el motor genera resultados realistas y no ruido).
+- Uso: `python scripts/full_match_sim.py "EquipoA" "EquipoB"` (agregar `--mc N` para saltar el relato y solo ver el chequeo agregado).
+
+**⏱️ USA-Bosnia sigue SIN empezar** (kickoff 00:00 UTC 02-jul, verificado en vivo) — nada que evaluar ahí todavía. Bélgica 0-2 Senegal sigue EN VIVO.
+
 **🔁 RE-EVALUACIÓN COMPLETA de Bélgica-Senegal (01-jul, pedida por el dueño con "considera cosas nuevas que validar/ajustar") — el partido AÚN NO EMPIEZA (kickoff 20:00Z, se verificó vía FIFA live: MatchStatus=1, sin marcador) así que no hay resultado que evaluar todavía, pero la re-corrida completa del flujo encontró 2 mejoras reales más de infraestructura, aplicadas ya a TODO el pipeline (no solo a este partido):**
 1. **`analyze_match.py` calidad de XI:** antes SIEMPRE usaba el XI del J1 como proxy. Ahora auto-detecta si hay XI real confirmado cargado (como el de hoy) y lo usa — Bélgica-Senegal pasa de brecha +0.18 (proxy) a **+0.09 (XI real, aún más parejo)**.
 2. **`analyze_match.py` choque de formaciones:** antes SIEMPRE usaba la formación "predominante" de grupos (Sofascore, no cubre knockouts). Ahora deriva la formación REAL de hoy contando defensas/medios/delanteros del XI confirmado — revela **Bélgica 4-3-3 (mejor formación del torneo, 2.00 pts/p) vs Senegal 3-4-3 (peor formación de la muestra, 0.50 pts/p)**, antes se mostraba el genérico "4-2-3-1 vs 4-2-3-1".

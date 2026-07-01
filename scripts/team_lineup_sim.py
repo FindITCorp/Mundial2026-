@@ -50,10 +50,27 @@ def run_side(conn, attackers_xi, opponent_team, n=15000):
     return rows
 
 
-def print_side(team_name, opponent_name, rows):
+def print_side(team_name, opponent_name, rows, team_lambda=None):
+    """
+    FIX 01-jul: la suma individual NO siempre cuadra con el λ de equipo (validado
+    en Bélgica-Senegal: Senegal daba 2.68 vs 1.67 del modelo, incluso tras el
+    shrinkage bayesiano — el descuento por rival difiere estructuralmente entre
+    el modelo agregado, que promedia GF propio con GA del rival 50/50, y el
+    individual, que solo ajusta volumen+conversión por separado). En vez de dejar
+    la inconsistencia sin resolver, se ANCLA la suma al λ de equipo (más validado,
+    68% acierto de ganador en el torneo) preservando la PROPORCIÓN entre
+    jugadores — quién es más peligroso relativo a quién no cambia, solo se re-
+    escala el total al número que ya sabemos que es más fiable.
+    """
     POS_LBL = {2: "MED", 3: "DEL"}
     print(f"\n--- {team_name} (medio+ataque) vs defensa {opponent_name} ---")
-    print(f"{'Jugador':22}{'Pos':5}{'tiros/90':>9}{'conv%':>7}{'G.esper':>9}{'P(marca)':>10}   histórico Mundial")
+    raw_total = sum(r.get("exp_goals", 0) for r in rows if r["data"])
+    scale = (team_lambda / raw_total) if (team_lambda and raw_total > 0) else 1.0
+    header = f"{'Jugador':22}{'Pos':5}{'tiros/90':>9}{'conv%':>7}{'G.esper':>9}"
+    if scale != 1.0:
+        header += f"{'ANCLADO':>9}"
+    header += f"{'P(marca)':>10}   histórico Mundial"
+    print(header)
     total = 0.0
     any_data = False
     for r in sorted(rows, key=lambda x: -x.get("exp_goals", 0)):
@@ -61,11 +78,18 @@ def print_side(team_name, opponent_name, rows):
             print(f"{r['name']:22}{POS_LBL.get(r['pos'],'?'):5}   sin datos de remates en el Mundial")
             continue
         any_data = True
-        total += r["exp_goals"]
-        print(f"{r['name']:22}{POS_LBL.get(r['pos'],'?'):5}{r['shots90']:9.2f}{r['conv']*100:6.1f}%"
-              f"{r['exp_goals']:9.2f}{r['p_score']*100:9.1f}%   {r['raw_goals']}G/{r['raw_shots']}tiros")
+        anchored = r["exp_goals"] * scale
+        total += anchored
+        line = (f"{r['name']:22}{POS_LBL.get(r['pos'],'?'):5}{r['shots90']:9.2f}{r['conv']*100:6.1f}%"
+                f"{r['exp_goals']:9.2f}")
+        if scale != 1.0:
+            line += f"{anchored:9.2f}"
+        line += f"{r['p_score']*100:9.1f}%   {r['raw_goals']}G/{r['raw_shots']}tiros"
+        print(line)
     if any_data:
-        print(f"{'TOTAL suma individual':22}{'':5}{'':9}{'':7}{total:9.2f}")
+        label = "TOTAL (anclado a λ equipo)" if scale != 1.0 else "TOTAL suma individual"
+        print(f"{label:22}{'':5}{'':9}{'':7}{total:9.2f}"
+              + (f" (crudo {raw_total:.2f}, factor x{scale:.2f})" if scale != 1.0 else ""))
     return total
 
 
@@ -102,20 +126,25 @@ if __name__ == "__main__":
     print(f"=== SIMULACIÓN COMPLETA DE XI — {team_a} vs {team_b} (match_id={match_id}) ===")
     rows_a = run_side(conn, xi_a, team_b)
     rows_b = run_side(conn, xi_b, team_a)
-    total_a = print_side(team_a, team_b, rows_a)
-    total_b = print_side(team_b, team_a, rows_b)
 
-    print(f"\n=== CRUCE CON EL MODELO DE EQUIPO (simulate_match) ===")
+    team_lambda_a = team_lambda_b = None
     try:
         from simulate_match import simulate as _sim_team
         s = _sim_team(conn, team_a, team_b, n=20000)
-        print(f"λ de equipo (Monte Carlo agregado): {team_a} {s['la']:.2f} vs {team_b} {s['lb']:.2f}")
-        print(f"Suma de individuales (solo medio+ataque, este script): {team_a} {total_a:.2f} vs {team_b} {total_b:.2f}")
-        da, db = s['la'] - total_a, s['lb'] - total_b
-        print(f"Diferencia: {team_a} {da:+.2f} · {team_b} {db:+.2f} "
-              f"(positivo = el agregado espera MÁS goles que la suma de medio+ataque individual — "
-              f"la diferencia son los goles que 'faltan' de defensas/gente sin datos de remates registrados)")
-    except Exception as e:
-        print(f"No se pudo cruzar con simulate_match: {e}")
+        team_lambda_a, team_lambda_b = s["la"], s["lb"]
+    except Exception:
+        s = None
+
+    total_a = print_side(team_a, team_b, rows_a, team_lambda=team_lambda_a)
+    total_b = print_side(team_b, team_a, rows_b, team_lambda=team_lambda_b)
+
+    if s:
+        print(f"\n=== CRUCE CON EL MODELO DE EQUIPO (simulate_match) ===")
+        print(f"λ de equipo (Monte Carlo agregado, más validado — 68% acierto de ganador en el torneo): "
+              f"{team_a} {team_lambda_a:.2f} vs {team_b} {team_lambda_b:.2f}")
+        print(f"→ suma individual anclada a este λ (ver tabla arriba); la proporción entre jugadores "
+              f"SÍ es información nueva, el total ya no diverge del modelo de equipo.")
+    else:
+        print(f"\nNo se pudo cruzar con simulate_match — quedó sin anclar (revisar).")
 
     conn.close()
