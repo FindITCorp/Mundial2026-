@@ -36,9 +36,25 @@ sys.path.insert(0, str(BASE_DIR))
 DB = BASE_DIR / "data" / "mundial2026.db"
 
 from models.match_predictor import predict_match
-from regression_check import sot_diff
+from opponent_adjust import adj_sot_diff
 from xi_quality import xi_rating
 from knockout_tiebreaker import ratings as ko_ratings
+from analyze_match import team_profile, _flags
+
+# arquetipos de UPSET que la lectura táctica ve y las métricas agregadas no
+_FAV_UPSET = ("CONCEDE TEMPRANO",)          # el favorito se abre al inicio
+_DOG_UPSET = ("PORTERO EN RACHA", "BLOQUE QUE ABSORBE", "JUEGA AL CONTRAGOLPE")
+
+
+def _tactical_flags(conn, tid):
+    try:
+        c2 = sqlite3.connect(str(DB))
+        c2.row_factory = sqlite3.Row
+        fl = _flags(team_profile(c2, tid))
+        c2.close()
+        return fl
+    except Exception:
+        return []
 
 
 def _tid(conn, name):
@@ -62,9 +78,9 @@ def ensemble(conn, a, b, groups_only=False):
     # --- eje 1: consenso de quién es mejor (favorito en 90') ---
     votes = []
     votes.append(a if ph > pa else b)                              # modelo
-    da, db_ = sot_diff(conn, a, groups_only), sot_diff(conn, b, groups_only)
+    da, db_ = adj_sot_diff(conn, a, groups_only), adj_sot_diff(conn, b, groups_only)
     if da is not None and db_ is not None and da != db_:
-        votes.append(a if da > db_ else b)                         # SOT-dif proceso
+        votes.append(a if da > db_ else b)                         # proceso AJUSTADO por rival
     xa, xb = xi_rating(conn, a), xi_rating(conn, b)
     if xa and xb and abs(xa["avg"] - xb["avg"]) > 0.05:
         votes.append(a if xa["avg"] > xb["avg"] else b)            # calidad XI
@@ -97,10 +113,28 @@ def ensemble(conn, a, b, groups_only=False):
         conf = "BAJA"
     else:
         conf = "MEDIA"
+
+    # --- ingesta de banderas TÁCTICAS (lo que las métricas agregadas NO ven) ---
+    dog = b if cons == a else a
+    fav_fl = _tactical_flags(conn, aid if cons == a else bid)
+    dog_fl = _tactical_flags(conn, bid if cons == a else aid)
+    tac = []
+    if any(k in f for f in fav_fl for k in _FAV_UPSET):
+        tac.append(f"favorito {cons} concede TEMPRANO (arquetipo de upset)")
+    if any(k in f for f in dog_fl for k in _DOG_UPSET):
+        tac.append(f"underdog {dog} con portero/bus/contra (arquetipo de upset)")
+    if tac:                                   # baja confianza Y recorta el avance hacia 50%
+        conf = "MEDIA" if conf == "ALTA" else "BAJA"
+        cut = 0.08 * len(tac)
+        if cons == a and adv_a > 0.5:
+            adv_a = max(0.5, adv_a - cut); adv_b = 1 - adv_a
+        elif cons == b and adv_b > 0.5:
+            adv_b = max(0.5, adv_b - cut); adv_a = 1 - adv_b
+        adv_cons = adv_a if cons == a else adv_b
     return {"a": a, "b": b, "ph": ph, "pd": pd, "pa": pa,
             "cons": cons, "agreement": agreement, "nvotes": len(votes),
             "adv_cons": adv_cons, "adv_a": adv_a, "adv_b": adv_b,
-            "shootout_risk": shoot, "conf": conf}
+            "shootout_risk": shoot, "conf": conf, "tactical": tac}
 
 
 def _print(r):
@@ -108,6 +142,8 @@ def _print(r):
     print(f"  Consenso favorito 90': {r['cons']}  (acuerdo {r['agreement']*100:.0f}% de {r['nvotes']} señales)")
     print(f"  Riesgo de TANDA (prob empate): {r['shootout_risk']*100:.0f}%  → avance acotado")
     print(f"  AVANCE: {r['a']} {r['adv_a']*100:.0f}%  |  {r['b']} {r['adv_b']*100:.0f}%")
+    for t in r.get("tactical", []):
+        print(f"  ⚑ BANDERA TÁCTICA: {t} → baja la confianza")
     print(f"  ★ CONFIANZA: {r['conf']}  → favorito a avanzar: {r['cons']} {r['adv_cons']*100:.0f}%")
     if r["conf"] == "BAJA":
         print("  ⚠ BAJA confianza: NO sellar puntual con exceso; es donde perdimos (tandas/discrepancia).")
