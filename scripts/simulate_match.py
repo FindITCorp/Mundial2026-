@@ -41,10 +41,12 @@ def forensics(conn, team):
     for fmid, dbt in conn.execute("SELECT DISTINCT fifa_match_id,db_team_id FROM fifa_match_events WHERE db_team_id IS NOT NULL"):
         teams_in[fmid].add(dbt)
     lines = []; att = [0]*7; conc = [0]*7
-    for fmid, gs in goals.items():
-        if tid not in teams_in[fmid] or len(teams_in[fmid]) != 2:
+    # iterar TODOS los partidos del equipo (incluidos 0-0: un blanqueo es dato clave)
+    for fmid, tset in teams_in.items():
+        if tid not in tset or len(tset) != 2:
             continue
-        opp = [t for t in teams_in[fmid] if t != tid][0]
+        opp = [t for t in tset if t != tid][0]
+        gs = goals.get(fmid, [])
         gf = sorted([(m, pn) for m, d, pn in gs if d == tid])
         ga = sorted([(m, pn) for m, d, pn in gs if d == opp])
         for m, _ in gf:
