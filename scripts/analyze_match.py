@@ -427,18 +427,47 @@ def analyze(team_a, team_b, db_path=DB, verbose=True):
         tla = tlb = None
     # CALIDAD DEL XI DESPLEGADO (rating de torneo de los titulares) — validado
     # 28-jun: predice el ganador en 89% de los decisivos con XI claro. Señal que el
-    # modelo (Elo/plantilla) infravalora; usa el XI del J1 como proxy del once estelar.
+    # modelo (Elo/plantilla) infravalora. FIX 01-jul: antes SIEMPRE usaba el XI del
+    # J1 como proxy, incluso cuando YA había XI real confirmado del partido de HOY
+    # cargado en fifa_lineups (se detectó al comparar con xi_quality.py corrido a
+    # mano en Bélgica-Senegal: proxy J1 daba brecha +0.18, XI real confirmado daba
+    # +0.09 — más ajustado). Ahora busca el match_id REAL entre estos dos equipos
+    # (cualquier stage) que ya tenga lineup cargado, y si existe lo usa en vez del
+    # proxy J1; si no hay XI real (aún no salen alineaciones), cae al J1 como antes.
+    real_mid = conn.execute(
+        "SELECT m.id FROM wc_matches m JOIN fifa_lineups fl ON fl.match_id=m.id "
+        "WHERE ((m.home_team_id=? AND m.away_team_id=?) OR (m.home_team_id=? AND m.away_team_id=?)) "
+        "GROUP BY m.id ORDER BY m.date DESC LIMIT 1",
+        (aid, bid, bid, aid)).fetchone()
+    real_mid = real_mid[0] if real_mid else None
     xiq = None
     try:
         from xi_quality import xi_rating as _xir
-        _xa, _xb = _xir(conn, an), _xir(conn, bn)
+        _xa = _xir(conn, an, match_id=real_mid) if real_mid else _xir(conn, an)
+        _xb = _xir(conn, bn, match_id=real_mid) if real_mid else _xir(conn, bn)
         if _xa and _xb:
-            xiq = (_xa, _xb)
+            xiq = (_xa, _xb, real_mid is not None)
     except Exception:
         xiq = None
-    # CHOQUE DE FORMACIONES — lectura estratégica (formación real de Sofascore).
-    # Muestra la formación predominante de cada equipo y el récord histórico de ese
-    # cruce. Validado 28-jun: 4-3-3/4-4-2 dominan; el bus 5-4-1 fracasa (0V-3E-7D).
+    # CHOQUE DE FORMACIONES — lectura estratégica (formación real de Sofascore para
+    # grupos; NO cubre knockouts, ahí solo había "predominante"). FIX 01-jul (mismo
+    # patrón que el fix de XI): si hay XI real confirmado (real_mid, de la sección
+    # de arriba), derivar la formación EFECTIVA de HOY contando defensas/medios/
+    # delanteros por `position` en fifa_lineups (0=GK no cuenta) — más precisa que
+    # la "predominante" de grupos para el partido de hoy (Bélgica-Senegal: reveló
+    # 4-3-3 vs 3-4-3, no el 4-2-3-1 vs 4-2-3-1 "predominante" que se mostraba antes).
+    # Nota: solo distingue 3 líneas (def-mid-fwd), no el detalle de un 4-2-3-1.
+    def _derive_formation(mid_, tid_):
+        rows = conn.execute(
+            "SELECT position FROM fifa_lineups WHERE match_id=? AND team_id=? AND is_starter=1 "
+            "AND position IS NOT NULL", (mid_, tid_)).fetchall()
+        if len(rows) < 10:
+            return None
+        d = sum(1 for (p,) in rows if p == 1)
+        m = sum(1 for (p,) in rows if p == 2)
+        f = sum(1 for (p,) in rows if p == 3)
+        return f"{d}-{m}-{f}" if (d + m + f) >= 10 else None
+
     fm = None
     try:
         from formation_matchup import matchup as _fmatch, formation_strength as _fstr
@@ -450,9 +479,13 @@ def analyze(team_a, team_b, db_path=DB, verbose=True):
             from collections import Counter
             c2 = Counter(x[0] for x in rows if x[0])
             return c2.most_common(1)[0][0] if c2 else None
-        fa_, fb_ = _topf(an), _topf(bn)
+        real_fa = _derive_formation(real_mid, aid) if real_mid else None
+        real_fb = _derive_formation(real_mid, bid) if real_mid else None
+        fa_ = real_fa or _topf(an)
+        fb_ = real_fb or _topf(bn)
+        is_real_f = bool(real_fa and real_fb)
         if fa_ and fb_:
-            fm = (fa_, fb_, _fmatch(conn, fa_, fb_), _fr.get(fa_), _fr.get(fb_))
+            fm = (fa_, fb_, _fmatch(conn, fa_, fb_), _fr.get(fa_), _fr.get(fb_), is_real_f)
     except Exception:
         fm = None
     # FASE FINAL — desempate (resistencia/portero/pateadores) si ambos califican
@@ -483,16 +516,18 @@ def analyze(team_a, team_b, db_path=DB, verbose=True):
             for note in _chance_clash(an, tla, bn, tlb):
                 print("  • " + note)
         if xiq:
-            xa, xb = xiq
+            xa, xb, is_real = xiq
             gap = xa["avg"] - xb["avg"]
             edge = an if gap > 0.10 else (bn if gap < -0.10 else "parejo")
-            print(f"  • XI DESPLEGADO (calidad, proxy J1): {an} {xa['avg']:.2f} vs {bn} {xb['avg']:.2f} "
+            src = "XI REAL confirmado" if is_real else "proxy J1"
+            print(f"  • XI DESPLEGADO (calidad, {src}): {an} {xa['avg']:.2f} vs {bn} {xb['avg']:.2f} "
                   f"→ ventaja {edge} ({gap:+.2f}); señal fuerte (89% acierto en decisivos)")
         if fm:
-            fa_, fb_, mm, ra_, rb_ = fm
+            fa_, fb_, mm, ra_, rb_, is_real_f = fm
             def _pp(r):
                 n = sum(r[:3]); return f"{(3*r[0]+r[1])/n:.2f} pts/p" if n else "s/d"
-            print(f"  • CHOQUE DE FORMACIONES (predominante, refinar con XI real): "
+            f_src = "REAL de hoy" if is_real_f else "predominante, refinar con XI real"
+            print(f"  • CHOQUE DE FORMACIONES ({f_src}): "
                   f"{an} {fa_} ({_pp(ra_) if ra_ else 's/d'}) vs {bn} {fb_} ({_pp(rb_) if rb_ else 's/d'})")
             if mm and mm["n"] >= 2:
                 print(f"      histórico {fa_} vs {fb_} (n={mm['n']}): {mm['w']}V-{mm['d']}E-{mm['l']}D "
