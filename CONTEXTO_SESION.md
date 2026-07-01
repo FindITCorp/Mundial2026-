@@ -6,6 +6,26 @@
 
 ---
 
+## 🚀 EMPEZAR AQUÍ (01-jul — para CHAT NUEVO, leer primero)
+
+**ESTADO R32:** 7 jugados+evaluados · 3 sellados sin jugar (hoy). Acierto de avance 4/6 (67%), marcador exacto 1/6 (17%).
+- ✅ Evaluados: SAf 0-1 Can · Bra 2-1 Jpn · **Ale 1-1 Par→Paraguay pen (fallé)** · Hol 1-1 Mar→Marruecos pen · **CIV 1-2 Nor (fallé)** · Fra 3-0 Sue · **Mex 2-0 Ecu** (mi coinflip fue peor que mi 2-1 original).
+- 🔮 Sellados hoy (integral, re-sellar con XI al salir): **Inglaterra 1-0 Congo (~68%, XI ya cargado)** id 400021525 · **Bélgica 2-1 Senegal (~55%, ABIERTO, Senegal amenaza real)** id 400021526 · **USA 2-1 Bosnia (~63%, abierto)** id 400021527.
+- Ids internos R32: 518-527 (mis sellos). Tras cada merge del pipeline: verificar sellos (`git checkout --ours data/mundial2026.db`).
+
+**⚙️ FLUJO OBLIGATORIO POR PARTIDO (regla reforzada, NO saltar):**
+`simulate_match.py "A" "B"` (forense gol-por-gol + ventanas + Monte Carlo, TODOS los escenarios) → `scoreline_ground.py "A" "B"` (fundamentar marcador en goles/concesión REALES, no la λ) → **bajar XI real de FIFA live** → `predict_ensemble.py "A" "B"` (consenso + tope tanda + banderas tácticas + ajuste por rival) → factores que emergen → sellar → push.
+
+**🧰 SUITE DE HERRAMIENTAS (todas en scripts/):** `simulate_match` · `scoreline_ground` · `predict_ensemble` · `opponent_adjust` · `regression_check` · `calibration_ledger` · `live_winprob` · `analyze_match` · `xi_quality` · `knockout_tiebreaker` · `formation_matchup` · `timeline_stats` · `fetch_fifa_timeline`.
+
+**🔧 MODELO:** `WC_LAMBDA_SCALE` re-calibrado **0.90→1.10** (marcador exacto 12→15%, ganador 67% estable; el torneo evolucionó a más goles).
+
+**📏 PRINCIPIOS (memoria):** (1) **MANDATO GLOBAL:** ver lo que el dueño no ve, ser crítico siempre, buscar mejoras/detalles sin que lo pida, no conformarse — en TODO. (2) **LOOP de mejora** (`LEARNING_LOOP.md`): cada fallo → diagnosticar QUÉ señal lo cazaría → encodar → medir en ledger. (3) **Deferir al modelo en GRUPOS, criterio experto en KNOCKOUT** (medido). (4) **Análisis INTEGRAL siempre**, nunca "gana el favorito". (5) Techo honesto: marcador exacto ~20% (no 80%); el 80% es para el GANADOR.
+
+**📌 PENDIENTES:** re-sellar Bélgica/USA con XI real al salir alineaciones · evaluar los 3 al cierre + `calibration_ledger` · resto de R32 (Spain-Austria, Portugal-Croatia, Switzerland-Algeria, Australia-Egypt, Argentina-CaboVerde, Colombia-Ghana) · **FRONTERA a prototipar: modelo de HAZARD por minuto** (Senegal concede en oleadas 43-58', invisible al Poisson total — el paradigma con más potencial de romper el techo).
+
+---
+
 ## 🏗️ SUITE PREDICTIVA AUTÓNOMA (30-jun — control total del dueño)
 4 herramientas nuevas + **principio operativo clave**:
 - `opponent_adjust.py` — ajusta proceso por fuerza del rival (Elo). México-Ecuador: brecha se cierra a casi empate.
