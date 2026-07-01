@@ -1,7 +1,7 @@
 # Contexto de Sesión — Pool Mundial 2026 "Kike"
 
 > **Documento de handoff.** Lee esto primero para retomar el trabajo sin perder nada.
-> Última actualización: **2026-07-01 tarde (R32 COMPLETO: 16/16 emparejamientos sellados; hazard-model prototipado y NULO)**
+> Última actualización: **2026-07-01 tarde (Bélgica-Senegal re-sellado con XI real; R32 COMPLETO: 16/16 sellados; hazard-model prototipado y NULO)**
 > ⚙️ **NORMA DEL DUEÑO (29-jun): SIEMPRE actualizar este handoff y commitear+pushear TODO tras cada avance.** No acumular. [[mundial2026-handoff-commit]]
 
 ---
@@ -11,7 +11,8 @@
 **R32 AHORA COMPLETO (16/16 partidos con fila en `wc_matches`/sello en `match_predictions`):**
 - ✅ Jugados/evaluados (7): SAf 0-1 Can · Bra 2-1 Jpn · Ale 1-1 Par→Paraguay pen · Hol 1-1 Mar→Marruecos pen · CIV 1-2 Nor · Fra 3-0 Sue · Mex 2-0 Ecu.
 - 🔴 **EN VIVO ahora mismo: England vs DR Congo** (kickoff 16:00Z 01-jul) — sello ya con XI real `integral_R32_ENG1-0adv68..._ENGrotado`, id 400021525.
-- 🔮 **Pendiente re-sellar con XI real cuando el dueño pase el link** (kickoff hoy): **Bélgica-Senegal** 20:00Z (id 400021526, sello preliminar `BEL2-1adv55`) · **USA-Bosnia** 00:00Z 02-jul (id 400021527, sello preliminar `USA2-1adv63`).
+- ✅ **RE-SELLADO CON XI REAL (link del dueño, match-centre FIFA 289287/400021525):** **Bélgica 2-2 Senegal, avance Bélgica ~57%** (id interno 400021526). XI real: **Bélgica 4-3-3** (Courtois; Théate-Mechele-De Cuyper-Castagne; De Bruyne-Tielemans-Vanaken; Trossard-Doku-De Ketelaere) — la formación MÁS EXITOSA del torneo (12V-2E-5D, 2.00 pts/p). **Senegal sorprende con 3-4-3** (línea de 3: Jakobs-Niakhaté-Diatta; Diaw; Gueye-Ciss-Diarra-P.Gueye; Mané-Ndiaye-Sarr) — formación RARA y FRÁGIL en el torneo (n=2, 0.50 pts/p, apenas 0.50 GF/p) pero muestra chica, no generalizar entre equipos. Bajé de la lectura preliminar (72% aún ayer) porque: Elo prácticamente EMPATADO (1733 vs 1735), `opponent_adjust` sigue favoreciendo el proceso de Senegal ajustado por rival (+2.7 vs +2.0, enfrentó a Francia), y Bélgica fue BLANQUEADA por Egipto (su único rival fuerte) — mismo patrón de alerta que España-Austria. Lo que sostiene a Bélgica: XI de gala completo, formación estructuralmente superior, y ventaja clara en el desempate de penales (64% vs 44%, pateadores 81pct vs 22pct). Partido ABIERTO (over2.5 65%, ambos marcan 58%) — **pendiente de evaluar cuando termine (kickoff 20:00Z).**
+- 🔮 **Pendiente re-sellar con XI real cuando el dueño pase el link:** **USA-Bosnia** 00:00Z 02-jul (id 400021527, sello preliminar `USA2-1adv63`).
 - 🆕 **Creados y sellados HOY (no existían en `wc_matches`, faltaba el resto del bracket) — preliminares SIN XI, re-sellar cuando salgan alineaciones (~1h antes, se puede auto-consultar FIFA live sin depender del link):**
   - id 400021528 **Spain 2-0 Austria** (~80% avance) — España defensa élite (0 GA/3, 100% paradas) pero ojo: proceso ajustado por rival (`opponent_adjust`) matiza a favor de Austria (rivales de España más flojos); Austria fue blanqueada por Argentina (su rival más fuerte) → patrón que podría repetirse ante la defensa de España.
   - id 400021529 **Portugal 2-1 Croatia** (~81%) — partido PAREJO (Elo brecha 41, alerta empate 41%), pero desempate claramente Portugal (80% vs 43%, GK Diogo Costa 88pct).
