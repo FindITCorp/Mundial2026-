@@ -38,6 +38,22 @@
 - **Marcador exacto:** ~15% actual → romper el techo convencional (~20%) con micro-datos.
 - Se miden en `calibration_ledger` tras CADA ronda. Si una señal no sube el ledger, se descarta.
 
+## 🆕 FRONTERA DESBLOQUEADA 01-jul — SIMULACIÓN JUGADOR vs DEFENSA (`scripts/player_matchup_sim.py`)
+
+El dueño exigió, con razón, ir más allá del agregado de equipo: "simular cuántas oportunidades de gol tendría [ej. Kane], cuáles se convertirían, si la defensa lo permitiría" — no una promesa, una herramienta que funcione.
+
+**Bloqueador que lo impedía (encontrado y resuelto):** los remates de `fifa_match_events` (type 12) tenían **0 de 1962 con nombre de jugador** — solo `player_fifa_id` sin resolver. Se descubrió que `api.fifa.com/api/v3/players/{id}` SÍ da el nombre → **`scripts/fetch_fifa_player_names.py`** cachea el mapeo (tabla `fifa_player_names`, 725 jugadores resueltos de una sola pasada). Con eso se puede reconstruir el registro de remates de CUALQUIER jugador.
+
+**Modelo (`player_matchup_sim.py "Jugador" "Rival"`):** remates/90 y conversión PERSONALES del jugador (todo el Mundial) → ajustados por (a) cuánto tiro permite el rival vs el promedio del torneo, (b) `goals_prevented` del rival (arquero/defensa que conceden más de lo esperado por xG sube la conversión ajustada) → Monte Carlo de remates (Poisson) × conversión (Bernoulli) → distribución de goles del jugador en ESE partido.
+
+**VALIDADO retrospectivamente (Harry Kane vs DR Congo, partido ya jugado, sin fuga vía `--exclude-match`):** modelo daba esperado 1.44 goles, P(≥1)=76.5%, P(2 goles)=24.4%. Real: **Kane marcó 2 goles de 5 remates** — cae dentro de la probabilidad del modelo (24.4%, no un resultado extremo), buena validación honesta (no un ajuste retroactivo perfecto, un resultado plausible dentro de la distribución).
+
+**Probado hacia adelante:** Cristiano Ronaldo vs Croacia (Portugal-Croacia, R32 pendiente) → esperado 0.99 goles, P(≥1)=63%.
+
+**LIMITACIÓN EXPLÍCITA (no se infla el dato):** (1) NO hay regates (dribbles) a nivel jugador en la base, solo agregado de equipo — el script lo etiqueta claro, nunca lo hace pasar por individual. (2) Con muestra chica (ej. Sadio Mané, 5 remates/0 goles) la conversión personal es MUY ruidosa — el modelo lo refleja (P(≥1)=4.9%) pero hay que leerlo con cautela, no como oráculo. (3) El perfil defensivo del rival se restringió a partidos de Mundial (group/R32) — se encontró que mezclaba amistosos de otro nivel, corregido antes de reportar.
+
+**Pendiente de siguiente sesión:** correr `--fix`/backtest contra MÁS jugadores decisivos (Messi, Mbappé, Haaland) para ver si el patrón de validación se sostiene con n>1; conectar la salida a `predict_ensemble`/`analyze_match` si se confirma que aporta señal más allá de lo agregado.
+
 ## Fronteras a explorar (romper paradigmas — pendientes, con hipótesis medible)
 - **Modelo de HAZARD por minuto (`scripts/hazard_model.py`, prototipado 01-jul) — RESULTADO: NULO, no se activa.**
   Hipótesis original: Senegal (y otros) "colapsan en OLEADAS" (43'/48'/58' vs Noruega) —
