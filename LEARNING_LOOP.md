@@ -9,7 +9,11 @@
 1. **PREDECIR** con el flujo integral obligatorio:
    `simulate_match` (forense gol-por-gol + ventanas + Monte Carlo) → `scoreline_ground`
    (registros de gol/concesión) → **XI real** → factores que emergen → `predict_ensemble`
-   (consenso + tope de tanda + banderas) → sellar.
+   (consenso + tope de tanda + banderas) → sellar → **`validate_predictions.py --fix`
+   (GATE OBLIGATORIO, nace 01-jul tras encontrar el MISMO bug de consistencia
+   marcador↔ganador en Bélgica-Senegal Y en Australia-Egipto el mismo día — la
+   revisión manual no lo cazó las dos veces, un validador automático sí). Nunca
+   presentar/cerrar un sello sin correrlo.**
 2. **OBSERVAR** el resultado real (bajar de FIFA, registrar).
 3. **DIAGNOSTICAR EL FALLO** — no "fallé", sino ¿QUÉ señal lo habría cazado? (abajo).
 4. **ENCODAR** esa señal como herramienta/knob y **medir** en `calibration_ledger` si sube.
@@ -25,6 +29,7 @@
 | "gana el favorito" superficial | no usé la forense gol-por-gol ni simulé escenarios | `simulate_match` (Monte Carlo + ventanas) |
 | sub-predicción de goles (1.86 vs 2.83) | knob λ mal calibrado tras evolucionar el torneo | `WC_LAMBDA_SCALE` 0.90→1.10 (exacto 12→15%) |
 | Bélgica-Senegal sellado 2-2 (el dueño lo cazó: "no parecen muchos goles") | el marcador venía de `scoreline_ground` (heurístico de promedios GF/GA) sin validarlo contra el top-6 real de `simulate_match` — el 2-2 NO aparecía en ese top-6, y además contradecía el campo ganador=Bélgica (un empate no puede tener "ganador" en 90') | corregido a 2-1 (sí está en el top-6). Auditados los otros 7 sellos del día: todos ya estaban dentro de su propio top-6 — regla nueva: SIEMPRE cruzar el marcador final contra el top-6 de `simulate_match` antes de sellar, no solo contra `scoreline_ground` |
+| El dueño desconfió tras el fallo de Bélgica ("siempre hay algo que se te olvida... no se automejora") — con razón: la revisión de Bélgica fue MANUAL, ad-hoc, no sistemática | validar "cuando se pregunta" en vez de SIEMPRE, para TODOS los partidos, no solo el que se señaló | **`scripts/validate_predictions.py`** — gate automático que corre en TODA la tabla `match_predictions` (probs suman 1, marcador↔ganador coherente, marcador↔goles coherente, marcador dentro del top-8 de `simulate_match`). Al correrlo sobre TODO encontró el MISMO bug en **Australia-Egipto** (nadie lo había visto) — corregido con `--fix` sin que el dueño tuviera que señalarlo. Distingue el pipeline automático (GitHub Action, `predict_upcoming.py`: winner=argmax 1X2 agregado, scoreline=argmax del grid Dixon-Coles — DIVERGEN por diseño, verificado leyendo el código, no es bug ahí) de mis sellos expertos (ahí sí debe ser 100% coherente). Correrlo es ahora paso OBLIGATORIO del flujo, no opcional. |
 | England 1-0 sellado → real 2-1 (Congo marcó primero al 7', England remontó 75'/86') | BUG REAL en `_window_clash()` (analyze_match.py): usaba el timing HISTÓRICO (amistosos/clasificatorios) para decidir AMENAZA REAL/NEUTRALIZADA, ignorando `wc_goal_timing` (datos REALES de este Mundial, ya cargados y marcados "prioritario" en el código pero nunca conectados a esta función). Dijo "DR Congo aguanta bien 76-90" con datos viejos; con datos reales del Mundial, Congo SÍ concedía tarde — y England anotó ahí. Nota: el ganador SÍ se acertó (sellado y modelo coinciden, ambos correctos en 1X2 vía `calibration_ledger`); el fallo fue solo de MARCADOR EXACTO y de narrativa táctica, no de dirección. | `_window_clash()` arreglado 01-jul: usa `wc_scored`/`wc_conceded` (Mundial real) si hay ≥2 goles de muestra, si no cae al histórico. Verificado en los 8 partidos de R32 pendientes: cambia la narrativa en varios casos (Spain-Austria, Portugal-Croatia, Australia-Egypt, Argentina-CapeVerde, Colombia-Ghana) pero NINGUNO requirió re-sellar el número — la narrativa de ventanas es color cualitativo, no alimenta la λ del Monte Carlo. |
 
 ## Métricas que perseguimos (medidas, no inventadas)
