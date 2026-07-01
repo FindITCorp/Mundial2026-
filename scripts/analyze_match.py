@@ -519,9 +519,21 @@ def _share(arr):
 def _window_clash(att_name, att_p, def_name, def_p):
     """Analiza si las ventanas de ATAQUE del atacante coinciden con las de
     FRAGILIDAD del defensor. Esto es el corazón del análisis: NO basta con quién
-    crea más, sino CUÁNDO ataca uno vs CUÁNDO se rompe el otro."""
-    a = _share(att_p.get("hist_scored"))
-    d = _share(def_p.get("hist_conceded"))
+    crea más, sino CUÁNDO ataca uno vs CUÁNDO se rompe el otro.
+
+    FIX 01-jul (bug real, England 2-1 DR Congo): esta función usaba SOLO el
+    timing HISTÓRICO (team_goal_timing, amistosos/clasificatorios) para decidir
+    'NEUTRALIZADA', ignorando el timing REAL de ESTE Mundial (wc_goal_timing,
+    ya cargado y marcado 'prioritario' en profile() pero nunca conectado aquí).
+    Resultado: dijo que DR Congo 'aguanta bien' el 76-90 (dato viejo) cuando en
+    ESTE torneo SÍ concedía tarde — y England anotó justo ahí (75',86'). Ahora
+    usa wc_scored/wc_conceded (datos del Mundial) si hay >=2 goles de muestra;
+    si no, cae al histórico como antes (norma del proyecto: Mundial > amistosos)."""
+    a_wc, d_wc = att_p.get("wc_scored"), def_p.get("wc_conceded")
+    a_src = a_wc if a_wc and sum(a_wc) >= 2 else att_p.get("hist_scored")
+    d_src = d_wc if d_wc and sum(d_wc) >= 2 else def_p.get("hist_conceded")
+    a = _share(a_src)
+    d = _share(d_src)
     if not a or not d:
         return None
     # Guarda por VOLUMEN: un ataque ínfimo (xG bajo) no es amenaza aunque su

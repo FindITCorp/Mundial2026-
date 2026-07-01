@@ -1,7 +1,7 @@
 # Contexto de Sesión — Pool Mundial 2026 "Kike"
 
 > **Documento de handoff.** Lee esto primero para retomar el trabajo sin perder nada.
-> Última actualización: **2026-07-01 tarde (Bélgica-Senegal re-sellado con XI real; R32 COMPLETO: 16/16 sellados; hazard-model prototipado y NULO)**
+> Última actualización: **2026-07-01 tarde (England-Congo evaluado + BUG REAL encontrado y arreglado en analyze_match.py; Bélgica-Senegal re-sellado con XI real; R32 16/16 sellados)**
 > ⚙️ **NORMA DEL DUEÑO (29-jun): SIEMPRE actualizar este handoff y commitear+pushear TODO tras cada avance.** No acumular. [[mundial2026-handoff-commit]]
 
 ---
@@ -20,6 +20,8 @@
   - id 400021531 **Egypt 1-1 Australia → Egipto avanza en penales (~62%)** — CONFIANZA BAJA (bandera de ensemble: Australia bus/contra, arquetipo de upset); Egipto favorito flojo, portero Shobeir clave en tanda (94pct).
   - id 400021532 **Argentina 2-0 Cape Verde (~72%)** — CONFIANZA BAJA: Cabo Verde ajustado por rival en realidad SUPERA a Argentina en proceso (+1.8 vs +0.5, misma lección que Bélgica-Senegal); además Vozinha (GK Cabo Verde) es favorito EN LA TANDA (65% vs 35%) — mismo punto ciego de Bono/Holanda-Marruecos. Si empata, ojo con los penales.
   - id 400021533 **Colombia 2-0 Ghana (~77%)** — el más sólido de los 3 sudamericanos/africanos: Colombia con proceso fuerte incluso ajustado por rival (+3.4, ante DRC/Uzbekistán/Portugal 0-0), Ghana casi no genera (0.69 xG/p).
+
+**🩹 England 2-1 DR Congo — EVALUADO, y BUG REAL encontrado y arreglado (no un placebo):** sellé 1-0 (~68% avance); real fue **2-1** (Congo marcó primero al 7' con Wissa, England remontó con DOS goles tarde: 75' y 86'). **El GANADOR se acertó** (sellado y modelo base coinciden, ambos 1X2 correctos vía `calibration_ledger`: knockout sellado 57% acc vs modelo 43% — mis overrides SIGUEN sumando ahí); el fallo fue de MARCADOR EXACTO y de narrativa táctica. **Diagnóstico → causa raíz real:** `_window_clash()` en `analyze_match.py` decidía "AMENAZA REAL"/"NEUTRALIZADA" usando el timing HISTÓRICO (amistosos/clasificatorios, tabla `team_goal_timing`) en vez de `wc_goal_timing` (datos REALES de este Mundial, ya cargados y marcados "prioritario" en el código pero nunca conectados a esta función específica). Por eso dijo "DR Congo aguanta bien 76-90" con datos viejos, cuando en ESTE Mundial sí concedía tarde — y England anotó ahí (75',86'), exactamente en su propia ventana LETAL TARDE. **FIX aplicado:** `_window_clash()` ahora usa `wc_scored`/`wc_conceded` si hay ≥2 goles de muestra (si no, cae al histórico) — corrige TODAS las llamadas futuras a `analyze_match.py`. **Verificado en los 7 partidos de R32 pendientes** (Spain-Austria, Portugal-Croatia, Switzerland-Algeria, Australia-Egypt, Argentina-CapeVerde, Colombia-Ghana, USA-Bosnia): la narrativa de ventanas cambió en varios casos, pero NINGUNO requirió re-sellar el número — el choque de ventanas es color cualitativo (no alimenta la λ del Monte Carlo/predict_ensemble numéricamente), consistente con el hallazgo del hazard-model de hoy mismo. Detalle en `LEARNING_LOOP.md`.
 
 **🔬 HAZARD-BY-MINUTE PROTOTIPADO (`scripts/hazard_model.py`) — frontera cerrada con evidencia, NO activar:**
 1. **Auto-excitación ("colapso en oleadas") — FALSEADA.** Test riguroso (huecos reales entre goles-encajados-consecutivos vs 10000 sims de goles colocados al azar en 90'): fracción real de huecos ≤15' = 0.453 vs esperado por azar 0.471 (p=0.70). El patrón Senegal es varianza normal de Poisson plano, NO derrumbe sistemático a nivel torneo.
