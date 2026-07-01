@@ -1,12 +1,38 @@
 # Contexto de Sesión — Pool Mundial 2026 "Kike"
 
 > **Documento de handoff.** Lee esto primero para retomar el trabajo sin perder nada.
-> Última actualización: **2026-06-30 (R32: 5 jugados + Sofascore 100% + 3 preliminares selladas con datos reales)**
+> Última actualización: **2026-07-01 tarde (R32 COMPLETO: 16/16 emparejamientos sellados; hazard-model prototipado y NULO)**
 > ⚙️ **NORMA DEL DUEÑO (29-jun): SIEMPRE actualizar este handoff y commitear+pushear TODO tras cada avance.** No acumular. [[mundial2026-handoff-commit]]
 
 ---
 
-## 🚀 EMPEZAR AQUÍ (01-jul — para CHAT NUEVO, leer primero)
+## 🚀 EMPEZAR AQUÍ (01-jul tarde — para CHAT NUEVO, leer primero)
+
+**R32 AHORA COMPLETO (16/16 partidos con fila en `wc_matches`/sello en `match_predictions`):**
+- ✅ Jugados/evaluados (7): SAf 0-1 Can · Bra 2-1 Jpn · Ale 1-1 Par→Paraguay pen · Hol 1-1 Mar→Marruecos pen · CIV 1-2 Nor · Fra 3-0 Sue · Mex 2-0 Ecu.
+- 🔴 **EN VIVO ahora mismo: England vs DR Congo** (kickoff 16:00Z 01-jul) — sello ya con XI real `integral_R32_ENG1-0adv68..._ENGrotado`, id 400021525.
+- 🔮 **Pendiente re-sellar con XI real cuando el dueño pase el link** (kickoff hoy): **Bélgica-Senegal** 20:00Z (id 400021526, sello preliminar `BEL2-1adv55`) · **USA-Bosnia** 00:00Z 02-jul (id 400021527, sello preliminar `USA2-1adv63`).
+- 🆕 **Creados y sellados HOY (no existían en `wc_matches`, faltaba el resto del bracket) — preliminares SIN XI, re-sellar cuando salgan alineaciones (~1h antes, se puede auto-consultar FIFA live sin depender del link):**
+  - id 400021528 **Spain 2-0 Austria** (~80% avance) — España defensa élite (0 GA/3, 100% paradas) pero ojo: proceso ajustado por rival (`opponent_adjust`) matiza a favor de Austria (rivales de España más flojos); Austria fue blanqueada por Argentina (su rival más fuerte) → patrón que podría repetirse ante la defensa de España.
+  - id 400021529 **Portugal 2-1 Croatia** (~81%) — partido PAREJO (Elo brecha 41, alerta empate 41%), pero desempate claramente Portugal (80% vs 43%, GK Diogo Costa 88pct).
+  - id 400021530 **Switzerland 2-1 Algeria** (~59%, el más abierto de los 3 europeos) — ambos con killer enchufado (Manzambi 8.25/3G vs Mahrez 7.63/2G), choque de ventanas real en 76-90 a favor de Algeria.
+  - id 400021531 **Egypt 1-1 Australia → Egipto avanza en penales (~62%)** — CONFIANZA BAJA (bandera de ensemble: Australia bus/contra, arquetipo de upset); Egipto favorito flojo, portero Shobeir clave en tanda (94pct).
+  - id 400021532 **Argentina 2-0 Cape Verde (~72%)** — CONFIANZA BAJA: Cabo Verde ajustado por rival en realidad SUPERA a Argentina en proceso (+1.8 vs +0.5, misma lección que Bélgica-Senegal); además Vozinha (GK Cabo Verde) es favorito EN LA TANDA (65% vs 35%) — mismo punto ciego de Bono/Holanda-Marruecos. Si empata, ojo con los penales.
+  - id 400021533 **Colombia 2-0 Ghana (~77%)** — el más sólido de los 3 sudamericanos/africanos: Colombia con proceso fuerte incluso ajustado por rival (+3.4, ante DRC/Uzbekistán/Portugal 0-0), Ghana casi no genera (0.69 xG/p).
+
+**🔬 HAZARD-BY-MINUTE PROTOTIPADO (`scripts/hazard_model.py`) — frontera cerrada con evidencia, NO activar:**
+1. **Auto-excitación ("colapso en oleadas") — FALSEADA.** Test riguroso (huecos reales entre goles-encajados-consecutivos vs 10000 sims de goles colocados al azar en 90'): fracción real de huecos ≤15' = 0.453 vs esperado por azar 0.471 (p=0.70). El patrón Senegal es varianza normal de Poisson plano, NO derrumbe sistemático a nivel torneo.
+2. **Peso numérico por "choque de ventanas" en λ — mejora in-sample (Brier 0.4466→0.4355) que SE REVIERTE en leave-one-out (0.6142→0.6247, empeora)** → era sobreajuste (3 partidos/equipo es muy poco para 6 buckets). Frontera ABIERTA pero bloqueada por tamaño de muestra, no por la idea en sí.
+3. **Conclusión:** no tocar el modelo de producción; el choque de ventanas sigue útil como señal CUALITATIVA (ya en `analyze_match.py`). Detalle completo en `LEARNING_LOOP.md` (bitácora fallo→causa, sección Fronteras).
+
+**⚙️ FLUJO OBLIGATORIO POR PARTIDO (sin cambios):**
+`simulate_match.py "A" "B"` → `scoreline_ground.py "A" "B"` → **bajar XI real de FIFA live** (`/live/football/17/285023/{stage}/{match}`, se puede auto-consultar sin esperar link) → `predict_ensemble.py "A" "B"` → factores que emergen (`opponent_adjust`, `analyze_match`, `knockout_tiebreaker`) → sellar → push.
+
+**📌 PENDIENTES:** re-sellar Bélgica-Senegal y USA-Bosnia con XI real (el dueño pasa el link) · re-sellar los 6 nuevos (Spain-Austria … Colombia-Ghana) cuando salgan sus alineaciones (kickoffs 02-jul a 04-jul, ir consultando FIFA live) · evaluar los partidos en vivo/próximos + `calibration_ledger` · seguir explorando fronteras: matchups jugador-vs-jugador, condicionar por estilo del rival (ver `LEARNING_LOOP.md`).
+
+---
+
+## 🗄️ EMPEZAR AQUÍ (resumen anterior — 01-jul mañana)
 
 **ESTADO R32:** 7 jugados+evaluados · 3 sellados sin jugar (hoy). Acierto de avance 4/6 (67%), marcador exacto 1/6 (17%).
 - ✅ Evaluados: SAf 0-1 Can · Bra 2-1 Jpn · **Ale 1-1 Par→Paraguay pen (fallé)** · Hol 1-1 Mar→Marruecos pen · **CIV 1-2 Nor (fallé)** · Fra 3-0 Sue · **Mex 2-0 Ecu** (mi coinflip fue peor que mi 2-1 original).
