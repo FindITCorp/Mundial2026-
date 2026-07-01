@@ -40,6 +40,19 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB = BASE_DIR / "data" / "mundial2026.db"
 
+_conversion_cache = {}
+
+
+def _tournament_conversion(conn):
+    """Conversion global (goles/remates) de TODO el torneo — prior para el
+    shrinkage bayesiano de player_shot_profile. Cacheada por conexion."""
+    key = id(conn)
+    if key not in _conversion_cache:
+        shots = conn.execute("SELECT COUNT(*) FROM fifa_match_events WHERE type_code=12").fetchone()[0]
+        goals = conn.execute("SELECT COUNT(*) FROM fifa_match_events WHERE type_code IN (0,41)").fetchone()[0]
+        _conversion_cache[key] = goals / shots if shots else 0.12
+    return _conversion_cache[key]
+
 
 def player_shot_profile(conn, player_name, exclude_fifa_match_id=None):
     """Remates/90 y conversion de un jugador en el Mundial (fifa_match_events).
@@ -65,8 +78,18 @@ def player_shot_profile(conn, player_name, exclude_fifa_match_id=None):
     if not mins:
         mins = matches * 90 if matches else 90
     shots_per_90 = shots / (mins / 90) if mins else None
-    conversion = goals / shots if shots else None
+    # REGULARIZACION BAYESIANA (encontrado 01-jul: sumar XI completo de Senegal daba
+    # 4.27 goles esperados vs 1.67 del modelo de equipo -- Ndiaye y Diarra con 1G/2
+    # tiros = 50% conversion, un solo gol de suerte proyectado como tasa real).
+    # Shrinkage hacia el promedio del torneo (~11.9%, k=8 tiros de peso del prior):
+    # con muestra chica se acerca al promedio, con muestra grande (Kane, n=18) casi
+    # no se mueve. Sin esto, la suma de individuales NUNCA cuadra con el agregado.
+    prior = _tournament_conversion(conn)
+    k = 8
+    conversion = (goals + k * prior) / (shots + k) if shots else None
+    raw_conversion = goals / shots if shots else None
     return {"shots": shots, "goals": goals, "minutes": mins, "matches": matches,
+            "raw_conversion": raw_conversion,
             "shots_per_90": shots_per_90, "conversion": conversion}
 
 
@@ -144,8 +167,10 @@ if __name__ == "__main__":
 
     p, o = r["profile"], r["opponent"]
     print(f"=== {player} vs {opponent} — simulación de oportunidades ===")
+    raw_c = p['raw_conversion']*100 if p['raw_conversion'] is not None else 0
     print(f"{player}: {p['shots']} remates / {p['goals']} goles en {p['matches']} partidos del Mundial "
-          f"({p['minutes']} min) → {p['shots_per_90']:.2f} remates/90, conversión {p['conversion']*100:.1f}%")
+          f"({p['minutes']} min) → {p['shots_per_90']:.2f} remates/90, conversión histórica {raw_c:.1f}% "
+          f"(regularizada a {p['conversion']*100:.1f}% — muestra chica se acerca al promedio del torneo ~12%)")
     print(f"{opponent} (defensa, {o['n']} partidos): concede {o['shots_allowed']:.1f} tiros/p "
           f"(promedio torneo {o['tourn_avg_shots']:.1f}) · goals_prevented medio {o['goals_prevented_avg']:+.2f}/p")
     print(f"→ AJUSTE: remates esperados {r['adj_shots_per_90']:.2f}/90 (rival {'concede menos' if r['shot_adj']<1 else 'concede más'} tiros de lo normal, x{r['shot_adj']:.2f})")
