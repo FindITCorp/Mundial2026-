@@ -213,8 +213,19 @@ def run(team_a, team_b, seal=False):
         share_fav = ta_ / (ta_ + tb_) if (ta_ + tb_) else 0.5
         share_fav = max(0.42, min(0.58, share_fav))
     adv_fav = fav_p + shoot * share_fav - (shoot - final_pd) * 0.5
-    top_h, top_a = s['res'].most_common(1)[0][0]
-    print(f"\n  → MARCADOR: {top_h}-{top_a} (top del Monte Carlo) · "
+    # marcador: el top-1 puro (0-0/1-1) puede ser el modal SIN comunicar quién
+    # gana cuando hay un favorito claro (goles esperados bajos hacen que 0-0 sea
+    # el marcador mas probable aun con Colombia 67% favorita, ej. Colombia-Ghana
+    # 01-jul) -- si el favorito es claro (fav_p > pd + 0.15), preferir el
+    # marcador del top-5 que refleje su victoria; si es reñido, usar el top-1 tal cual.
+    top_list = s['res'].most_common(5)
+    if fav_p > final_pd + 0.15:
+        fav_is_a = (fav == team_a)
+        pick = next(((h, a) for (h, a), _ in top_list if (h > a) == fav_is_a and h != a), top_list[0][0])
+        top_h, top_a = pick
+    else:
+        top_h, top_a = top_list[0][0]
+    print(f"\n  → MARCADOR: {top_h}-{top_a} · "
           f"90': {fav} {fav_p*100:.0f}% / empate {final_pd*100:.0f}% / {team_b if fav==team_a else team_a} {dog_p*100:.0f}%")
     print(f"  → AVANCE FINAL: {fav} {adv_fav*100:.0f}%")
     if ens and ens["tactical"]:
@@ -223,10 +234,10 @@ def run(team_a, team_b, seal=False):
 
     if seal:
         print("\n=== SELLANDO EN match_predictions ===")
-        _seal(team_a, team_b, s, final_ph, final_pd, final_pb, fav, adv_fav)
+        _seal(team_a, team_b, top_h, top_a, final_ph, final_pd, final_pb, fav, adv_fav)
 
 
-def _seal(team_a, team_b, s, ph, pd, pb, fav, adv_fav):
+def _seal(team_a, team_b, top_h, top_a, ph, pd, pb, fav, adv_fav):
     conn = sqlite3.connect(str(DB))
     aid, bid = _tid(conn, team_a), _tid(conn, team_b)
     row = conn.execute(
@@ -238,7 +249,6 @@ def _seal(team_a, team_b, s, ph, pd, pb, fav, adv_fav):
         conn.close()
         return
     mid = row[0]
-    top_h, top_a = s["res"].most_common(1)[0][0]
     winner = fav if top_h != top_a else "Draw"
     from datetime import datetime
     conn.execute(
@@ -249,7 +259,6 @@ def _seal(team_a, team_b, s, ph, pd, pb, fav, adv_fav):
     conn.commit()
     conn.close()
     print(f"  Sellado match_id={mid}: {top_h}-{top_a}, {fav} avance {adv_fav*100:.0f}%")
-    print(f"  Sellado match_id={mid}: {top_score[0]}-{top_score[1]}, {ens['cons']} avance {ens['adv_cons']*100:.0f}%")
 
 
 if __name__ == "__main__":

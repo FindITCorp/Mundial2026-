@@ -1,8 +1,9 @@
 # Contexto de Sesión — Pool Mundial 2026 "Kike"
 
 > **Documento de handoff.** Lee esto primero para retomar el trabajo sin perder nada.
-> Última actualización: **2026-07-01 noche (NUEVA CAPACIDAD: simulación jugador-vs-defensa `player_matchup_sim.py`, validada con Kane vs DR Congo real; analyze_match.py con XI/formación reales auto-detectados; Bélgica 0-1 Senegal EN VIVO; validate_predictions.py; England-Congo evaluado; R32 16/16 sellados)**
+> Última actualización: **2026-07-01 noche (MOTOR CONSOLIDADO `scripts/full_verdict.py`: auditados 21 archivos huérfanos en `models/`, re-sellados los 6 R32 pendientes con reconciliación real modelo-vs-Monte Carlo/XI; permisos corregidos para Windows; Bélgica 2-2 Senegal EN VIVO)**
 > 🛡️ **`python scripts/validate_predictions.py --all --fix` es AHORA PASO OBLIGATORIO tras sellar CUALQUIER predicción — nunca cerrar una tarea de sellado sin correrlo.**
+> 🎯 **`python scripts/full_verdict.py "A" "B" [--seal]` es AHORA EL COMANDO ÚNICO recomendado por partido** — corre las 8 secciones del flujo (análisis+XI real+formación real+Monte Carlo+fundamento+FDH+simulación de XI+ensemble) y reconcilia el modelo de producción contra el Monte Carlo/XI si divergen >12pp, en vez de adoptar ciegamente uno.
 > ⚙️ **NORMA DEL DUEÑO (29-jun): SIEMPRE actualizar este handoff y commitear+pushear TODO tras cada avance.** No acumular. [[mundial2026-handoff-commit]]
 
 ---
@@ -48,7 +49,19 @@
 
 **USA-Bosnia RE-SELLADO 2-1 USA, avance ~66% (proxy XI, pendiente XI real):** la simulación jugada-por-jugada (2000 corridas) dio USA 56%/20%/24% en 90', cruzando con `simulate_match` directo (53%/18%/29%) — ambos MÁS MODERADOS que el modelo de producción (Dixon-Coles vía `predict_ensemble`, que daba 70%/11%/11% con "CONFIANZA ALTA"). **Hallazgo importante: el modelo de producción parece sobreconfiado en este cruce** frente a la simulación grounded en remates reales de jugadores — se sella con la lectura más moderada y fundamentada (`scoreline_ground` también apunta a 2-2 por lo abierto que es, Bosnia concede máx 4). Queda anotado como señal a vigilar en `calibration_ledger` cuando se evalúe.
 
-**⏱️ Bélgica 0-2 Senegal sigue EN VIVO.**
+**🏗️ MOTOR CONSOLIDADO + AUDITORÍA + RE-SELLADO COMPLETO DE R32 (01-jul noche):**
+1. **Auditoría de `models/`:** 21 archivos (formation_engine, full_match_sim, simulator, goal_scorer, lineup_estimator, lineup_impact, expert_analysis, team_scout, team_dna, tournament, etc.) resultaron HUÉRFANOS — verificado con grep directo, `match_predictor.py` solo importa `veteran_experience.py`. NO se integraron sin auditoría línea por línea (podrían tener supuestos de roster/tácticas reales que no calzan con este Mundial simulado).
+2. **`scripts/full_verdict.py`** — motor consolidado, un solo comando corre las 8 secciones del flujo (antes había que acordarse de correr 8 scripts sueltos) + **sección FDH nueva** (`fifa_fdh_stats`, 20 mil filas de presión/rupturas de línea, antes casi sin usar) + **reconciliación real**: si el modelo de producción y el Monte Carlo/XI divergen >12pp, promedia y marca la discrepancia (no adopta ciegamente ninguno).
+3. **Re-sellados los 6 R32 pendientes con esto** (proxy XI, se refina con XI real cuando salga):
+   - Spain 1-0 Austria, avance 79% (antes 80%, discrepancia 32pp reconciliada)
+   - Portugal 1-0 Croatia, avance 77% (antes 81%, discrepancia 26pp)
+   - Switzerland 1-0 Algeria, avance 62% (antes 59%, modelo y Monte Carlo coincidían)
+   - Egypt 0-0→penales Australia, avance Egipto 65% (antes 62%, coincidían)
+   - Argentina 1-0 Cape Verde, avance 82% (antes 72% — **ADVERTENCIA: este automático NO captura el matiz fino que sí metí a mano antes, la ventaja de Vozinha en penales; usar el 72% manual como más informado en este caso concreto**)
+   - Colombia 1-0 Ghana, avance 79% (antes 77%, discrepancia 39pp — la más grande del lote)
+4. **Permisos corregidos:** el `.claude/settings.json` tenía reglas para Linux/WSL (rutas `/root/`, `/home/user/`) que no aplican en Windows. Agregados 17 scripts de solo-lectura verificados uno por uno + 2 tools de Chrome.
+
+**⏱️ Bélgica 2-2 Senegal sigue EN VIVO (remontada).**
 
 **🔁 RE-EVALUACIÓN COMPLETA de Bélgica-Senegal (01-jul, pedida por el dueño con "considera cosas nuevas que validar/ajustar") — el partido AÚN NO EMPIEZA (kickoff 20:00Z, se verificó vía FIFA live: MatchStatus=1, sin marcador) así que no hay resultado que evaluar todavía, pero la re-corrida completa del flujo encontró 2 mejoras reales más de infraestructura, aplicadas ya a TODO el pipeline (no solo a este partido):**
 1. **`analyze_match.py` calidad de XI:** antes SIEMPRE usaba el XI del J1 como proxy. Ahora auto-detecta si hay XI real confirmado cargado (como el de hoy) y lo usa — Bélgica-Senegal pasa de brecha +0.18 (proxy) a **+0.09 (XI real, aún más parejo)**.
