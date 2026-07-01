@@ -4,7 +4,26 @@
       "Bash(git *)",
       "Bash(python3 *)",
       "Bash(source /root/.claude/.tokens*)",
-      "Bash(cd /home/user/mundial2026*)"
+      "Bash(cd /home/user/mundial2026*)",
+      "Bash(python scripts/analyze_match.py *)",
+      "Bash(python scripts/predict_ensemble.py *)",
+      "Bash(python scripts/tournament_scan.py *)",
+      "Bash(python scripts/simulate_match.py *)",
+      "Bash(python scripts/predict_adjusted.py *)",
+      "Bash(python scripts/knockout_tiebreaker.py *)",
+      "Bash(python scripts/xi_quality.py *)",
+      "Bash(python scripts/player_matchup_sim.py *)",
+      "Bash(python scripts/formation_matchup.py *)",
+      "Bash(python scripts/opponent_adjust.py *)",
+      "Bash(python scripts/regression_check.py *)",
+      "Bash(python scripts/live_winprob.py *)",
+      "Bash(python scripts/scoreline_ground.py *)",
+      "Bash(python scripts/calibration_ledger.py *)",
+      "Bash(python scripts/timeline_stats.py *)",
+      "Bash(python scripts/team_lineup_sim.py *)",
+      "Bash(python scripts/hazard_model.py *)",
+      "mcp__Claude_in_Chrome__get_page_text",
+      "mcp__Claude_in_Chrome__list_connected_browsers"
     ]
   },
   "hooks": {
