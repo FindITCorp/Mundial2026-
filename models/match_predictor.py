@@ -314,7 +314,10 @@ _DISP_R = float(os.environ.get("WC_DISPERSION_R", "10.0"))   # ≤0 ⇒ Poisson 
 # sobre-predicción de goles medida (λ bias +0.19, over2.5 +12pp) que alimenta la
 # infra-predicción de empates. ✅ ACTIVADO 27-jun (pedido del dueño) a 0.90 tras la
 # validación temporal; revertir con WC_LAMBDA_SCALE=1.0 si hace falta A/B.
-_LAMBDA_SCALE = float(os.environ.get("WC_LAMBDA_SCALE", "0.90"))
+# ✅ RE-CALIBRADO 01-jul a 1.10 (140 partidos jugados): el 0.90 se quedó corto — el
+# torneo evolucionó a más goles (predicho 1.86 vs real 2.83, sesgo −0.54). El barrido
+# muestra ×1.10 maximiza el MARCADOR EXACTO (12%→15%) sin tocar el ganador (67%).
+_LAMBDA_SCALE = float(os.environ.get("WC_LAMBDA_SCALE", "1.10"))
 
 # Boost de empate opt-in para partidos PAREJOS (default 1.0 = SIN cambio). EVIDENCIA
 # 27-jun (simulación de los 72 grupos + validación temporal J1-J2→J3): el modelo
