@@ -34,7 +34,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DB = BASE_DIR / "data" / "mundial2026.db"
 sys.path.insert(0, str(BASE_DIR / "scripts"))
 
-from team_lineup_sim import team_xi, run_side
+from team_lineup_sim import team_xi, run_side, resolve_xi_source
 from simulate_match import simulate as _sim_team
 
 
@@ -89,17 +89,13 @@ if __name__ == "__main__":
         print("Equipo no encontrado."); sys.exit(1)
     tid_a, tid_b = tid_a[0], tid_b[0]
 
-    match_id = conn.execute(
-        "SELECT m.id FROM wc_matches m JOIN fifa_lineups fl ON fl.match_id=m.id "
-        "WHERE ((m.home_team_id=? AND m.away_team_id=?) OR (m.home_team_id=? AND m.away_team_id=?)) "
-        "GROUP BY m.id ORDER BY m.date DESC LIMIT 1", (tid_a[0] if isinstance(tid_a, tuple) else tid_a,
-                                                        tid_b, tid_b, tid_a)).fetchone()
-    match_id = match_id[0] if match_id else None
-    if not match_id:
-        print(f"No hay XI real cargado para {team_a} vs {team_b}."); sys.exit(1)
+    mid_a, mid_b, is_real = resolve_xi_source(conn, tid_a, tid_b)
+    if not mid_a or not mid_b:
+        print(f"No hay NINGÚN XI (ni real ni propio) para {team_a} o {team_b}."); sys.exit(1)
+    src_tag = "XI REAL confirmado" if is_real else "PROXY (último XI propio de cada equipo — aún sin alineación real del cruce)"
 
-    rows_a, raw_a, _ = build_squad(conn, team_a, team_b, match_id)
-    rows_b, raw_b, _ = build_squad(conn, team_b, team_a, match_id)
+    rows_a, raw_a, _ = build_squad(conn, team_a, team_b, mid_a)
+    rows_b, raw_b, _ = build_squad(conn, team_b, team_a, mid_b)
     s = _sim_team(conn, team_a, team_b, n=20000)
     lam_a, lam_b = s["la"], s["lb"]
     scale_a = lam_a / raw_a if raw_a else 1.0
@@ -109,7 +105,7 @@ if __name__ == "__main__":
 
     rng = random.Random(7)
     if not mc_only:
-        print(f"=== SIMULACIÓN JUGADA-POR-JUGADA — {team_a} vs {team_b} (desde el minuto 1) ===\n")
+        print(f"=== SIMULACIÓN JUGADA-POR-JUGADA — {team_a} vs {team_b} (desde el minuto 1, {src_tag}) ===\n")
         ga, gb, events = simulate_once(conn, team_a, team_b, rows_a, rows_b, scale_a, scale_b, acc_a, acc_b, rng)
         for minute, team, player, outcome in events:
             tag = "⚽ GOOOL" if outcome == "GOL" else ("🧤 parada" if "parada" in outcome else "↗ fuera")

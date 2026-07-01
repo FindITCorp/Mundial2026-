@@ -26,6 +26,33 @@ sys.path.insert(0, str(BASE_DIR / "scripts"))
 from player_matchup_sim import simulate as _sim_player, opponent_defense_profile
 
 
+def resolve_xi_source(conn, tid_a, tid_b):
+    """
+    Devuelve (match_id_a, match_id_b, is_real_h2h). Si ya existe un cruce REAL
+    entre estos dos equipos con XI cargado (partido de hoy/knockout confirmado),
+    usa ESE match_id para ambos. Si NO (aún no salen alineaciones, como
+    USA-Bosnia antes del kickoff — pedido del dueño 01-jul: "debemos estimar
+    basados en la simulación, no esperar a poder evaluar en la marcha"), cada
+    equipo usa su ÚLTIMO XI propio (su partido de grupos más reciente) como
+    proxy — igual que el fallback ya usado en analyze_match.py/xi_quality.py.
+    """
+    shared = conn.execute(
+        "SELECT m.id FROM wc_matches m JOIN fifa_lineups fl ON fl.match_id=m.id "
+        "WHERE ((m.home_team_id=? AND m.away_team_id=?) OR (m.home_team_id=? AND m.away_team_id=?)) "
+        "GROUP BY m.id ORDER BY m.date DESC LIMIT 1", (tid_a, tid_b, tid_b, tid_a)).fetchone()
+    if shared:
+        return shared[0], shared[0], True
+
+    def _latest_own(tid):
+        r = conn.execute(
+            "SELECT m.id FROM wc_matches m JOIN fifa_lineups fl ON fl.match_id=m.id AND fl.team_id=? "
+            "WHERE (m.home_team_id=? OR m.away_team_id=?) ORDER BY m.date DESC LIMIT 1",
+            (tid, tid, tid)).fetchone()
+        return r[0] if r else None
+
+    return _latest_own(tid_a), _latest_own(tid_b), False
+
+
 def team_xi(conn, match_id, team_id):
     return conn.execute(
         "SELECT player_name, position FROM fifa_lineups WHERE match_id=? AND team_id=? AND is_starter=1 "
@@ -107,23 +134,23 @@ if __name__ == "__main__":
         print("Equipo no encontrado."); sys.exit(1)
     tid_a, tid_b = tid_a[0], tid_b[0]
 
-    if match_id is None:
-        r = conn.execute(
-            "SELECT m.id FROM wc_matches m JOIN fifa_lineups fl ON fl.match_id=m.id "
-            "WHERE ((m.home_team_id=? AND m.away_team_id=?) OR (m.home_team_id=? AND m.away_team_id=?)) "
-            "GROUP BY m.id ORDER BY m.date DESC LIMIT 1", (tid_a, tid_b, tid_b, tid_a)).fetchone()
-        match_id = r[0] if r else None
-    if not match_id:
-        print(f"No hay XI real cargado para {team_a} vs {team_b}. Pasa el match_id o carga fifa_lineups primero.")
+    if match_id is not None:
+        mid_a = mid_b = match_id
+        is_real = True
+    else:
+        mid_a, mid_b, is_real = resolve_xi_source(conn, tid_a, tid_b)
+    if not mid_a or not mid_b:
+        print(f"No hay NINGÚN XI cargado (ni real ni propio) para {team_a} o {team_b}.")
         sys.exit(1)
 
-    xi_a = team_xi(conn, match_id, tid_a)
-    xi_b = team_xi(conn, match_id, tid_b)
+    xi_a = team_xi(conn, mid_a, tid_a)
+    xi_b = team_xi(conn, mid_b, tid_b)
     if not xi_a or not xi_b:
-        print("XI incompleto en fifa_lineups para ese match_id.")
+        print("XI incompleto en fifa_lineups.")
         sys.exit(1)
 
-    print(f"=== SIMULACIÓN COMPLETA DE XI — {team_a} vs {team_b} (match_id={match_id}) ===")
+    src_tag = "XI REAL confirmado" if is_real else "PROXY (último XI propio de cada equipo, aún sin alineación real del cruce)"
+    print(f"=== SIMULACIÓN COMPLETA DE XI — {team_a} vs {team_b} ({src_tag}) ===")
     rows_a = run_side(conn, xi_a, team_b)
     rows_b = run_side(conn, xi_b, team_a)
 
