@@ -72,7 +72,7 @@ def _ensure_tables(conn):
 
 def _match_id(conn, hid, aid):
     r = conn.execute(
-        "SELECT id FROM wc_matches WHERE home_team_id=? AND away_team_id=? AND stage='group'",
+        "SELECT id FROM wc_matches WHERE home_team_id=? AND away_team_id=? ORDER BY date DESC",  # FIX 02-jul: sin stage='group' (4a instancia del patron)
         (hid, aid)).fetchone()
     return r[0] if r else None
 

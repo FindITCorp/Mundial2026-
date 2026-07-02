@@ -33,7 +33,8 @@ RAW = BASE_DIR / "data" / "sofascore_raw"
 NAME = {"Czech Republic": "Czechia", "Curaçao": "Curacao", "Türkiye": "Turkey",
         "Côte d'Ivoire": "Ivory Coast", "Cote d'Ivoire": "Ivory Coast",
         "Cabo Verde": "Cape Verde", "Congo DR": "DR Congo", "IR Iran": "Iran",
-        "Korea Republic": "South Korea", "United States": "USA"}
+        "Korea Republic": "South Korea", "United States": "USA",
+        "Bosnia & Herzegovina": "Bosnia and Herzegovina"}
 
 # stat de Sofascore -> columna match_team_stats. Tipo: num | pct | pair (x/y)
 STATMAP = {

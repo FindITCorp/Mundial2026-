@@ -87,7 +87,9 @@ def parse_dir(conn, ev_dir: Path, force=False):
     if not hid or not aid:
         return f"{ev_dir.name}: no resuelvo equipos ({ev['homeTeam']['name']}/{ev['awayTeam']['name']})"
     wm = conn.execute(
-        "SELECT id, date FROM wc_matches WHERE home_team_id=? AND away_team_id=? AND stage='group'",
+        # FIX 02-jul: sin filtro stage='group' — dejaba TODOS los R32 sin player stats
+        # (tercer caso del MISMO patron: fetch_fifa.py, fetch_fifa_stats.py, este).
+        "SELECT id, date FROM wc_matches WHERE home_team_id=? AND away_team_id=? ORDER BY date DESC",
         (hid, aid)).fetchone()
     if not wm:
         return f"{ev_dir.name}: sin partido en wc_matches"

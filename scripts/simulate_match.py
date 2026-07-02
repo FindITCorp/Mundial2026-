@@ -62,7 +62,7 @@ def _rate(conn, team):
     gf = ga = n = 0
     for h, a, sh, sa, hid in conn.execute(
             "SELECT home_team_name,away_team_name,score_home,score_away,home_team_id FROM wc_matches "
-            "WHERE (home_team_id=? OR away_team_id=?) AND played=1 AND stage='group'", (tid, tid)):
+            "WHERE (home_team_id=? OR away_team_id=?) AND played=1 AND stage IN ('group','R32')", (tid, tid)):  # FIX 02-jul: incluir R32 jugados (evolutivo)
         f, cc = (sh, sa) if hid == tid else (sa, sh); gf += f; ga += cc; n += 1
     return (gf/n, ga/n) if n else (1.2, 1.2)
 

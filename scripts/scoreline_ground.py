@@ -31,7 +31,7 @@ def _record(conn, tid):
     scored = []
     for h, a, sh, sa, hid in conn.execute(
             "SELECT home_team_name,away_team_name,score_home,score_away,home_team_id "
-            "FROM wc_matches WHERE (home_team_id=? OR away_team_id=?) AND played=1 AND stage='group'",
+            "FROM wc_matches WHERE (home_team_id=? OR away_team_id=?) AND played=1 AND stage IN ('group','R32')",  # FIX 02-jul
             (tid, tid)):
         if hid == tid:
             rival, f, c = a, sh, sa

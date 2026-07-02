@@ -30,7 +30,7 @@ def rebuild(db_path=DB, verbose=True):
     # partidos jugados por equipo
     teams = {}
     for r in conn.execute("""SELECT home_team_id h, away_team_id a, id FROM wc_matches
-                             WHERE stage='group' AND played=1"""):
+                             WHERE stage IN ('group','R32') AND played=1"""):
         teams.setdefault(r["h"], set()).add(r["id"])
         teams.setdefault(r["a"], set()).add(r["id"])
 
