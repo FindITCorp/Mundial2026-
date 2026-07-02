@@ -213,19 +213,47 @@ def run(team_a, team_b, seal=False):
         share_fav = ta_ / (ta_ + tb_) if (ta_ + tb_) else 0.5
         share_fav = max(0.42, min(0.58, share_fav))
     adv_fav = fav_p + shoot * share_fav - (shoot - final_pd) * 0.5
-    # marcador: el top-1 puro (0-0/1-1) puede ser el modal SIN comunicar quién
-    # gana cuando hay un favorito claro (goles esperados bajos hacen que 0-0 sea
-    # el marcador mas probable aun con Colombia 67% favorita, ej. Colombia-Ghana
-    # 01-jul) -- si el favorito es claro (fav_p > pd + 0.15), preferir el
-    # marcador del top-5 que refleje su victoria; si es reñido, usar el top-1 tal cual.
-    top_list = s['res'].most_common(5)
-    if fav_p > final_pd + 0.15:
-        fav_is_a = (fav == team_a)
-        pick = next(((h, a) for (h, a), _ in top_list if (h > a) == fav_is_a and h != a), top_list[0][0])
-        top_h, top_a = pick
-    else:
-        top_h, top_a = top_list[0][0]
-    print(f"\n  → MARCADOR: {top_h}-{top_a} · "
+    # MARCADOR — VALIDADO CON DATOS 02-jul (10 R32 registrados): el argmax del
+    # modelo de producción (predicted_score, grid Dixon-Coles con lógica de
+    # goleada) acertó el EXACTO 3/10 (30%) vs 1/9 (11%) de los marcadores
+    # elegidos a mano/modal del Monte Carlo. En ganador/avance el experto gana
+    # (67% vs 56% del ledger), pero en MARCADOR manda el modelo → usar su
+    # predicted_score como marcador sellado; fallback al modal del Monte Carlo
+    # si el modelo no está disponible.
+    top_h = top_a = None
+    try:
+        from models.match_predictor import predict_match as _pm
+        aid_, bid_ = _tid(conn := sqlite3.connect(str(DB)), team_a), _tid(conn, team_b)
+        conn.close()
+        rprod = _pm(aid_, bid_, neutral=True, stage="knockout", db_path=str(DB))
+        ps = rprod.get("predicted_score")
+        if ps and "-" in ps:
+            top_h, top_a = (int(x) for x in ps.split("-"))
+            # CAP scoreline_ground (regla del dueño, validada England-Congo): no
+            # poner goles por encima del PEOR partido del defensor. Se combina
+            # con el argmax del modelo (mejor picker exacto medido): argmax
+            # capado al máximo concedido real de cada lado.
+            try:
+                _cg = sqlite3.connect(str(DB))
+                g_ = ground(_cg, team_a, team_b)
+                _cg.close()
+                if g_:
+                    top_h = min(top_h, int(g_["rb"]["max_conc"][0]))
+                    top_a = min(top_a, int(g_["ra"]["max_conc"][0]))
+            except Exception:
+                pass
+            print(f"\n  (marcador: argmax del MODELO — mejor picker exacto medido 30% vs 11% — capado a lo que cada defensa concede de verdad)")
+    except Exception:
+        top_h = None
+    if top_h is None:
+        top_list = s['res'].most_common(5)
+        if fav_p > final_pd + 0.15:
+            fav_is_a = (fav == team_a)
+            pick = next(((h, a) for (h, a), _ in top_list if (h > a) == fav_is_a and h != a), top_list[0][0])
+            top_h, top_a = pick
+        else:
+            top_h, top_a = top_list[0][0]
+    print(f"  → MARCADOR: {top_h}-{top_a} · "
           f"90': {fav} {fav_p*100:.0f}% / empate {final_pd*100:.0f}% / {team_b if fav==team_a else team_a} {dog_p*100:.0f}%")
     print(f"  → AVANCE FINAL: {fav} {adv_fav*100:.0f}%")
     if ens and ens["tactical"]:

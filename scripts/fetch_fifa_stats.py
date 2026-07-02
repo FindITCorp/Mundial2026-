@@ -79,8 +79,12 @@ def sync(db_path=DB, verbose=True):
         if not ifes:
             continue
         hid, aid = db_id(_tname(m["Home"])), db_id(_tname(m["Away"]))
+        # FIX 02-jul: sin filtro stage='group' — dejaba TODOS los R32 sin FDH
+        # (mismo patrón de bug que el _window_clash de analyze_match). Un par
+        # home/away no se repite entre fases en este formato; date DESC por robustez.
         mid = conn.execute(
-            "SELECT id FROM wc_matches WHERE home_team_id=? AND away_team_id=? AND stage='group'",
+            "SELECT id FROM wc_matches WHERE home_team_id=? AND away_team_id=? "
+            "ORDER BY date DESC LIMIT 1",
             (hid, aid)).fetchone()
         if not mid:
             continue
