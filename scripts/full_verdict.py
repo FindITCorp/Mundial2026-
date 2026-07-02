@@ -127,6 +127,39 @@ def run(team_a, team_b, seal=False):
         if d:
             print(f"  {tm}: SOTdif crudo {d['raw']:+.1f} → AJUSTADO {d['adj']:+.1f} (Elo rival medio {d['opp_elo']:.0f})")
 
+    # 4b) SOT-dif como ALARMA anti-sesgo (validado 5/6 OOS; le acertó a CIV-Noruega
+    # cuando mi sello experto falló). Solo display: si contradice al favorito, avisa.
+    da_ = r["teams"].get(_tid(conn2, team_a))
+    db_ = r["teams"].get(_tid(conn2, team_b))
+    if da_ and db_:
+        fav_sig = team_a if da_["adj"] > db_["adj"] else team_b
+        print(f"  ⚠ regression_check (alarma, no oráculo): la señal ajustada favorece a {fav_sig} "
+              f"(brecha {abs(da_['adj']-db_['adj']):.1f})")
+
+    # 4c) SUSPENSIONES por acumulación (2 amarillas o roja en grupos = fuera del R32).
+    # Punto ciego encontrado 02-jul: estaba EN los datos (fifa_match_events tipos
+    # 2/3/71) y ninguna herramienta lo miraba — cazó a Lasheen (Egipto, titular
+    # 270/270 min) y a Lopes Cabral (Cabo Verde) sin que nadie lo pidiera.
+    print("\n=== 4c) SUSPENDIDOS por acumulación (2 amarillas / roja en grupos) ===")
+    any_susp = False
+    for tm, tid_ in ((team_a, aid), (team_b, bid)):
+        for nm, yel, red in conn2.execute(
+                "SELECT COALESCE(fp.name, e.player_fifa_id), "
+                "SUM(CASE WHEN e.type_code=2 THEN 1 ELSE 0 END) yel, "
+                "SUM(CASE WHEN e.type_code IN (3,71) THEN 1 ELSE 0 END) red "
+                "FROM fifa_match_events e LEFT JOIN fifa_player_names fp ON fp.fifa_player_id=e.player_fifa_id "
+                "WHERE e.db_team_id=? AND e.type_code IN (2,3,71) "
+                "GROUP BY 1 HAVING yel>=2 OR red>=1", (tid_,)):
+            mins = conn2.execute(
+                "SELECT SUM(minutes), AVG(rating) FROM match_player_stats "
+                "WHERE UPPER(player_name) LIKE UPPER(?) AND competition='World Cup'",
+                (f"%{str(nm).split()[-1]}%",)).fetchone()
+            peso = f" — TITULAR ({mins[0]:.0f} min, rating {mins[1]:.1f})" if mins and mins[0] and mins[0] >= 180 else ""
+            print(f"  🟨 {tm}: {nm} fuera por acumulación ({yel} amarillas, {red} rojas){peso}")
+            any_susp = True
+    if not any_susp:
+        print("  (ninguno en los dos equipos)")
+
     print("\n=== 5) FDH — presión y progresión (142 métricas/equipo, antes sin usar) ===")
     any_fdh = False
     for tm in (team_a, team_b):
@@ -150,6 +183,36 @@ def run(team_a, team_b, seal=False):
             print(f"  (fuente XI: {'REAL confirmado' if is_real else 'PROXY, último XI propio de cada equipo'})")
     else:
         print("  Sin datos de XI (ni real ni propio) para simular jugador por jugador.")
+
+    # 6b) MOTOR MINUTO-A-MINUTO (full_match_sim) — estaba importado pero NUNCA usado
+    # (import muerto, detectado 02-jul cuando el dueño exigió "usa TODA la evaluación").
+    # 1500 corridas del partido completo jugador-por-jugador: valida el 1X2 desde otro
+    # ángulo (motor de eventos, no Poisson de equipo) y da quién anota con qué frecuencia.
+    print("\n=== 6b) MOTOR MINUTO-A-MINUTO (1500 partidos simulados jugador-por-jugador) ===")
+    try:
+        import random as _rnd
+        from collections import Counter as _Ctr
+        rows_fa, raw_fa, _ = build_squad(conn2, team_a, team_b, mid_a)
+        rows_fb, raw_fb, _ = build_squad(conn2, team_b, team_a, mid_b)
+        sc_a = s["la"] / raw_fa if raw_fa else 1.0
+        sc_b = s["lb"] / raw_fb if raw_fb else 1.0
+        ac_a, ac_b = _shot_accuracy(conn2, aid), _shot_accuracy(conn2, bid)
+        wa = wb = dd = 0
+        scorers = _Ctr()
+        for i in range(1500):
+            rr = _rnd.Random(5000 + i)
+            ga_, gb_, evs = simulate_once(conn2, team_a, team_b, rows_fa, rows_fb, sc_a, sc_b, ac_a, ac_b, rr)
+            if ga_ > gb_: wa += 1
+            elif gb_ > ga_: wb += 1
+            else: dd += 1
+            for _, _, pl, out_ in evs:
+                if out_ == "GOL":
+                    scorers[pl] += 1
+        print(f"  1X2 del motor de eventos: {team_a} {100*wa/1500:.0f}% / empate {100*dd/1500:.0f}% / {team_b} {100*wb/1500:.0f}%")
+        top_sc = ", ".join(f"{p} ({100*c/1500:.0f} goles/100 sims)" for p, c in scorers.most_common(4))
+        print(f"  goleadores más frecuentes: {top_sc}")
+    except Exception as e:
+        print(f"  (motor minuto-a-minuto no disponible: {e})")
 
     print("\n=== 7) DESEMPATE knockout (resistencia · portero · pateadores) ===")
     kr = ko_ratings(conn2)
