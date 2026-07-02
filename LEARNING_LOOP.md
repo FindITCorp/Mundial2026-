@@ -50,6 +50,12 @@ El dueño, con razón, no se sentía conforme: "siento que tienes mucha data y n
 4. **Validación del sim jugador-por-jugador (USA-Bosnia real 2-0):** los DOS goles reales los hicieron los DOS jugadores top de la simulación individual — Balogun (G.esperado 1.51, marcó al 45') y Tillman (2º con 0.35, marcó al 82'). Señal fuerte de que el motor de jugadores ordena bien el peligro.
 5. Sofascore: IP bloqueada de nuevo (rate-limit) → se avanzó SOLO con FIFA (FDH cubre todo menos xG; el modelo tolera xG NULL). Reintentar cuando se libere.
 
+**🔬 AUDITORÍA DEL MARCADOR 3-0 (02-jul, el dueño cuestionó Portugal-Croacia 3-0 — "me parecen muy elevados"):**
+1. **Causa raíz de la confianza inflada ENCONTRADA:** para Portugal-Croacia (brecha Elo 41, mi propio análisis dice PARTIDO PAREJO) el modelo de producción arma **λ 3.9 vs 0.78 (ratio 5×)** — el driver es el factor de fuerza defensiva del rival (ADS 0.58 para Croacia/Austria) que casi duplica la λ del atacante; `WC_FINISHING=0` apenas mueve nada (no era el driver). El 79% de Portugal es sobreconfianza estructural del modelo en "parejos con defensa percibida débil" — **ya mitigada por la reconciliación de `full_verdict`** (90' queda 66%, no 79%).
+2. **PERO el marcador 3-0 SOBREVIVE la auditoría empírica:** se probaron 4 pickers + híbrido por brecha Elo, primero en los 10 R32 (argmax capado 3/10=30%, ground puro 2/10, híbridos 2-3/10) y luego en **n=80 (72 grupos LOO + 10 R32): argmax+cap 13.8% de exactos vs ground puro 6% — la alternativa "conservadora" mide EL DOBLE de peor.** La intuición de bajar a 2-1 habría empeorado el picker. Germany-Paraguay (argmax 3-0, real 1-1) es el caso en contra, pero es 1 caso — anécdota, no patrón (regla del 30-jun: la narrativa no pesa más que el dato).
+3. **Matiz honesto que SÍ se incorporó:** la grilla de Portugal está casi PLANA arriba (3-0 al 9.0%, 4-0 al 8.2%, 2-0 al 8.1%) — el argmax es volado entre vecinos. `full_verdict` ahora imprime la **banda top-3** para no vender un marcador puntual como si fuera confiable cuando la distribución es plana.
+4. **Lección de método:** el reto del dueño era correcto sobre la CONFIANZA (79%→66% ya corregida por reconciliación) e indecidible sobre el MARCADOR — y la respuesta no fue defenderse ni ceder, fue MEDIR (n=80). El 3-0 se queda porque ganó el backtest, no porque el modelo lo diga.
+
 ## Métricas que perseguimos (medidas, no inventadas)
 - **Ganador/avance:** 67% actual → objetivo ~75-80% (knockout con favoritos claros).
 - **Marcador exacto:** ~15% actual → romper el techo convencional (~20%) con micro-datos.

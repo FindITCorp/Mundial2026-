@@ -242,7 +242,10 @@ def run(team_a, team_b, seal=False):
                     top_a = min(top_a, int(g_["ra"]["max_conc"][0]))
             except Exception:
                 pass
-            print(f"\n  (marcador: argmax del MODELO — mejor picker exacto medido 30% vs 11% — capado a lo que cada defensa concede de verdad)")
+            band = ", ".join(f"{s_} {p_:.1f}%" for s_, p_ in (rprod.get("top_scores") or [])[:3])
+            print(f"\n  (marcador: argmax del MODELO capado por ground — mejor picker medido n=80: 13.8% vs 6% del ground puro)")
+            if band:
+                print(f"  (banda top-3 de la grilla: {band} — si están casi empatadas, el exacto es volado entre vecinos)")
     except Exception:
         top_h = None
     if top_h is None:
