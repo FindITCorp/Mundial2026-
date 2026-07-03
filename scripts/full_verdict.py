@@ -140,16 +140,27 @@ def run(team_a, team_b, seal=False):
     # Punto ciego encontrado 02-jul: estaba EN los datos (fifa_match_events tipos
     # 2/3/71) y ninguna herramienta lo miraba — cazó a Lasheen (Egipto, titular
     # 270/270 min) y a Lopes Cabral (Cabo Verde) sin que nadie lo pidiera.
-    print("\n=== 4c) SUSPENDIDOS por acumulación (2 amarillas / roja en grupos) ===")
+    # FIX 03-jul (caso Lopes Cabral, titular real vs Argentina pese a 2 amarillas):
+    # la sanción por acumulación se cumple en el partido SIGUIENTE a la 2ª tarjeta.
+    # Si la 2ª amarilla fue en J2, la sanción ya se sirvió en J3 → elegible en R32.
+    # Solo cuenta si la 2ª tarjeta cayó en el ÚLTIMO partido jugado del equipo.
+    # (Validación: Lasheen 2ª amarilla en J3 → fuera en R32 ✓; Lopes Cabral 2ª en
+    # J2 → jugó R32 ✓.)
+    print("\n=== 4c) SUSPENDIDOS por acumulación (sanción PENDIENTE de cumplir) ===")
     any_susp = False
     for tm, tid_ in ((team_a, aid), (team_b, bid)):
-        for nm, yel, red in conn2.execute(
+        last_mid = conn2.execute(
+            "SELECT id FROM wc_matches WHERE (home_team_id=? OR away_team_id=?) AND played=1 "
+            "ORDER BY date DESC LIMIT 1", (tid_, tid_)).fetchone()
+        last_mid = last_mid[0] if last_mid else None
+        for nm, yel, red, last_card_mid in conn2.execute(
                 "SELECT COALESCE(fp.name, e.player_fifa_id), "
                 "SUM(CASE WHEN e.type_code=2 THEN 1 ELSE 0 END) yel, "
-                "SUM(CASE WHEN e.type_code IN (3,71) THEN 1 ELSE 0 END) red "
+                "SUM(CASE WHEN e.type_code IN (3,71) THEN 1 ELSE 0 END) red, "
+                "MAX(e.fifa_match_id) "
                 "FROM fifa_match_events e LEFT JOIN fifa_player_names fp ON fp.fifa_player_id=e.player_fifa_id "
                 "WHERE e.db_team_id=? AND e.type_code IN (2,3,71) "
-                "GROUP BY 1 HAVING yel>=2 OR red>=1", (tid_,)):
+                "GROUP BY 1 HAVING (yel>=2 OR red>=1) AND MAX(e.fifa_match_id)=?", (tid_, last_mid)):
             mins = conn2.execute(
                 "SELECT SUM(minutes), AVG(rating) FROM match_player_stats "
                 "WHERE UPPER(player_name) LIKE UPPER(?) AND competition='World Cup'",
