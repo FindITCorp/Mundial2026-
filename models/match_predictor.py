@@ -2262,6 +2262,27 @@ def predict_match(
     add_a = min(sub_a, _SCORE_TOTALS_CAP) if use_score_totals else 0.0
     sl_h, sl_a = lh + add_h, la + add_a
 
+    # ── 9c. COMPRESIÓN DE λ-RATIO — SOLO GRILLA DE MARCADOR (03-jul-2026) ───
+    # Causa raíz diagnosticada 02-jul: el producto de fuerzas (ADS bajo del
+    # rival) infla el RATIO λh/λa (Portugal-Croacia 3.9/0.78 = 5× con brecha
+    # Elo de solo 41) → argmax de goleada (3-0) en partidos parejos.
+    # Fix quirúrgico: r' = r^γ preservando el TOTAL (S=cte). Backtest con
+    # validación temporal (γ elegido en 72 grupos, probado en 12 R32 no vistos):
+    #   - MARCADOR EXACTO: grupos 11.1%→15.3% (γ0.7), R32 igual (25%) →
+    #     combinado 13.1%→16.7% (+3.6pp, n=84). Brier mejora en AMBAS muestras.
+    #   - 1X2: comprimirlo COSTÓ acierto de ganador OOS (66.7→58.3%) → el 1X2
+    #     NO se toca (ph/pd/pa siguen derivándose con la λ sin comprimir...
+    #     nótese que ph/pd/pa salen de esta grilla: por eso la compresión se
+    #     aplica a una COPIA para el marcador y la grilla 1X2 usa la original).
+    # Knob: WC_SCORE_RATIO_TEMPER (default 0.7 validado; =1.0 desactiva).
+    _ratio_temper = float(os.environ.get("WC_SCORE_RATIO_TEMPER", "0.7"))
+    if _ratio_temper != 1.0 and sl_a > 0 and sl_h > 0:
+        _S = sl_h + sl_a
+        _r = (sl_h / sl_a) ** _ratio_temper
+        sc_h, sc_a = _S * _r / (1 + _r), _S / (1 + _r)
+    else:
+        sc_h, sc_a = sl_h, sl_a
+
     probs = {}                                            # marcador desde NB
     for i in range(8):
         for j in range(8):
@@ -2364,7 +2385,21 @@ def predict_match(
         if _t > 0:
             ph, pd, pa = ph / _t, pd / _t, pa / _t
 
-    top_scores = sorted(probs.items(), key=lambda x: x[1], reverse=True)[:8]
+    # Grilla SEPARADA para el MARCADOR con λ-ratio comprimido (sección 9c) — el
+    # 1X2 de arriba usa la grilla ORIGINAL (comprimir el 1X2 costó acierto de
+    # ganador out-of-sample: 66.7→58.3% en R32; comprimir SOLO el marcador subió
+    # el exacto 11.1→15.3% en grupos y mantuvo 25% en R32).
+    if (sc_h, sc_a) != (sl_h, sl_a):
+        score_probs = {}
+        for i in range(8):
+            for j in range(8):
+                score_probs[(i, j)] = _negbin(sc_h, i, disp_r) * _negbin(sc_a, j, disp_r)
+        _spt = sum(score_probs.values())
+        if _spt > 0:
+            score_probs = {k: v / _spt for k, v in score_probs.items()}
+    else:
+        score_probs = probs
+    top_scores = sorted(score_probs.items(), key=lambda x: x[1], reverse=True)[:8]
     prob_total_raw = 1.0  # probs ya normalizado
 
     # ── 11. Posesión proyectada ───────────────────────────────────────────
@@ -2436,7 +2471,7 @@ def predict_match(
     if _goleada_trigger:
         # Acumular probabilidad de marcadores con ≥3 goles del dominante y ≤1 del débil
         goleada_probs = {}
-        for (h, a), p in probs.items():
+        for (h, a), p in score_probs.items():
             dom_g = h if lh > la else a
             weak_g = a if lh > la else h
             if dom_g >= 3 and weak_g <= 1:
