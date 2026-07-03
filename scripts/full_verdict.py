@@ -305,8 +305,20 @@ def run(team_a, team_b, seal=False):
                     top_a = min(top_a, int(g_["ra"]["max_conc"][0]))
             except Exception:
                 pass
+            # RACHAS (leccion Portugal 03-jul): un 0 en el pick se sube a 1 si el
+            # "blanqueado" lleva racha H2H >=3 marcandole a ESTE rival (backtest
+            # 12 R32: 5/12 vs 4/12 base — hipotesis en re-medicion, ver streak_signals).
+            try:
+                from streak_signals import adjust_scoreline
+                _cs = sqlite3.connect(str(DB))
+                top_h, top_a, _notes = adjust_scoreline(_cs, team_a, team_b, top_h, top_a)
+                _cs.close()
+                for _nt in _notes:
+                    print(f"  ↺ rachas: {_nt}")
+            except Exception:
+                pass
             band = ", ".join(f"{s_} {p_:.1f}%" for s_, p_ in (rprod.get("top_scores") or [])[:3])
-            print(f"\n  (marcador: argmax del MODELO capado por ground — mejor picker medido n=80: 13.8% vs 6% del ground puro)")
+            print(f"\n  (marcador: argmax del MODELO capado por ground + ajuste de rachas H2H — picker medido: base 13.8% n=80, rachas 5/12 R32)")
             if band:
                 print(f"  (banda top-3 de la grilla: {band} — si están casi empatadas, el exacto es volado entre vecinos)")
     except Exception:
